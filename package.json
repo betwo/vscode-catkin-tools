@@ -1,0 +1,63 @@
+{
+	"name": "b2-catkin-tools",
+	"displayName": "b2-catkin-tools",
+	"publisher": "betwo",
+	"license": "MIT",
+	"description": "Support for catkin_tools workspaces",
+	"version": "0.0.1",
+	"engines": {
+		"vscode": "^1.30.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"workspaceContains:.catkin_tools",
+		"onCommand:extension.b2.catkin_tools.reload_compile_commands"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "extension.b2.catkin_tools.reload_compile_commands",
+				"title": "Reload compile_commands.json files"
+			}
+		],
+		"problemMatchers": [
+			{
+				"name": "$catkin-gcc",
+				"fileLocation": "absolute",
+				"owner": "catkin",
+				"pattern": {
+					"regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5
+				}
+			}
+		]
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"postinstall": "node ./node_modules/vscode/bin/install",
+		"test": "npm run compile && node ./node_modules/vscode/bin/test"
+	},
+	"devDependencies": {
+		"typescript": "^3.1.4",
+		"vscode": "^1.1.25",
+		"tslint": "^5.8.0",
+		"@types/node": "^8.10.25",
+		"@types/mocha": "^2.2.42"
+	},
+	"dependencies": {
+		"@types/glob": "^7.1.1",
+		"@types/jsonfile": "^5.0.0",
+		"@types/md5": "^2.1.33",
+		"jsonfile": "^5.0.0",
+		"md5": "^2.2.1"
+	}
+}
