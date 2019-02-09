@@ -22,6 +22,21 @@
 	],
 	"main": "./out/extension.js",
 	"contributes": {
+		"taskDefinitions": [
+			{
+				"type": "catkin_build",
+				"properties": {
+					"task": {
+						"type": "string",
+						"description": "The Rake task to customize"
+					},
+					"file": {
+						"type": "string",
+						"description": "The Rake file that provides the task. Can be omitted."
+					}
+				}
+			}
+		],
 		"commands": [
 			{
 				"command": "extension.b2.catkin_tools.reload_compile_commands",
@@ -30,7 +45,7 @@
 		],
 		"problemMatchers": [
 			{
-				"name": "$catkin-gcc",
+				"name": "catkin-gcc",
 				"fileLocation": "absolute",
 				"owner": "catkin",
 				"pattern": {
