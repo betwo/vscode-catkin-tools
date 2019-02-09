@@ -13,6 +13,10 @@ let last_hash = null;
 let warned = false;
 let build_dir = null;
 
+export function build_current_package() {
+  vscode.window.showErrorMessage('Build');
+}
+
 export function watch_compile_commands() {
   let ws = vscode.workspace.rootPath;
   child_process.exec('catkin locate -b', {'cwd': ws}, (err, stdout, stderr) => {
@@ -65,8 +69,7 @@ export function watch_compile_commands() {
 }
 
 
-export function
-reload_compile_commands() {
+export function reload_compile_commands() {
   let ws = vscode.workspace.rootPath;
   let expr = build_dir + '/**/compile_commands.json';
   console.log('searching compile commands in', expr);
