@@ -1,28 +1,34 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-
 import * as catkin_tools from './catkin_tools';
 
-// this method is called when your extension is activated
-// your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
-  // Use the console to output diagnostic information (console.log) and errors
-  // (console.error) This line of code will only be executed once when your
-  // extension is activated
-  console.log(
-      'Congratulations, your extension "b2-catkin-tools" is now active!');
-  catkin_tools.initialize();
+let catkin_extension_active = false;
 
-  // The command has been defined in the package.json file
-  // Now provide the implementation of the command with registerCommand
-  // The commandId parameter must match the command field in package.json
+export function activate(context: vscode.ExtensionContext) {
   let disposable = vscode.commands.registerCommand(
-      'extension.b2.catkin_tools.reload_compile_commands',
-      () => {
-          catkin_tools.reload_compile_commands()});
+      'extension.b2.catkin_tools.reload_compile_commands', () => {
+        catkin_tools.reload_compile_commands();
+      });
   context.subscriptions.push(disposable);
+
+  catkin_extension_active = true;
+
+  watch();
 }
 
-// this method is called when your extension is deactivated
-export function deactivate() {}
+async function watch() {
+  return new Promise(resolve => {
+    (async () => {
+      catkin_tools.watch_compile_commands();
+      await delay(10000);
+      watch();
+    })();
+  });
+}
+
+async function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function deactivate() {
+  catkin_extension_active = false;
+}
