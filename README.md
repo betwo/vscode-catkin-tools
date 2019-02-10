@@ -5,11 +5,11 @@ This extension makes it easier to work with [catkin-tools](https://github.com/ca
 # Features
 
 * Watches the build directory of the current catkin-tools workspace for changes in `compile_commands.json` files.
- * Merges all `compile_commands.json` files into a common `"${workspaceFolder}/compile_commands.json`.
- * Reloads the intellisense database when the compile commands change.
+  * Merges all `compile_commands.json` files into a common `"${workspaceFolder}/compile_commands.json`.
+  * Reloads the intellisense database when the compile commands change.
 * Provides catkin build tasks for
- * Build all packages in the workspace
- * Build the package containing the currently open file
+  * Build all packages in the workspace
+  * Build the package containing the currently open file
 
 # Setup
 
@@ -17,14 +17,23 @@ This extension makes it easier to work with [catkin-tools](https://github.com/ca
 
 Make sure that your catkin_tools workspace is set up to generate `compile_commands.json` files.
 
-Make sure to use the default intellisense mode and set your C++ configuration to use `"${workspaceFolder}/compile_commands.json`, for examples:
+Make sure to
+* add the workspace root to the browse path,
+* use the default intellisense mode,
+* and set your C++ configuration to use `"${workspaceFolder}/compile_commands.json`
+
+For example:
+
 ```json
     {
     "configurations": [
         {
             "browse": {
                 "databaseFilename": "",
-                "limitSymbolsToIncludedHeaders": true
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "${workspaceRoot}"
+                ]
             },
             "name": "Linux",
             "intelliSenseMode": "${default}",
