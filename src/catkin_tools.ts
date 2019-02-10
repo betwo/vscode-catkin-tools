@@ -9,7 +9,11 @@ import * as vscode from 'vscode';
 // let compile_commands:Map<string, string> = {};
 let compile_commands: Map<string, boolean> = new Map<string, boolean>();
 
+let last_hash_file = vscode.workspace.rootPath + '/.vscode/.last_compile_commands_hash';
 let last_hash = null;
+if(fs.existsSync(last_hash_file)) {
+  last_hash = fs.readFileSync(last_hash_file, 'utf8');
+}
 let warned = false;
 let build_dir = null;
 
@@ -100,6 +104,7 @@ export function reload_compile_commands() {
           console.log('Last hash: :', last_hash);
           console.log('Current hash: :', hash);
           if (last_hash !== hash) {
+            fs.writeFileSync(last_hash_file, hash, 'utf8');
             last_hash = hash;
             console.log(
                 'Change in compile commands detected, resetting the database');
