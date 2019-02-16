@@ -6,16 +6,24 @@ import * as jsonfile from 'jsonfile';
 import * as md5 from 'md5';
 import * as vscode from 'vscode';
 
-// let compile_commands:Map<string, string> = {};
 let compile_commands: Map<string, boolean> = new Map<string, boolean>();
 
-let last_hash_file = vscode.workspace.rootPath + '/.vscode/.last_compile_commands_hash';
+let last_hash_file =
+    vscode.workspace.rootPath + '/.vscode/.last_compile_commands_hash';
 let last_hash = null;
-if(fs.existsSync(last_hash_file)) {
+if (fs.existsSync(last_hash_file)) {
   last_hash = fs.readFileSync(last_hash_file, 'utf8');
 }
 let warned = false;
 let build_dir = null;
+
+export let status_bar_item =
+    vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+let status_bar_prefix = 'catkin workspace: ';
+status_bar_item.text = status_bar_prefix + 'initialized';
+status_bar_item.command = 'extension.b2.catkin_tools.reload_compile_commands';
+status_bar_item.tooltip = 'Reload the compile_commands.json data bases';
+status_bar_item.show();
 
 export function build_current_package() {
   vscode.window.showErrorMessage('Build');
@@ -74,6 +82,10 @@ export function watch_compile_commands() {
 
 
 export function reload_compile_commands() {
+
+  status_bar_item.text =
+      status_bar_prefix + 'reloading compile_commands.json files';
+
   let ws = vscode.workspace.rootPath;
   let expr = build_dir + '/**/compile_commands.json';
   console.log('searching compile commands in', expr);
@@ -87,19 +99,18 @@ export function reload_compile_commands() {
     let i = 1;
     for (let file of matches) {
       console.log('Reading', file);
-      vscode.window.setStatusBarMessage(
-          'Reading ' + file + ' (' + i + ' / ' + matches.length + ')');
+      status_bar_item.text = status_bar_prefix + 'reading ' + file + ' (' + i +
+          ' / ' + matches.length + ')';
       let db_part = jsonfile.readFileSync(file);
       db = db.concat(db_part);
       i++;
     }
 
     let db_file = ws + '/compile_commands.json';
-    vscode.window.setStatusBarMessage('Writing combined ' + db_file);
 
     jsonfile.writeFile(db_file, db)
         .then(res => {
-          vscode.window.setStatusBarMessage('Checking for differences');
+          status_bar_item.text = status_bar_prefix + 'checking for differences';
           let hash = md5(db);
           console.log('Last hash: :', last_hash);
           console.log('Current hash: :', hash);
@@ -109,10 +120,10 @@ export function reload_compile_commands() {
             console.log(
                 'Change in compile commands detected, resetting the database');
             vscode.commands.executeCommand('C_Cpp.ResetDatabase');
-            vscode.window.setStatusBarMessage(
-                'Database ' + db_file + ' updated');
+            status_bar_item.text =
+                status_bar_prefix + 'database ' + db_file + ' updated';
           } else {
-            vscode.window.setStatusBarMessage('Nothing to do');
+            status_bar_item.text = status_bar_prefix + 'no changes detected';
           }
         })
         .catch(error => vscode.window.showErrorMessage);
