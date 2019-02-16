@@ -16,6 +16,7 @@ if (fs.existsSync(last_hash_file)) {
 }
 let warned = false;
 let build_dir = null;
+let crawler_interval = null;
 
 export let status_bar_item =
     vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
@@ -28,6 +29,24 @@ status_bar_item.show();
 export function build_current_package() {
   vscode.window.showErrorMessage('Build');
 }
+
+export function stop_crawler() {
+  if (crawler_interval !== null) {
+    clearInterval(crawler_interval);
+    crawler_interval = null;
+  }
+}
+export function restart_crawler() {
+  stop_crawler();
+  // search for new compile commands every 30 seconds
+  crawler_interval = setInterval(watch_compile_commands, 30 * 1000);
+}
+
+export function initialize() {
+  watch_compile_commands();
+  restart_crawler();
+}
+
 
 export function watch_compile_commands() {
   let ws = vscode.workspace.rootPath;
@@ -82,6 +101,7 @@ export function watch_compile_commands() {
 
 
 export function reload_compile_commands() {
+  restart_crawler();
 
   status_bar_item.text =
       status_bar_prefix + 'reloading compile_commands.json files';

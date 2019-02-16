@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import * as catkin_tools from './catkin_tools';
 import * as catkin_build from './catkin_build';
 
-let catkin_extension_active = false;
 let taskProvider: vscode.Disposable|undefined;
 let catkinPromise: Thenable<vscode.Task[]> | undefined = undefined;
 
@@ -26,28 +25,10 @@ export function activate(context: vscode.ExtensionContext) {
         }
   });
 
-  catkin_extension_active = true;
-
-  watch();
-}
-
-async function watch() {
-  return new Promise(resolve => {
-    (async () => {
-      catkin_tools.watch_compile_commands();
-      await delay(10000);
-      watch();
-    })();
-  });
-}
-
-async function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+    catkin_tools.initialize();
 }
 
 export function deactivate() {
-  catkin_extension_active = false
-
   if (taskProvider) {
     taskProvider.dispose();
   }
