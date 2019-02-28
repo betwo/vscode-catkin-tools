@@ -137,11 +137,16 @@ export function reload_compile_commands() {
           if (last_hash !== hash) {
             fs.writeFileSync(last_hash_file, hash, 'utf8');
             last_hash = hash;
-            console.log(
-                'Change in compile commands detected, resetting the database');
-            vscode.commands.executeCommand('C_Cpp.ResetDatabase');
-            status_bar_item.text =
-                status_bar_prefix + 'database ' + db_file + ' updated';
+            let config = vscode.workspace.getConfiguration('catkin_tools');
+            if (config['automaticIntellisenseReset']) {
+              vscode.commands.executeCommand('C_Cpp.ResetDatabase');
+              status_bar_item.text =
+                  status_bar_prefix + 'database ' + db_file + ' updated';
+            } else {
+              status_bar_item.text =
+                  status_bar_prefix + 'database ' + db_file + ' has changed, no update performed';
+            }
+
           } else {
             status_bar_item.text = status_bar_prefix + 'no changes detected';
           }

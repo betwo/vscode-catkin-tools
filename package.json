@@ -37,6 +37,18 @@
 				}
 			}
 		],
+		"configuration": [
+			{
+				"title": "catkin tools settings",
+				"properties": {
+					"catkin_tools.automaticIntellisenseReset": {
+						"type": "boolean",
+						"default": true,
+						"description": "Automatically IntelliSense reset when the compile commands change."
+					}
+				}
+			}
+		],
 		"commands": [
 			{
 				"command": "extension.b2.catkin_tools.reload_compile_commands",
