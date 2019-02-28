@@ -18,7 +18,7 @@
 	],
 	"activationEvents": [
 		"workspaceContains:.catkin_tools",
-		"onCommand:extension.b2.catkin_tools.reload_compile_commands"
+		"onCommand:extension.b2.catkin_tools.reloadCompileCommand"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -45,13 +45,23 @@
 						"type": "boolean",
 						"default": true,
 						"description": "Automatically IntelliSense reset when the compile commands change."
+					},
+					"catkin_tools.cppStandard": {
+						"type": "string",
+						"default": "c++11",
+						"description": "C++ standard to use  (see C_CPP extension)"
+					},
+					"catkin_tools.intelliSenseMode": {
+						"type": "string",
+						"default": "gcc-x64",
+						"description": "Compiler to emulate (see C_CPP extension)"
 					}
 				}
 			}
 		],
 		"commands": [
 			{
-				"command": "extension.b2.catkin_tools.reload_compile_commands",
+				"command": "extension.b2.catkin_tools.reloadCompileCommand",
 				"title": "Reload compile_commands.json files"
 			}
 		],
@@ -88,12 +98,11 @@
 	"dependencies": {
 		"@types/glob": "^7.1.1",
 		"@types/jsonfile": "^5.0.0",
-		"@types/md5": "^2.1.33",
 		"child_process": "^1.0.2",
 		"fs": "0.0.1-security",
 		"glob": "^7.1.3",
 		"jsonfile": "^5.0.0",
-		"md5": "^2.2.1"
+		"vscode-cpptools": "^2.1.2"
 	},
 	"extensionDependencies": [
 		"ms-vscode.cpptools"

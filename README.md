@@ -5,52 +5,52 @@ This extension makes it easier to work with [catkin-tools](https://github.com/ca
 # Features
 
 * Watches the build directory of the current catkin-tools workspace for changes in `compile_commands.json` files.
-  * Merges all `compile_commands.json` files into a common `"${workspaceFolder}/compile_commands.json`.
-  * Reloads the intellisense database when the compile commands change.
+  * Implements a C/C++ configuration provider using these compile commands, enabling auto completion
 * Provides catkin build tasks for
   * Build all packages in the workspace
   * Build the package containing the currently open file
 
+
 # Setup
 
-## Intellisense
+## IntelliSense
 
 Make sure that your catkin_tools workspace is set up to generate `compile_commands.json` files.
 
 Make sure to
 * add the workspace root to the browse path,
 * use the default intellisense mode,
-* and set your C++ configuration to use `"${workspaceFolder}/compile_commands.json`
 
 For example:
 
 ```json
-    {
+{
     "configurations": [
         {
-            "browse": {
-                "databaseFilename": "",
-                "limitSymbolsToIncludedHeaders": true,
-                "path": [
-                    "${workspaceRoot}"
-                ]
-            },
-            "name": "Linux",
-            "intelliSenseMode": "${default}",
-            "compileCommands": "${workspaceFolder}/compile_commands.json",
-            "cStandard": "c11",
-            "cppStandard": "c++17"
+            "configurationProvider": "b2.catkin_tools",
+            "intelliSenseMode": "${default}"
         }
     ],
     "version": 4
 }
 ```
 
+## C/C++ Clang Command Adapter compatibility
+
+Using this extension with _C/C++ Clang Command Adapter_ auto completion causes too many symbols to show up in IntelliSense auto completion..
+If you are using the extension, we suggest you set the option
+
+    "clang.completion.enable": false
+
+in your workspeace settings.
+
+
 ## CMAKE_EXPORT_COMPILE_COMMANDS
 
 Make sure that `CMAKE_EXPORT_COMPILE_COMMANDS` is set in your catkin projects, e.g. by configuring catkin with
 
     catkin config --cmake-args -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
 
 ## Tasks
 
