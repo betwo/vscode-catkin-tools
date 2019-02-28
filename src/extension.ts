@@ -1,14 +1,15 @@
 import * as vscode from 'vscode';
-import * as catkin_tools from './catkin_tools';
+
 import * as catkin_build from './catkin_build';
+import * as catkin_tools from './catkin_tools';
 
 let taskProvider: vscode.Disposable|undefined;
-let catkinPromise: Thenable<vscode.Task[]> | undefined = undefined;
+let catkinPromise: Thenable<vscode.Task[]>|undefined = undefined;
 
 export function activate(context: vscode.ExtensionContext) {
   let disposable = vscode.commands.registerCommand(
       'extension.b2.catkin_tools.reload_compile_commands', () => {
-        catkin_tools.reload_compile_commands();
+        catkin_tools.reloadCompileCommand();
       });
   context.subscriptions.push(disposable);
 
@@ -25,7 +26,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
   });
 
-    catkin_tools.initialize();
+  catkin_tools.initialize();
 }
 
 export function deactivate() {
