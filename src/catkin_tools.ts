@@ -79,13 +79,11 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     return ret;
   }
 
-  public async canProvideBrowseConfiguration(
-      token?: import('vscode-languageclient').CancellationToken):
+  public async canProvideBrowseConfiguration(token?: vscode.CancellationToken):
       Promise<boolean> {
     return true;
   }
-  public async provideBrowseConfiguration(
-      token?: import('vscode-languageclient').CancellationToken):
+  public async provideBrowseConfiguration(token?: vscode.CancellationToken):
       Promise<WorkspaceBrowseConfiguration> {
     let paths = [];
     for (var f of vscode.workspace.workspaceFolders) {
@@ -294,5 +292,9 @@ export async function registerProviders() {
   }
 }
 export function reloadCompileCommand() {
+  status_bar_item.text = status_bar_prefix + 'reloading';
+
   provider.reload();
+
+  status_bar_item.text = status_bar_prefix + 'reload complete';
 }
