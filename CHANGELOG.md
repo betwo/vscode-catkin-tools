@@ -35,13 +35,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Merging of `compile_commands.json` files is no longer done in favor of the C/C++ tools API
 
 ## [1.0.1] - 2018-03-01
-### Fixed 
+### Fixed
 - Fixed wrong spelling of the reload command
 
 ## [1.0.2] - 2018-03-01
-### Fixed 
+### Fixed
 - Fixed crash when Clang command adapter is not installed
 
 ## [1.1.0] - 2018-03-01
 ### Added
 - Added support for system file browsing and tagging
+
+## [1.1.1] - 2018-03-01
+### Fixed
+- Fixed outdated README.md
