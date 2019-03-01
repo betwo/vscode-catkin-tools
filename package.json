@@ -108,6 +108,7 @@
 		"vscode-jsonrpc": "^4.0.0"
 	},
 	"extensionDependencies": [
-		"ms-vscode.cpptools"
+		"ms-vscode.cpptools",
+		"compulim.compulim-vscode-closetag"
 	]
 }
