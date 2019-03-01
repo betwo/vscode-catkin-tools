@@ -28,8 +28,8 @@ export async function getCatkinBuildTask(): Promise<vscode.Task[]> {
     let current_dir = current_file.substr(0, current_file.lastIndexOf('/'));
     let task = new vscode.Task(
         kind, taskName, 'catkin_build',
-        new vscode.ShellExecution(
-            `cd ${current_dir} && source $(catkin locate -d)/setup.bash && catkin build`),
+        new vscode.ShellExecution(`cd ${
+            current_dir} && source $(catkin locate -d)/setup.bash && catkin build`),
         '$catkin-gcc');
     result.push(task);
   }
@@ -40,8 +40,8 @@ export async function getCatkinBuildTask(): Promise<vscode.Task[]> {
     let current_dir = current_file.substr(0, current_file.lastIndexOf('/'));
     let task = new vscode.Task(
         kind, taskName, 'catkin_build',
-        new vscode.ShellExecution(
-            `cd ${current_dir} && source $(catkin locate -d)/setup.bash && catkin build --this -v --no-deps`),
+        new vscode.ShellExecution(`cd ${
+            current_dir} && source $(catkin locate -d)/setup.bash && catkin build --this -v --no-deps`),
         '$catkin-gcc');
     result.push(task);
   }
@@ -52,8 +52,8 @@ export async function getCatkinBuildTask(): Promise<vscode.Task[]> {
     let current_dir = current_file.substr(0, current_file.lastIndexOf('/'));
     let task = new vscode.Task(
         kind, taskName, 'catkin_build',
-        new vscode.ShellExecution(
-            `cd ${current_dir} && source $(catkin locate -d)/setup.bash && env CTEST_OUTPUT_ON_FAILURE=1 catkin build --this -v --no-deps --make-args test`),
+        new vscode.ShellExecution(`cd ${
+            current_dir} && source $(catkin locate -d)/setup.bash && env CTEST_OUTPUT_ON_FAILURE=1 catkin build --this -v --no-deps --make-args test`),
         '$catkin-gcc');
     result.push(task);
   }
