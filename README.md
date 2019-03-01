@@ -18,8 +18,8 @@ This extension makes it easier to work with [catkin-tools](https://github.com/ca
 Make sure that your catkin_tools workspace is set up to generate `compile_commands.json` files.
 
 Make sure to
-* add the workspace root to the browse path,
-* use the default intellisense mode,
+* use this extension as the __configurationProvider__ for `ms-vscode.cpptools`,
+* use the default intellisense mode.
 
 For example:
 
