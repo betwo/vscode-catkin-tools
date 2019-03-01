@@ -31,6 +31,9 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
       new Map<string, string>();
   private watchers: Map<string, fs.FSWatcher> = new Map<string, fs.FSWatcher>();
 
+  private system_include_browse_paths = [];
+  private default_system_include_paths = [];
+
   private build_dir: string = null;
   private warned = false;
 
@@ -89,6 +92,12 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     for (var f of vscode.workspace.workspaceFolders) {
       paths.push(f.uri.fsPath);
     }
+    for (var sp of this.system_include_browse_paths) {
+      paths.push(sp);
+    }
+    for (var dp of this.default_system_include_paths) {
+      paths.push(dp);
+    }
     return {browsePath: paths};
   }
 
@@ -100,6 +109,8 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     this.compile_commands.clear();
     this.file_to_command.clear();
     this.file_to_compile_commands.clear();
+    this.system_include_browse_paths = [];
+    this.default_system_include_paths = [];
 
     console.log('Cleared caches');
 
@@ -117,16 +128,36 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     let includePaths = [];
     let defines = [];
 
+    if (this.default_system_include_paths.length === 0) {
+      this.parseCompilerDefaults(compiler);
+    }
+
+    // Parse the includes and defines from the compile commands
+    let new_system_path_found = false;
     for (var opt of args.slice(1)) {
       if (opt.slice(0, 2) === '-I') {
-        includePaths.push(opt.slice(2));
+        let path = opt.slice(2);
+        includePaths.push(path);
+        if (!this.isWorkspacePath(path)) {
+          if (this.system_include_browse_paths.indexOf(path) < 0) {
+            this.system_include_browse_paths.push(path);
+            new_system_path_found = true;
+          }
+        }
       } else if (opt.slice(0, 2) === '-D') {
         defines.push(opt.slice(2));
       }
     }
+    if (new_system_path_found) {
+      this.cppToolsApi.didChangeCustomBrowseConfiguration(this);
+    }
 
+    for (var dir of this.default_system_include_paths) {
+      includePaths.push(dir);
+    }
+
+    // Construct the combined source file configuration
     let config = vscode.workspace.getConfiguration('catkin_tools');
-
     const ret: SourceFileConfiguration = {
       standard: config['cppStandard'],
       intelliSenseMode: config['intelliSenseMode'],
@@ -135,6 +166,50 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
       compilerPath: compiler,
     };
     return ret;
+  }
+
+  private isWorkspacePath(path: string): boolean {
+    for (var ws of vscode.workspace.workspaceFolders) {
+      if (path.startsWith(ws.uri.fsPath)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private parseCompilerDefaults(compiler: string) {
+    this.default_system_include_paths = [];
+
+    // Parse the default includes by invoking the compiler
+    let options:
+        child_process.ExecSyncOptionsWithStringEncoding = {'encoding': 'utf8'};
+    let stdout = child_process.execSync(
+        compiler + ' -xc++ -E -v /dev/null -o /dev/null 2>&1', options);
+    let private_includes = false;
+    let public_includes = false;
+    for (var line of stdout.split('\n')) {
+      console.log(line);
+      if (line.match('#include ".*starts here')) {
+        private_includes = true;
+        public_includes = false;
+        continue;
+      } else if (line.match('#include <.*starts here')) {
+        private_includes = false;
+        public_includes = true;
+        continue;
+      }
+      if (line.match('End of search list')) {
+        private_includes = false;
+        public_includes = false;
+        continue;
+      }
+
+      if (private_includes || public_includes) {
+        this.default_system_include_paths.push(line.trim());
+      }
+    }
+
+    this.cppToolsApi.didChangeCustomBrowseConfiguration(this);
   }
 
   private updateDatabase(db_file: string): any {
