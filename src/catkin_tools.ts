@@ -260,8 +260,7 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
 
 export function initialize() {
   let config = vscode.workspace.getConfiguration('clang');
-  console.log(config);
-  if (config['completion']['enable']) {
+  if (config['completion'] !== undefined && config['completion']['enable']) {
     let ack: string = 'Ok';
     let msg =
         'You seem to have clang.autocomplete enabled. This interferes with catkin-tools auto completion.\n' +
