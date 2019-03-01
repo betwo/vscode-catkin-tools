@@ -26,7 +26,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
   });
 
-  catkin_tools.initialize();
+  catkin_tools.initialize(context);
 }
 
 export function deactivate() {

@@ -3,9 +3,11 @@ import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as glob from 'glob';
 import * as jsonfile from 'jsonfile';
+import {Signal} from 'signals';
 import * as vscode from 'vscode';
 import {CppToolsApi, CustomConfigurationProvider, getCppToolsApi, SourceFileConfiguration, SourceFileConfigurationItem, Version, WorkspaceBrowseConfiguration} from 'vscode-cpptools';
 
+let catkin_workspace: CatkinWorkspace = null;
 let provider: CatkinToolsProvider = null;
 
 export let status_bar_item =
@@ -16,90 +18,36 @@ status_bar_item.command = 'extension.b2.catkin_tools.reload_compile_commands';
 status_bar_item.tooltip = 'Reload the compile_commands.json data bases';
 status_bar_item.show();
 
-// Worker class that implements a C++ configuration provider
-export class CatkinToolsProvider implements CustomConfigurationProvider {
-  name: string = 'catkin_tools';
-  extensionId: string = 'b2.catkin_tools';
+export class CatkinPackage {
+  public name: string;
+  public path: string;
+}
 
+export class CatkinWorkspace {
   public workspace: vscode.WorkspaceFolder;
-  private disposables: vscode.Disposable[] = [];
-  private cppToolsApi: CppToolsApi;
 
-  private compile_commands: Map<string, JSON> = new Map<string, JSON>();
-  private file_to_command: Map<string, JSON> = new Map<string, JSON>();
-  private file_to_compile_commands: Map<string, string> =
+  public compile_commands: Map<string, JSON> = new Map<string, JSON>();
+  public file_to_command: Map<string, JSON> = new Map<string, JSON>();
+  public file_to_compile_commands: Map<string, string> =
       new Map<string, string>();
   private watchers: Map<string, fs.FSWatcher> = new Map<string, fs.FSWatcher>();
 
-  private system_include_browse_paths = [];
-  private default_system_include_paths = [];
+  public system_include_browse_paths = [];
+  public default_system_include_paths = [];
 
   private build_dir: string = null;
   private warned = false;
 
-  constructor(workspace: vscode.WorkspaceFolder, cppToolsApi: CppToolsApi) {
+  public build_commands_changed: Signal = new Signal();
+  public system_paths_changed: Signal = new Signal();
+
+  public packages: CatkinPackage[] = [];
+
+  constructor(workspace: vscode.WorkspaceFolder) {
     this.workspace = workspace;
-    this.cppToolsApi = cppToolsApi;
   }
 
   dispose() {}
-
-  public loadDataBases() {
-    this.reload();
-  }
-
-  public async canProvideConfiguration(
-      uri: vscode.Uri,
-      token?: vscode.CancellationToken|undefined): Promise<boolean> {
-    const fileWp = vscode.workspace.getWorkspaceFolder(uri);
-    if (fileWp === undefined || fileWp.index !== this.workspace.index) {
-      console.log('Cannot provide compile flags for', uri.fsPath);
-      return false;
-    }
-    console.log('Can provide compile flags for', uri.fsPath);
-    return true;
-  }
-
-  public async provideConfigurations(
-      uris: vscode.Uri[], token?: vscode.CancellationToken|undefined):
-      Promise<SourceFileConfigurationItem[]> {
-    const ret: SourceFileConfigurationItem[] = [];
-
-    for (var file of uris) {
-      console.log('Providing compile flags for', file.fsPath);
-      let commands = this.file_to_command[file.fsPath];
-      if (commands !== undefined) {
-        ret.push({
-          uri: file,
-          configuration: this.getSourceFileConfiguration(commands)
-        });
-
-        status_bar_item.text = status_bar_prefix + ' (' +
-            this.file_to_compile_commands[file.fsPath] + ')';
-      }
-    }
-    console.log(ret);
-    return ret;
-  }
-
-  public async canProvideBrowseConfiguration(token?: vscode.CancellationToken):
-      Promise<boolean> {
-    return true;
-  }
-  public async provideBrowseConfiguration(token?: vscode.CancellationToken):
-      Promise<WorkspaceBrowseConfiguration> {
-    let paths = [];
-    for (var f of vscode.workspace.workspaceFolders) {
-      paths.push(f.uri.fsPath);
-    }
-    for (var sp of this.system_include_browse_paths) {
-      paths.push(sp);
-    }
-    for (var dp of this.default_system_include_paths) {
-      paths.push(dp);
-    }
-    return {browsePath: paths};
-  }
 
   public reload() {
     for (var key in this.watchers.keys()) {
@@ -112,16 +60,35 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     this.system_include_browse_paths = [];
     this.default_system_include_paths = [];
 
+    this.packages = [];
+
     console.log('Cleared caches');
 
-    this.cppToolsApi.didChangeCustomConfiguration(this);
+    this.build_commands_changed.dispatch();
 
     this.loadAndWatchCompileCommands();
+
+
+    let ws = vscode.workspace.rootPath;
+    let options: child_process.ExecSyncOptionsWithStringEncoding = {
+      'cwd': ws,
+      'encoding': 'utf8'
+    };
+
+    let stdout = child_process.execSync('catkin list', options);
+    for (var line of stdout.split('\n')) {
+      let pkg_name = line.slice(2);
+      let item = new CatkinPackage;
+      item.name = pkg_name;
+      item.path = 'unknown';
+
+      this.packages.push(item);
+    }
   }
 
 
 
-  private getSourceFileConfiguration(commands): SourceFileConfiguration {
+  public getSourceFileConfiguration(commands): SourceFileConfiguration {
     let args = commands.command.split(' ');
 
     let compiler = args[0];
@@ -149,7 +116,7 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
       }
     }
     if (new_system_path_found) {
-      this.cppToolsApi.didChangeCustomBrowseConfiguration(this);
+      this.system_paths_changed.dispatch();
     }
 
     for (var dir of this.default_system_include_paths) {
@@ -209,7 +176,7 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
       }
     }
 
-    this.cppToolsApi.didChangeCustomBrowseConfiguration(this);
+    this.system_paths_changed.dispatch();
   }
 
   private updateDatabase(db_file: string): any {
@@ -228,7 +195,7 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     }
     if (change) {
       console.log('Signalling change in config');
-      this.cppToolsApi.didChangeCustomConfiguration(this);
+      this.build_commands_changed.dispatch();
     }
   }
 
@@ -331,9 +298,93 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
   }
 }
 
+// Worker class that implements a C++ configuration provider
+export class CatkinToolsProvider implements CustomConfigurationProvider {
+  name: string = 'catkin_tools';
+  extensionId: string = 'b2.catkin_tools';
+
+  public workspace: CatkinWorkspace;
+  private disposables: vscode.Disposable[] = [];
+  private cppToolsApi: CppToolsApi;
+
+  constructor(workspace: CatkinWorkspace, cppToolsApi: CppToolsApi) {
+    this.workspace = workspace;
+    this.cppToolsApi = cppToolsApi;
+  }
+
+  dispose() {}
+
+  public loadDataBases() {
+    this.workspace.reload();
+  }
+
+  public startListening() {
+    this.workspace.build_commands_changed.add(() => {
+      this.cppToolsApi.didChangeCustomConfiguration(this);
+    });
+
+    this.workspace.system_paths_changed.add(() => {
+      this.cppToolsApi.didChangeCustomBrowseConfiguration(this);
+    });
+  }
+
+  public async canProvideConfiguration(
+      uri: vscode.Uri,
+      token?: vscode.CancellationToken|undefined): Promise<boolean> {
+    const fileWp = vscode.workspace.getWorkspaceFolder(uri);
+    if (fileWp === undefined) {
+      console.log('Cannot provide compile flags for', uri.fsPath);
+      return false;
+    }
+    console.log('Can provide compile flags for', uri.fsPath);
+    return true;
+  }
+
+  public async provideConfigurations(
+      uris: vscode.Uri[], token?: vscode.CancellationToken|undefined):
+      Promise<SourceFileConfigurationItem[]> {
+    const ret: SourceFileConfigurationItem[] = [];
+
+    for (var file of uris) {
+      console.log('Providing compile flags for', file.fsPath);
+      let commands = this.workspace.file_to_command[file.fsPath];
+      if (commands !== undefined) {
+        ret.push({
+          uri: file,
+          configuration: this.workspace.getSourceFileConfiguration(commands)
+        });
+
+        status_bar_item.text = status_bar_prefix + ' (' +
+            this.workspace.file_to_compile_commands[file.fsPath] + ')';
+      }
+    }
+    console.log(ret);
+    return ret;
+  }
+
+  public async canProvideBrowseConfiguration(token?: vscode.CancellationToken):
+      Promise<boolean> {
+    return true;
+  }
+  public async provideBrowseConfiguration(token?: vscode.CancellationToken):
+      Promise<WorkspaceBrowseConfiguration> {
+    let paths = [];
+    for (var f of vscode.workspace.workspaceFolders) {
+      paths.push(f.uri.fsPath);
+    }
+    for (var sp of this.workspace.system_include_browse_paths) {
+      paths.push(sp);
+    }
+    for (var dp of this.workspace.default_system_include_paths) {
+      paths.push(dp);
+    }
+    return {browsePath: paths};
+  }
+}
+
 // Public functions
 
-export function initialize() {
+export function initialize(context: vscode.ExtensionContext) {
   let config = vscode.workspace.getConfiguration('clang');
   if (config['completion'] !== undefined && config['completion']['enable']) {
     let ack: string = 'Ok';
@@ -343,21 +394,22 @@ export function initialize() {
     vscode.window.showInformationMessage(msg, ack);
   }
 
-  registerProviders();
+  registerProviders(context);
 }
 
-export async function registerProviders() {
+export async function registerProviders(context: vscode.ExtensionContext) {
+  catkin_workspace = new CatkinWorkspace(vscode.workspace.workspaceFolders[0]);
   let api: CppToolsApi|undefined = await getCppToolsApi(Version.v2);
   if (api) {
     if (api.notifyReady) {
-      provider =
-          new CatkinToolsProvider(vscode.workspace.workspaceFolders[0], api);
+      provider = new CatkinToolsProvider(catkin_workspace, api);
       // Inform cpptools that a custom config provider will be able to service
       // the current workspace.
 
       api.registerCustomConfigurationProvider(provider);
       provider.loadDataBases();
       api.notifyReady(provider);
+      provider.startListening();
 
     } else {
       vscode.window.showInformationMessage(
@@ -368,7 +420,7 @@ export async function registerProviders() {
 export function reloadCompileCommand() {
   status_bar_item.text = status_bar_prefix + 'reloading';
 
-  provider.reload();
+  provider.loadDataBases();
 
   status_bar_item.text = status_bar_prefix + 'reload complete';
 }
