@@ -78,6 +78,24 @@
 					"severity": 4,
 					"message": 5
 				}
+			},
+			{
+				"name": "catkin-cmake",
+				"fileLocation": "absolute",
+				"owner": "catkin",
+				"pattern": [
+					{
+						"regexp": "^CMake\\s+(Warning|Error)\\s+at\\s+(\\S+):(\\d+)\\s*(.*):\\s*$",
+						"file": 2,
+						"line": 3,
+						"severity": 1
+					},
+					{
+						"regexp": "^(.*|\\s{2}.*|Call Stack.*)$",
+						"message": 1,
+						"loop": true
+					}
+				]
 			}
 		]
 	},
