@@ -93,9 +93,12 @@ export class CatkinWorkspace {
 
     // Parse the includes and defines from the compile commands
     let new_system_path_found = false;
-    for (var opt of args.slice(1)) {
-      if (opt.slice(0, 2) === '-I') {
+    for(let i = 1; i < args.length; ++i) {
+      let opt = args[i];
+      this.output_channel.appendLine(`- ${opt}`);
+      if (opt.startsWith('-I')) {
         let path = opt.slice(2);
+        this.output_channel.appendLine(`   -> add path ${path}`);
         includePaths.push(path);
         if (!this.isWorkspacePath(path)) {
           if (this.system_include_browse_paths.indexOf(path) < 0) {
@@ -103,8 +106,21 @@ export class CatkinWorkspace {
             new_system_path_found = true;
           }
         }
-      } else if (opt.slice(0, 2) === '-D') {
-        defines.push(opt.slice(2));
+      } else if (opt == '-isystem') {
+        ++i;
+        let path = args[i];
+        this.output_channel.appendLine(`   -> add system path ${path}`);
+        includePaths.push(path);
+        if (!this.isWorkspacePath(path)) {
+          if (this.system_include_browse_paths.indexOf(path) < 0) {
+            this.system_include_browse_paths.push(path);
+            new_system_path_found = true;
+          }
+        }
+      } else if (opt.startsWith('-D')) {
+        let define = opt.slice(2);
+        defines.push(define);
+        this.output_channel.appendLine(`   -> add define ${define}`);
       }
     }
     if (new_system_path_found) {
