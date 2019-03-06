@@ -56,3 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added CMake problem matcher for catkin output
 ### Fixed
 - Fixed `build current package` always being invoked in the intially working director
+
+## [1.3.0] - 2018-03-06
+### Added
+- Added support for -isystem parsing in `compile_commands.json` files
