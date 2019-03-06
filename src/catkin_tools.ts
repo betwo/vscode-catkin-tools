@@ -11,7 +11,7 @@ let provider: CatkinToolsProvider = null;
 
 export let status_bar_item =
     vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-    
+
 export let status_bar_prefix = 'catkin workspace: ';
 status_bar_item.text = status_bar_prefix + 'initialized';
 status_bar_item.command = 'extension.b2.catkin_tools.reload_compile_commands';
@@ -20,7 +20,8 @@ status_bar_item.show();
 
 // Public functions
 
-export function initialize(context: vscode.ExtensionContext) {
+export function initialize(
+    context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
   let config = vscode.workspace.getConfiguration('clang');
   if (config['completion'] !== undefined && config['completion']['enable']) {
     let ack: string = 'Ok';
@@ -30,11 +31,13 @@ export function initialize(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage(msg, ack);
   }
 
-  registerProviders(context);
+  registerProviders(context, outputChannel);
 }
 
-export async function registerProviders(context: vscode.ExtensionContext) {
-  catkin_workspace = new CatkinWorkspace(vscode.workspace.workspaceFolders[0]);
+export async function registerProviders(
+    context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
+  catkin_workspace =
+      new CatkinWorkspace(vscode.workspace.workspaceFolders[0], outputChannel);
   let api: CppToolsApi|undefined = await getCppToolsApi(Version.v2);
   if (api) {
     if (api.notifyReady) {

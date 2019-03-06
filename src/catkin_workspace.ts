@@ -29,8 +29,12 @@ export class CatkinWorkspace {
 
   public packages: CatkinPackage[] = [];
 
-  constructor(workspace: vscode.WorkspaceFolder) {
+  private output_channel: vscode.OutputChannel;
+
+  constructor(
+      workspace: vscode.WorkspaceFolder, outputChannel: vscode.OutputChannel) {
     this.workspace = workspace;
+    this.output_channel = outputChannel;
   }
 
   dispose() {}
@@ -84,6 +88,8 @@ export class CatkinWorkspace {
     if (this.default_system_include_paths.length === 0) {
       this.parseCompilerDefaults(compiler);
     }
+
+    this.output_channel.appendLine(`Analyzing ${commands.command}`);
 
     // Parse the includes and defines from the compile commands
     let new_system_path_found = false;

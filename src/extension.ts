@@ -5,8 +5,11 @@ import * as catkin_tools from './catkin_tools';
 
 let taskProvider: vscode.Disposable|undefined;
 let catkinPromise: Thenable<vscode.Task[]>|undefined = undefined;
+let outputChannel: vscode.OutputChannel = null;
 
 export function activate(context: vscode.ExtensionContext) {
+  outputChannel = vscode.window.createOutputChannel("catkin_tools");
+
   let disposable = vscode.commands.registerCommand(
       'extension.b2.catkin_tools.reload_compile_commands', () => {
         catkin_tools.reloadCompileCommand();
@@ -26,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
   });
 
-  catkin_tools.initialize(context);
+  catkin_tools.initialize(context, outputChannel);
 }
 
 export function deactivate() {
