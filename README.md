@@ -42,7 +42,7 @@ If you are using the extension, we suggest you set the option
 
     "clang.completion.enable": false
 
-in your workspeace settings.
+in your workspace settings.
 
 
 ## CMAKE_EXPORT_COMPILE_COMMANDS
