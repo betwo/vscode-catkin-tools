@@ -64,3 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.1] - 2019-05-03
 ### Fixed
 - Minor patches
+
+## [1.3.2] - 2019-05-05
+### Added
+- Added a section in README.md that explains the setup
+### Fixed
+- Made `catkin build` task work without requiring an opened editor
