@@ -28,11 +28,7 @@
 				"properties": {
 					"task": {
 						"type": "string",
-						"description": "The Rake task to customize"
-					},
-					"file": {
-						"type": "string",
-						"description": "The Rake file that provides the task. Can be omitted."
+						"description": "The catkin build task to run {build, build current package, run current package tests} "
 					}
 				}
 			}
@@ -41,11 +37,6 @@
 			{
 				"title": "catkin tools settings",
 				"properties": {
-					"catkin_tools.automaticIntellisenseReset": {
-						"type": "boolean",
-						"default": true,
-						"description": "Automatically IntelliSense reset when the compile commands change."
-					},
 					"catkin_tools.cppStandard": {
 						"type": "string",
 						"default": "c++11",
