@@ -13,6 +13,32 @@ This extension makes it easier to work with [catkin-tools](https://github.com/ca
 
 # Setup
 
+This extension activates itself only if there is a top level `.catkin_tools` directory in your opened workspace.
+In a standard catkin layout, this means that the opened workspace should look like the following:
+
+```
+<workspace>/.catkin_tools
+<workspace>/src
+<workspace>/devel
+<workspace>/build
+<workspace>/install
+<workspace>/logs
+```
+
+If you do not want to list `build`, `devel`, etc., we suggest you add them to
+your workspace's exclude list in your `settings.json` file:
+```
+...
+    "files.exclude": {
+        ".catkin_tools/": true,
+        "build*/": true,
+        "install*/": true,
+        "devel*/": true,
+        "logs*/": true,
+    },
+...
+```
+
 ## IntelliSense
 
 Make sure that your catkin_tools workspace is set up to generate `compile_commands.json` files.
@@ -37,7 +63,7 @@ For example:
 
 ## C/C++ Clang Command Adapter compatibility
 
-Using this extension with _C/C++ Clang Command Adapter_ auto completion causes too many symbols to show up in IntelliSense auto completion..
+Using this extension with _C/C++ Clang Command Adapter_ auto completion causes too many symbols to show up in IntelliSense auto completion.
 If you are using the extension, we suggest you set the option
 
     "clang.completion.enable": false
