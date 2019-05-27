@@ -19,10 +19,10 @@ In a standard catkin layout, this means that the opened workspace should look li
 ```
 <workspace>/.catkin_tools
 <workspace>/src
-<workspace>/devel
-<workspace>/build
-<workspace>/install
-<workspace>/logs
+[<workspace>/devel]
+[<workspace>/build]
+[<workspace>/install]
+[<workspace>/logs]
 ```
 
 If you do not want to list `build`, `devel`, etc., we suggest you add them to
@@ -38,6 +38,9 @@ your workspace's exclude list in your `settings.json` file:
     },
 ...
 ```
+
+The folders for `devel`, `build` and `log` spaces can also be called differently, only the `src` space is required.
+This way, arbitrary catkin profiles are supported.
 
 ## IntelliSense
 
