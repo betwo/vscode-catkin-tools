@@ -102,6 +102,7 @@ export class CatkinWorkspace {
         includePaths.push(path);
         if (!this.isWorkspacePath(path)) {
           if (this.system_include_browse_paths.indexOf(path) < 0) {
+            this.output_channel.appendLine(`   -> add system_include_browse_path ${path}`);
             this.system_include_browse_paths.push(path);
             new_system_path_found = true;
           }
@@ -113,6 +114,7 @@ export class CatkinWorkspace {
         includePaths.push(path);
         if (!this.isWorkspacePath(path)) {
           if (this.system_include_browse_paths.indexOf(path) < 0) {
+            this.output_channel.appendLine(`   -> add system_include_browse_path ${path}`);
             this.system_include_browse_paths.push(path);
             new_system_path_found = true;
           }
@@ -145,7 +147,12 @@ export class CatkinWorkspace {
 
   private isWorkspacePath(path: string): boolean {
     for (var ws of vscode.workspace.workspaceFolders) {
-      if (path.startsWith(ws.uri.fsPath)) {
+      let base = ws.uri.fsPath;
+      if(!base.endsWith('/')) {
+        base += '/';
+      }
+      base += 'src';
+      if (path.startsWith(base)) {
         return true;
       }
     }
