@@ -118,7 +118,7 @@ export class CatkinWorkspace {
           }
         }
       } else if (opt.startsWith('-D')) {
-        let define = opt.slice(2);
+        let define = opt.slice(2).replace(/\\/g, "");
         defines.push(define);
         this.output_channel.appendLine(`   -> add define ${define}`);
       }

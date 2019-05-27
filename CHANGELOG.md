@@ -70,3 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a section in README.md that explains the setup
 ### Fixed
 - Made `catkin build` task work without requiring an opened editor
+
+## [1.3.3] - 2019-05-27
+### Fixed
+- Add support for compile options containing escaped characters
