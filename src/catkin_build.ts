@@ -44,7 +44,7 @@ export async function getCatkinBuildTask(): Promise<vscode.Task[]> {
     let task = new vscode.Task(
       kind, taskName, 'catkin_build',
       new vscode.ShellExecution(source_current_package + ' && ' +
-      'env CTEST_OUTPUT_ON_FAILURE=1 catkin build --this -v --no-deps --make-args test'),
+      'env CTEST_OUTPUT_ON_FAILURE=1 catkin build --this -v --no-deps --catkin-make-args run_tests'),
       ['$catkin-gcc', '$catkin-cmake']);
     result.push(task);
   }
