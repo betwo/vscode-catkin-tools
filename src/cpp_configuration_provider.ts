@@ -15,8 +15,8 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     this.cppToolsApi = cppToolsApi;
   }
   dispose() {}
-  public loadDataBases() {
-    this.workspace.reload();
+  public async loadDataBases() {
+    await this.workspace.reload();
   }
   public startListening() {
     this.workspace.build_commands_changed.add(() => {

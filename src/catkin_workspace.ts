@@ -1,12 +1,14 @@
 
 import * as child_process from 'child_process';
 import * as fs from 'fs';
-import * as glob from 'glob';
+import * as path from 'path';
+import * as glob from 'fast-glob';
 import * as jsonfile from 'jsonfile';
-import {Signal} from 'signals';
+import * as xml from 'fast-xml-parser';
+import { Signal } from 'signals';
 import * as vscode from 'vscode';
-import {SourceFileConfiguration} from 'vscode-cpptools';
-import {CatkinPackage} from './catkin_package';
+import { SourceFileConfiguration } from 'vscode-cpptools';
+import { CatkinPackage } from './catkin_package';
 
 
 export class CatkinWorkspace {
@@ -15,7 +17,7 @@ export class CatkinWorkspace {
   public compile_commands: Map<string, JSON> = new Map<string, JSON>();
   public file_to_command: Map<string, JSON> = new Map<string, JSON>();
   public file_to_compile_commands: Map<string, string> =
-      new Map<string, string>();
+    new Map<string, string>();
   private watchers: Map<string, fs.FSWatcher> = new Map<string, fs.FSWatcher>();
 
   public system_include_browse_paths = [];
@@ -32,14 +34,14 @@ export class CatkinWorkspace {
   private output_channel: vscode.OutputChannel;
 
   constructor(
-      workspace: vscode.WorkspaceFolder, outputChannel: vscode.OutputChannel) {
+    workspace: vscode.WorkspaceFolder, outputChannel: vscode.OutputChannel) {
     this.workspace = workspace;
     this.output_channel = outputChannel;
   }
 
-  dispose() {}
+  dispose() { }
 
-  public reload() {
+  public async reload(): Promise<CatkinWorkspace> {
     for (var key in this.watchers.keys()) {
       this.watchers[key].close();
     }
@@ -56,27 +58,59 @@ export class CatkinWorkspace {
 
     this.build_commands_changed.dispatch();
 
-    this.loadAndWatchCompileCommands();
-
-
     let ws = vscode.workspace.rootPath;
     let options: child_process.ExecSyncOptionsWithStringEncoding = {
       'cwd': ws,
       'encoding': 'utf8'
     };
 
-    let stdout = child_process.execSync('catkin list', options);
-    for (var line of stdout.split('\n')) {
-      let pkg_name = line.slice(2);
-      let item = new CatkinPackage;
-      item.name = pkg_name;
-      item.path = 'unknown';
+    return this.loadAndWatchCompileCommands().then(() => {
+      return vscode.workspace.findFiles("**/package.xml");
+    }).then(async (packages: vscode.Uri[]) => {
+      for (let package_xml of packages) {
+        let dom = xml.parse(fs.readFileSync(package_xml.fsPath).toString());
+        let src_path = path.dirname(package_xml.fsPath);
+        let relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
+        let cmake_lists_path = path.join(src_path, "CMakeLists.txt");
+        let item: CatkinPackage = {
+          name: dom['package']['name'],
+          package_xml: dom,
+          path: src_path,
+          relative_path: relative_path,
+          has_tests: false
+        };
 
-      this.packages.push(item);
-    }
+        if (fs.existsSync(cmake_lists_path)) {
+          item.has_tests = await this.parseCmakeListsForTests(item);
+        }
+
+        this.packages.push(item);
+      }
+    }).then(() => {
+      console.log(`found ${this.packages.length} packages`);
+      vscode.commands.executeCommand('test-explorer.reload');
+      return this;
+    });
+
   }
 
-
+  private async parseCmakeListsForTests(item) : Promise<boolean> {
+    return vscode.workspace.findFiles(`${item.relative_path}/**/CMakeLists.txt`).then((cmake_files: vscode.Uri[]) => {
+      for (let cmake_file of cmake_files) {
+        let data = fs.readFileSync(cmake_file.fsPath);
+        console.log(cmake_file.fsPath);
+        let cmake = data.toString();
+        for (let row of cmake.split('\n')) {
+          let tests = row.match(/^\s*catkin_add_gtest/);
+          if (tests) {
+            item.has_tests = true;
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+  }
 
   public getSourceFileConfiguration(commands): SourceFileConfiguration {
     let args = commands.command.split(' ');
@@ -93,7 +127,7 @@ export class CatkinWorkspace {
 
     // Parse the includes and defines from the compile commands
     let new_system_path_found = false;
-    for(let i = 1; i < args.length; ++i) {
+    for (let i = 1; i < args.length; ++i) {
       let opt = args[i];
       this.output_channel.appendLine(`- ${opt}`);
       if (opt.startsWith('-I')) {
@@ -107,7 +141,7 @@ export class CatkinWorkspace {
             new_system_path_found = true;
           }
         }
-      } else if (opt == '-isystem') {
+      } else if (opt === '-isystem') {
         ++i;
         let path = args[i];
         this.output_channel.appendLine(`   -> add system path ${path}`);
@@ -148,7 +182,7 @@ export class CatkinWorkspace {
   private isWorkspacePath(path: string): boolean {
     for (var ws of vscode.workspace.workspaceFolders) {
       let base = ws.uri.fsPath;
-      if(!base.endsWith('/')) {
+      if (!base.endsWith('/')) {
         base += '/';
       }
       base += 'src';
@@ -164,9 +198,9 @@ export class CatkinWorkspace {
 
     // Parse the default includes by invoking the compiler
     let options:
-        child_process.ExecSyncOptionsWithStringEncoding = {'encoding': 'utf8'};
+      child_process.ExecSyncOptionsWithStringEncoding = { 'encoding': 'utf8' };
     let stdout = child_process.execSync(
-        compiler + ' -xc++ -E -v /dev/null -o /dev/null 2>&1', options);
+      compiler + ' -xc++ -E -v /dev/null -o /dev/null 2>&1', options);
     let private_includes = false;
     let public_includes = false;
     for (var line of stdout.split('\n')) {
@@ -214,7 +248,7 @@ export class CatkinWorkspace {
     }
   }
 
-  private loadAndWatchCompileCommands() {
+  private async loadAndWatchCompileCommands() {
     let build_dir = this.getBuildDir();
     if (build_dir === null) {
       vscode.window.showErrorMessage('Cannot determine build directory');
@@ -222,7 +256,7 @@ export class CatkinWorkspace {
     }
     if (!fs.existsSync(build_dir)) {
       vscode.window.showErrorMessage(
-          'Build directory ' + build_dir + ' does not exist');
+        'Build directory ' + build_dir + ' does not exist');
       return;
     }
     if (this.build_dir !== build_dir) {
@@ -248,26 +282,23 @@ export class CatkinWorkspace {
 
     let expr = this.build_dir + '/**/compile_commands.json';
 
-    const mg = new glob.Glob(expr, {mark: true}, (er, matches) => {
-      if (er) {
-        vscode.window.showErrorMessage(er.message);
-        return;
-      }
-      if (matches.length === 0 && !this.warned) {
+    return glob.async([expr]).then((entries) => {
+      if (entries.length === 0 && !this.warned) {
         this.warned = true;
         vscode.window.showWarningMessage(
-            'No compile_commands.json file found in the workspace.\nMake sure that CMAKE_EXPORT_COMPILE_COMMANDS is on.');
+          'No compile_commands.json file found in the workspace.\nMake sure that CMAKE_EXPORT_COMPILE_COMMANDS is on.');
         return;
       }
 
-      for (let file of matches) {
-        console.log('Glob result:', file);
-        this.startWatchingCompileCommandsFile(file);
+      for (let file of entries) {
+        this.startWatchingCompileCommandsFile(file.toString());
       }
+      vscode.window.showInformationMessage("catkin workspace is initialized");
     });
+
   }
 
-  private getBuildDir() {
+  public getBuildDir() {
     let ws = vscode.workspace.rootPath;
     let options: child_process.ExecSyncOptionsWithStringEncoding = {
       'cwd': ws,
@@ -277,13 +308,23 @@ export class CatkinWorkspace {
     return stdout.split('\n')[0];
   }
 
+  public getDevelDir() {
+    let ws = vscode.workspace.rootPath;
+    let options: child_process.ExecSyncOptionsWithStringEncoding = {
+      'cwd': ws,
+      'encoding': 'utf8'
+    };
+    let stdout = child_process.execSync('catkin locate -d', options);
+    return stdout.split('\n')[0];
+  }
+
   private startWatchingCatkinPackageBuildDir(file: string) {
     console.log('watching directory', file);
     this.stopWatching(file);
     this.watchers[file] = fs.watch(file, (eventType, filename) => {
       if (filename === 'compile_commands.json') {
         console.log(
-            'File', filename, 'in package', file, 'changed with', eventType);
+          'File', filename, 'in package', file, 'changed with', eventType);
         let db_file = file + '/' + filename;
         if (fs.existsSync(db_file)) {
           this.startWatchingCompileCommandsFile(db_file);
