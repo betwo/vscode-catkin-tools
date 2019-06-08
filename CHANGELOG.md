@@ -74,3 +74,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.3] - 2019-05-27
 ### Fixed
 - Add support for compile options containing escaped characters
+
+## [1.4.0] - 2019-06-08
+### Added
+- Add support GTest targets in Test Explorer (support for catkin_add_gtest)
