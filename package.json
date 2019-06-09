@@ -46,6 +46,14 @@
 						"type": "string",
 						"default": "gcc-x64",
 						"description": "Compiler to emulate (see C_CPP extension)"
+					},
+					"catkin_tools.gtestMacroRegex": {
+						"type": "array",
+						"default": [
+							"catkin_add_gtest",
+							".*add.*test"
+						],
+						"description": "Regular expression(s) to check a CMakeLists.txt file for (possible) GTest targets"
 					}
 				}
 			}
