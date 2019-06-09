@@ -19,6 +19,7 @@ import { CatkinPackage } from './catkin_package';
 import { isNull, print } from 'util';
 import * as fs from 'fs';
 import { CatkinWorkspace } from './catkin_workspace';
+import * as path from 'path';
 
 export const registerAdapter = (
     testExplorerExtension: vscode.Extension<TestHub>,
@@ -134,14 +135,25 @@ export class CatkinTestAdapter implements TestAdapter {
                 let build_targets = [];
                 {
                     try {
-                        let stdout = child_process.execSync('ctest -N', options);
+                        let stdout = child_process.execSync('ctest -N -V', options);
+                        console.log(stdout);
                         for (let line of stdout.split('\n')) {
-                            let match = line.match(/ Test\s+#.*gtest_(.*)/);
-                            if (match) {
-                                build_targets.push(match[1]);
+                            // GTest target test
+                            let gtest_match = line.match(/ Test\s+#.*gtest_(.*)/);
+                            if (gtest_match) {
+                                build_targets.push(gtest_match[1]);
+                            } else {
+                                // general CTest target test
+                                if(line.indexOf('catkin_generated') > 0) {
+                                    continue;
+                                }
+                                let ctest_match = line.match(/Test command:\s+([^\s]+)/);
+                                if (ctest_match) {
+                                    build_targets.push(path.basename(ctest_match[1]));
+                                }
                             }
                         }
-                    } catch (err) { 
+                    } catch (err) {
                         console.log(`Cannot call ctest for ${catkin_package.name}`);
                         continue;
                     }
@@ -299,8 +311,8 @@ export class CatkinTestAdapter implements TestAdapter {
                 tests = tests.concat(exe.tests);
 
             } else if (id === "all_tests") {
-                for (let [id, suite] of this.suites) {
-                    for (let exe of suite.executables) {
+                for (let id in this.suites) {
+                    for (let exe of this.suites[id].executables) {
                         tests = tests.concat(exe.tests);
                     }
                 }

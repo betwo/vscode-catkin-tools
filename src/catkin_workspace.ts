@@ -94,17 +94,24 @@ export class CatkinWorkspace {
 
   }
 
-  private async parseCmakeListsForTests(item) : Promise<boolean> {
+  private async parseCmakeListsForTests(item): Promise<boolean> {
+    let config = vscode.workspace.getConfiguration('catkin_tools');
+    let test_regexes = [];
+    for (let expr of config['gtestMacroRegex']) {
+      test_regexes.push(new RegExp(`.*(${expr})`));
+    }
     return vscode.workspace.findFiles(`${item.relative_path}/**/CMakeLists.txt`).then((cmake_files: vscode.Uri[]) => {
       for (let cmake_file of cmake_files) {
         let data = fs.readFileSync(cmake_file.fsPath);
         console.log(cmake_file.fsPath);
         let cmake = data.toString();
-        for (let row of cmake.split('\n')) {
-          let tests = row.match(/^\s*catkin_add_gtest/);
-          if (tests) {
-            item.has_tests = true;
-            return true;
+        for (let test_regex of test_regexes) {
+          for (let row of cmake.split('\n')) {
+            let tests = row.match(test_regex);
+            if (tests) {
+              item.has_tests = true;
+              return true;
+            }
           }
         }
       }
