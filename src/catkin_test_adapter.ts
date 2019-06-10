@@ -34,8 +34,6 @@ export function registerCatkinTest(context: vscode.ExtensionContext,
     catkin_workspace: CatkinWorkspace,
     testExplorerExtension,
     outputChannel) {
-    vscode.window.showInformationMessage("Registering catkin tests");
-
     type TestRunEvent = TestRunStartedEvent | TestRunFinishedEvent | TestSuiteEvent | TestEvent;
     type TestLoadEvent = TestLoadStartedEvent | TestLoadFinishedEvent;
 
