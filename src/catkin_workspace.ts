@@ -42,6 +42,13 @@ export class CatkinWorkspace {
   dispose() { }
 
   public async reload(): Promise<CatkinWorkspace> {
+    return vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: "Loading catkin workspace",
+      cancellable: false
+    }, async (progress, token) => {
+      progress.report({ increment: 0, message: "Clearing caches" });
+
     for (var key in this.watchers.keys()) {
       this.watchers[key].close();
     }
@@ -54,20 +61,28 @@ export class CatkinWorkspace {
 
     this.packages = [];
 
-    console.log('Cleared caches');
-
     this.build_commands_changed.dispatch();
 
-    let ws = vscode.workspace.rootPath;
-    let options: child_process.ExecSyncOptionsWithStringEncoding = {
-      'cwd': ws,
-      'encoding': 'utf8'
-    };
-
     return this.loadAndWatchCompileCommands().then(() => {
+        progress.report({ increment: 1, message: "Searching packages" });
       return vscode.workspace.findFiles("**/package.xml");
     }).then(async (packages: vscode.Uri[]) => {
+        let range_progress_packages_min = 1;
+        let range_progress_packages_max = 99;
+        let accumulated_progress = 0.0;
+        let progress_relative = (1.0 / packages.length) *
+          (range_progress_packages_max - range_progress_packages_min);
+
       for (let package_xml of packages) {
+          accumulated_progress += progress_relative;
+          if(accumulated_progress > 1.0) {
+            let integer_progress = Math.floor(accumulated_progress);
+            accumulated_progress -= integer_progress;
+            progress.report({
+              increment: integer_progress,
+              message: `Parsing ${path.basename(path.dirname(package_xml.path))}`
+            });
+          }
         let dom = xml.parse(fs.readFileSync(package_xml.fsPath).toString());
         let src_path = path.dirname(package_xml.fsPath);
         let relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
@@ -87,11 +102,11 @@ export class CatkinWorkspace {
         this.packages.push(item);
       }
     }).then(() => {
-      console.log(`found ${this.packages.length} packages`);
+        progress.report({ increment: 100, message: "Finalizing" });
       vscode.commands.executeCommand('test-explorer.reload');
       return this;
     });
-
+    });
   }
 
   private async parseCmakeListsForTests(item): Promise<boolean> {
@@ -300,7 +315,6 @@ export class CatkinWorkspace {
       for (let file of entries) {
         this.startWatchingCompileCommandsFile(file.toString());
       }
-      vscode.window.showInformationMessage("catkin workspace is initialized");
     });
 
   }
