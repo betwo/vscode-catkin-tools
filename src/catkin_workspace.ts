@@ -49,31 +49,31 @@ export class CatkinWorkspace {
     }, async (progress, token) => {
       progress.report({ increment: 0, message: "Clearing caches" });
 
-    for (var key in this.watchers.keys()) {
-      this.watchers[key].close();
-    }
-    this.watchers.clear();
-    this.compile_commands.clear();
-    this.file_to_command.clear();
-    this.file_to_compile_commands.clear();
-    this.system_include_browse_paths = [];
-    this.default_system_include_paths = [];
+      for (var key in this.watchers.keys()) {
+        this.watchers[key].close();
+      }
+      this.watchers.clear();
+      this.compile_commands.clear();
+      this.file_to_command.clear();
+      this.file_to_compile_commands.clear();
+      this.system_include_browse_paths = [];
+      this.default_system_include_paths = [];
 
-    this.packages = [];
+      this.packages = [];
 
-    this.build_commands_changed.dispatch();
+      this.build_commands_changed.dispatch();
 
-    return this.loadAndWatchCompileCommands().then(() => {
+      return this.loadAndWatchCompileCommands().then(() => {
         progress.report({ increment: 1, message: "Searching packages" });
-      return vscode.workspace.findFiles("**/package.xml");
-    }).then(async (packages: vscode.Uri[]) => {
+        return vscode.workspace.findFiles("**/package.xml");
+      }).then(async (packages: vscode.Uri[]) => {
         let range_progress_packages_min = 1;
         let range_progress_packages_max = 99;
         let accumulated_progress = 0.0;
         let progress_relative = (1.0 / packages.length) *
           (range_progress_packages_max - range_progress_packages_min);
 
-      for (let package_xml of packages) {
+        for (let package_xml of packages) {
           accumulated_progress += progress_relative;
           if(accumulated_progress > 1.0) {
             let integer_progress = Math.floor(accumulated_progress);
@@ -83,29 +83,29 @@ export class CatkinWorkspace {
               message: `Parsing ${path.basename(path.dirname(package_xml.path))}`
             });
           }
-        let dom = xml.parse(fs.readFileSync(package_xml.fsPath).toString());
-        let src_path = path.dirname(package_xml.fsPath);
-        let relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
-        let cmake_lists_path = path.join(src_path, "CMakeLists.txt");
-        let item: CatkinPackage = {
-          name: dom['package']['name'],
-          package_xml: dom,
-          path: src_path,
-          relative_path: relative_path,
-          has_tests: false
-        };
+          let dom = xml.parse(fs.readFileSync(package_xml.fsPath).toString());
+          let src_path = path.dirname(package_xml.fsPath);
+          let relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
+          let cmake_lists_path = path.join(src_path, "CMakeLists.txt");
+          let item: CatkinPackage = {
+            name: dom['package']['name'],
+            package_xml: dom,
+            path: src_path,
+            relative_path: relative_path,
+            has_tests: false
+          };
 
-        if (fs.existsSync(cmake_lists_path)) {
-          item.has_tests = await this.parseCmakeListsForTests(item);
+          if (fs.existsSync(cmake_lists_path)) {
+            item.has_tests = await this.parseCmakeListsForTests(item);
+          }
+
+          this.packages.push(item);
         }
-
-        this.packages.push(item);
-      }
-    }).then(() => {
+      }).then(() => {
         progress.report({ increment: 100, message: "Finalizing" });
-      vscode.commands.executeCommand('test-explorer.reload');
-      return this;
-    });
+        vscode.commands.executeCommand('test-explorer.reload');
+        return this;
+      });
     });
   }
 
@@ -337,6 +337,20 @@ export class CatkinWorkspace {
     };
     let stdout = child_process.execSync('catkin locate -d', options);
     return stdout.split('\n')[0];
+  }
+
+  public getSetupBash() {
+    let ws = vscode.workspace.rootPath;
+    let options: child_process.ExecSyncOptionsWithStringEncoding = {
+      'cwd': ws,
+      'encoding': 'utf8'
+    };
+    let setup = child_process.execSync('catkin locate -i', options).split('\n')[0] + '/setup.bash';
+    if (fs.existsSync(setup)) {
+      return setup;
+    }
+
+    return child_process.execSync('catkin locate -d', options).split('\n')[0] + '/setup.bash';
   }
 
   private startWatchingCatkinPackageBuildDir(file: string) {
