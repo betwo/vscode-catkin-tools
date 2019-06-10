@@ -78,7 +78,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.4.0] - 2019-06-08
 ### Added
 - Add support GTest targets in Test Explorer (support for catkin_add_gtest)
-- 
+
 ## [1.5.0] - 2019-06-09
 ### Added
 - Add support for general CTest targets in Test Explorer
+
+## [1.5.1] - 2019-06-10
+### Added
+- Add progress indicator for workspace indexing
