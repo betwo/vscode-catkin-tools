@@ -115,7 +115,7 @@
 		"webpack": "^4.33.0",
 		"webpack-cli": "^3.3.3",
 		"terser": "^4.0.0",
-		"lodash": "^4.17.11"
+		"lodash": ">=4.17.13"
 	},
 	"dependencies": {
 		"@types/jsonfile": "^5.0.0",
