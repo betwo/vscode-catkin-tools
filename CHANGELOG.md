@@ -86,3 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.5.1] - 2019-06-10
 ### Added
 - Add progress indicator for workspace indexing
+
+## [1.5.2] - 2019-08-29
+### Changed
+- Reimplemented the "build current package" task to manually find the catkin workspace
