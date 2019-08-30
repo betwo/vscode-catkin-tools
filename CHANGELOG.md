@@ -90,3 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.5.2] - 2019-08-29
 ### Changed
 - Reimplemented the "build current package" task to manually find the catkin workspace
+
+## [1.5.3] - 2019-08-30
+### Changed
+- Replaced `vscode.workspace.findFiles` with `fast-glob.async` to search for unit tests
+- Forcing unit test execution in a `bash` shell instead of defaulting
