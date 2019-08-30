@@ -401,7 +401,7 @@ export class CatkinTestAdapter implements TestAdapter {
             if (!fs.existsSync(test.build_space)) {
                 command += `catkin build ${test.package.name} --no-status;`;
             }
-            command += `pushd; cd "${test.build_space}"; make -j $(nproc) ${test.build_target}; popd;`;
+            command += `pushd .; cd "${test.build_space}"; make -j $(nproc) ${test.build_target}; popd;`;
             command += `${test.executable} --gtest_filter=${test.filter} --gtest_output=xml`;
 
             this.output_channel.appendLine(`command: ${command}`);
@@ -411,7 +411,8 @@ export class CatkinTestAdapter implements TestAdapter {
                 maxBuffer: 1024 * 1024
             };
 
-            child_process.exec(command, execArgs, (err, stdout, stderr) => {
+            const bash_command = `bash -c '${command}'`;
+            child_process.exec(bash_command, execArgs, (err, stdout, stderr) => {
                 if (err) {
                     this.output_channel.appendLine("ERROR: stdout:");
                     this.output_channel.appendLine(`${stdout}`);
