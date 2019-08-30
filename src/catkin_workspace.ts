@@ -9,6 +9,7 @@ import { Signal } from 'signals';
 import * as vscode from 'vscode';
 import { SourceFileConfiguration } from 'vscode-cpptools';
 import { CatkinPackage } from './catkin_package';
+import { EntryItem } from 'fast-glob/out/types/entries';
 
 
 export class CatkinWorkspace {
@@ -75,7 +76,7 @@ export class CatkinWorkspace {
 
         for (let package_xml of packages) {
           accumulated_progress += progress_relative;
-          if(accumulated_progress > 1.0) {
+          if (accumulated_progress > 1.0) {
             let integer_progress = Math.floor(accumulated_progress);
             accumulated_progress -= integer_progress;
             progress.report({
@@ -115,23 +116,23 @@ export class CatkinWorkspace {
     for (let expr of config['gtestMacroRegex']) {
       test_regexes.push(new RegExp(`.*(${expr})`));
     }
-    return vscode.workspace.findFiles(`${item.relative_path}/**/CMakeLists.txt`).then((cmake_files: vscode.Uri[]) => {
-      for (let cmake_file of cmake_files) {
-        let data = fs.readFileSync(cmake_file.fsPath);
-        console.log(cmake_file.fsPath);
-        let cmake = data.toString();
-        for (let test_regex of test_regexes) {
-          for (let row of cmake.split('\n')) {
-            let tests = row.match(test_regex);
-            if (tests) {
-              item.has_tests = true;
-              return true;
+    return glob.async([`${vscode.workspace.rootPath}/${item.relative_path}/**/CMakeLists.txt`])
+      .then((cmake_files: EntryItem[]) => {
+        for (let cmake_file of cmake_files) {
+          let data = fs.readFileSync(cmake_file.toString());
+          let cmake = data.toString();
+          for (let test_regex of test_regexes) {
+            for (let row of cmake.split('\n')) {
+              let tests = row.match(test_regex);
+              if (tests) {
+                item.has_tests = true;
+                return true;
+              }
             }
           }
         }
-      }
-      return false;
-    });
+        return false;
+      });
   }
 
   public getSourceFileConfiguration(commands): SourceFileConfiguration {
