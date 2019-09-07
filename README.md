@@ -1,5 +1,8 @@
 # catkin-tools support for VS Code
 
+[![Licence](https://img.shields.io/github/license/betwo/vscode-catkin-tools.svg)](https://github.com/betwo/vscode-catkin-tools)
+[![VS Code Marketplace](https://vsmarketplacebadge.apphb.com/version-short/betwo.b2-catkin-tools.svg) ![Rating](https://vsmarketplacebadge.apphb.com/rating-short/betwo.b2-catkin-tools.svg) ![Downloads](https://vsmarketplacebadge.apphb.com/downloads-short/betwo.b2-catkin-tools.svg) ![Installs](https://vsmarketplacebadge.apphb.com/installs-short/betwo.b2-catkin-tools.svg)](https://marketplace.visualstudio.com/items?itemName=betwo.b2-catkin-tools)
+
 This extension makes it easier to work with [catkin-tools](https://github.com/catkin/catkin_tools).
 
 ## Features
