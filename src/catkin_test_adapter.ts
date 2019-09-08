@@ -307,7 +307,7 @@ export class CatkinTestAdapter implements TestAdapter {
                     await this.runTestSuite(id);
 
                 } else if (id.startsWith("test_")) {
-                    await this.runTestCommand(id);
+                    await this.runTest(id);
                 }
             }));
         } catch (err) {
@@ -375,11 +375,31 @@ export class CatkinTestAdapter implements TestAdapter {
         }
 
         for (let test of tests) {
-            if(this.cancel_requested) {
+            if (this.cancel_requested) {
                 break;
             }
             await this.runTest(test.info.id);
         }
+    }
+
+    private async makeBuildCommand(test: CatkinTestCase) {
+        const setup_bash = await this.catkin_workspace.getSetupBash();
+        let command = `source ${setup_bash};`;
+
+        if (!fs.existsSync(test.build_space)) {
+            command += `catkin build ${test.package.name} --no-status;`;
+        }
+        command += `pushd .; cd "${test.build_space}"; make -j $(nproc) ${test.build_target}; popd;`;
+        return command;
+    }
+
+    private async runCommand(command: string) {
+        let output_promise = runShellCommand(`bash -c '${command}'`, undefined, (process) => {
+            this.active_process = process;
+        });
+        const output = await output_promise;
+        this.active_process = undefined;
+        return output;
     }
 
     private async runTestCommand(id: string): Promise<TestEvent> {
@@ -388,13 +408,7 @@ export class CatkinTestAdapter implements TestAdapter {
         let test = this.testcases[id];
         this.output_channel.appendLine(`Id ${id} maps to test in package ${test.package.name}`);
 
-        const setup_bash = await this.catkin_workspace.getSetupBash();
-        let command = `source ${setup_bash};`;
-
-        if (!fs.existsSync(test.build_space)) {
-            command += `catkin build ${test.package.name} --no-status;`;
-        }
-        command += `pushd .; cd "${test.build_space}"; make -j $(nproc) ${test.build_target}; popd;`;
+        let command = await this.makeBuildCommand(test);
         command += `${test.executable} --gtest_filter=${test.filter} --gtest_output=xml`;
 
         this.output_channel.appendLine(`command: ${command}`);
@@ -407,11 +421,7 @@ export class CatkinTestAdapter implements TestAdapter {
         };
 
         try {
-            let output_promise = runShellCommand(`bash -c '${command}'`, undefined, (process) => {
-                this.active_process = process;
-            });
-            const output = await output_promise;
-            this.active_process = undefined;
+            let output = await this.runCommand(command);
             this.output_channel.appendLine(`${output.stdout}`);
             result.message = output.stdout;
             result.state = 'passed';
@@ -429,13 +439,39 @@ export class CatkinTestAdapter implements TestAdapter {
         return result;
     }
 
-    public async debug(_tests: string[]): Promise<void> {
-        throw new Error('Debugging is not supported.');
+    public async debug(test_ids: string[]): Promise<void> {
+        for (let test_id of test_ids) {
+            let test: CatkinTestCase = this.testcases[test_id];
+            this.testStatesEmitter.fire(<TestRunStartedEvent>{ type: 'started', tests: [test_id] });
+
+            // build the teset
+            let command = await this.makeBuildCommand(test);
+            await this.runCommand(command);
+
+            if (vscode.debug.activeDebugSession !== undefined) {
+                vscode.window.showInformationMessage("Cannot start debugger, another session is opened.");
+
+            } else {
+                // start the debugging session
+                let config: vscode.DebugConfiguration = {
+                    type: 'cppdbg',
+                    name: test.executable.toString(),
+                    request: 'launch',
+                    MIMode: 'gdb',
+                    cwd: this.workspaceRootDirectoryPath,
+                    program: test.executable.toString(), //"${workspaceFolder}",
+                    args: ['--gtest_break_on_failure', `--gtest_filter=${test.filter}`]
+                };
+                await vscode.debug.startDebugging(undefined, config);
+            }
+
+            this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: 'finished' });
+        }
     }
 
     public cancel(): void {
         this.cancel_requested = true;
-        if(this.active_process !== undefined) {
+        if (this.active_process !== undefined) {
             this.active_process.kill();
         }
     }
