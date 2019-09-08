@@ -99,6 +99,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.0] - 2019-09-08
 ### Added
 - Added support for canceling and debugging unit tests
-
 ### Change
 - Refactored a large part of the code base to be more asynchronous in order to improve responsiveness
+
+## [1.6.1] - 2019-09-08
+### Fixed
+- Fixed test output message not being shown
