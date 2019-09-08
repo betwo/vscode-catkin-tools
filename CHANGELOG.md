@@ -95,3 +95,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Replaced `vscode.workspace.findFiles` with `fast-glob.async` to search for unit tests
 - Forcing unit test execution in a `bash` shell instead of defaulting
+
+## [1.6.0] - 2019-09-08
+### Added
+- Added support for canceling and debugging unit tests
+
+### Change
+- Refactored a large part of the code base to be more asynchronous in order to improve responsiveness
