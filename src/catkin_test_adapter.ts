@@ -2,7 +2,6 @@ import * as child_process from 'child_process';
 import * as vscode from 'vscode';
 import {
     TestEvent,
-    testExplorerExtensionId,
     TestHub,
     TestLoadStartedEvent,
     TestLoadFinishedEvent,
@@ -18,7 +17,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CatkinPackage } from './catkin_package';
 import { CatkinWorkspace } from './catkin_workspace';
-import { runShellCommand, ShellOutput } from './catkin_command';
+import { runShellCommand } from './catkin_command';
+import * as xml from 'fast-xml-parser';
 
 export const registerAdapter = (
     testExplorerExtension: vscode.Extension<TestHub>,
@@ -414,8 +414,8 @@ export class CatkinTestAdapter implements TestAdapter {
         return command;
     }
 
-    private async runCommand(command: string) {
-        let output_promise = runShellCommand(`bash -c '${command}'`, undefined, (process) => {
+    private async runCommand(command: string, cwd?: string) {
+        let output_promise = runShellCommand(`bash -c '${command}'`, cwd, (process) => {
             this.active_process = process;
         });
         const output = await output_promise;
@@ -427,8 +427,8 @@ export class CatkinTestAdapter implements TestAdapter {
         this.output_channel.appendLine(`running test command for ${id}`);
 
         let command: string;
-        let test: any;
-        let test_ids: string[] = [];
+        let test: CatkinTestCase | CatkinTestExecutable;
+        let tests: CatkinTestCase[] = [];
 
         if (id.startsWith('test_')) {
             // single test case 
@@ -436,7 +436,7 @@ export class CatkinTestAdapter implements TestAdapter {
             this.output_channel.appendLine(`Id ${id} maps to test in package ${test.package.name}`);
             command = await this.makeBuildCommand(test);
             command += `${test.executable} --gtest_filter=${test.filter} --gtest_output=xml`;
-            test_ids.push(id);
+            tests.push(test);
 
         } else if (id.startsWith('exec_')) {
             // full unit test run
@@ -445,7 +445,7 @@ export class CatkinTestAdapter implements TestAdapter {
             command = await this.makeBuildCommand(test);
             command += `${test.executable} --gtest_output=xml`;
             test.tests.forEach((test: CatkinTestCase, key) => {
-                test_ids.push(test.info.id);
+                tests.push(test);
             });
 
         } else {
@@ -462,7 +462,7 @@ export class CatkinTestAdapter implements TestAdapter {
         // run the test
         try {
             this.output_channel.appendLine(`command: ${command}`);
-            let output = await this.runCommand(command);
+            let output = await this.runCommand(command, '/tmp');
             this.output_channel.appendLine(`${output.stdout}`);
             result.message = output.stdout;
             result.state = 'passed';
@@ -475,11 +475,42 @@ export class CatkinTestAdapter implements TestAdapter {
 
             result.message = error_output.stdout;
             result.state = 'failed';
+
+        }
+
+        let dom = undefined;
+        let output_xml = "/tmp/test_detail.xml";
+        try {
+            let options = {
+                ignoreAttributes : false,
+                attrNodeName: "attr"
+            };
+            dom = xml.parse(fs.readFileSync(output_xml).toString(), options);
+        } catch(error) {
+            result.message = `Cannot read the test results results from ${output_xml}`;
         }
 
         // send the result for all matching ids
-        test_ids.forEach((id) => {
-            result.test = id;
+        tests.forEach((test) => {
+            let test_suite = test.filter.substr(0, test.filter.lastIndexOf('.'));
+            result.test = test.info.id;
+            result.state = 'errored';
+
+            let node_suites = dom['testsuites']['testsuite'];
+            if(!Array.isArray(node_suites)) {
+                node_suites = [node_suites];
+            }
+            for(let node of node_suites) {
+                if(node.attr['@_name'] === test_suite) {
+                    if(node.attr['@_failures'] > 0) {
+                        result.state = 'failed';
+                        // result.message
+                    } else {
+                        result.state = 'passed';
+                    }
+                    break;
+                }
+            }
             this.testStatesEmitter.fire(result);
         });
 
