@@ -14,12 +14,11 @@ import {
     TestInfo
 } from 'vscode-test-adapter-api';
 import { TestAdapterRegistrar } from 'vscode-test-adapter-util';
-import { Log } from 'vscode-test-adapter-util';
-import { CatkinPackage } from './catkin_package';
-import { isNull, print } from 'util';
 import * as fs from 'fs';
-import { CatkinWorkspace } from './catkin_workspace';
 import * as path from 'path';
+import { CatkinPackage } from './catkin_package';
+import { CatkinWorkspace } from './catkin_workspace';
+import { runShellCommand, ShellOutput } from './catkin_command';
 
 export const registerAdapter = (
     testExplorerExtension: vscode.Extension<TestHub>,
@@ -309,122 +308,123 @@ export class CatkinTestAdapter implements TestAdapter {
         this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: 'finished' });
     }
 
-    public async runTest(id) {
-        return new Promise<TestEvent>(async (resolve, reject) => {
-            this.output_channel.appendLine(`Running catkin_tools test for package ${id}`);
+    public async runTest(id: string): Promise<TestEvent> {
+        this.output_channel.appendLine(`Running catkin_tools test for package ${id}`);
 
-            try {
-                let result = await this.runTestCommand(id);
-                resolve(result);
-
-            } catch (err) {
-                let result: TestEvent = { type: 'test', 'test': id, state: 'errored', message: err };
-                resolve(result);
-            }
-            this.output_channel.appendLine("done");
-        });
+        try {
+            return this.runTestCommand(id);
+        } catch (err) {
+            let result: TestEvent = {
+                type: 'test',
+                test: id,
+                state: 'errored',
+                message: err
+            };
+            return result;
+        }
     }
 
-    private async runTestSuite(id: string) {
-        return new Promise<TestEvent[]>(async (resolve, reject) => {
-            this.output_channel.appendLine(`Running catkin_tools test suite ${id}`);
+    private async runTestSuite(id: string): Promise<TestEvent[]> {
+        this.output_channel.appendLine(`Running catkin_tools test suite ${id}`);
 
-            let tests: CatkinTestCase[] = [];
-            let ids = [];
-            if (id.startsWith("package_")) {
-                let suite: CatkinTestSuite = this.suites[id];
-                for (let exe of suite.executables) {
+        let tests: CatkinTestCase[] = [];
+        let ids = [];
+        if (id.startsWith("package_")) {
+            let suite: CatkinTestSuite = this.suites[id];
+            for (let exe of suite.executables) {
+                ids.push(exe.info.id);
+                tests = tests.concat(exe.tests);
+            }
+
+        } else if (id.startsWith("exec_")) {
+            let exe = this.executables[id];
+            ids.push(id);
+            tests = tests.concat(exe.tests);
+
+        } else if (id === "all_tests") {
+            for (let id in this.suites) {
+                for (let exe of this.suites[id].executables) {
                     ids.push(exe.info.id);
                     tests = tests.concat(exe.tests);
                 }
-
-            } else if (id.startsWith("exec_")) {
-                let exe = this.executables[id];
-                ids.push(id);
-                tests = tests.concat(exe.tests);
-
-            } else if (id === "all_tests") {
-                for (let id in this.suites) {
-                    for (let exe of this.suites[id].executables) {
-                        ids.push(exe.info.id);
-                        tests = tests.concat(exe.tests);
-                    }
-                }
             }
+        }
 
-            if (tests.length === 0) {
-                this.output_channel.appendLine(`No test found with id ${id}`);
-                resolve(ids.map((id): TestEvent => {
-                    return {
-                        state: 'errored',
-                        type: 'test',
-                        test: id,
-                        message: `No test found with id ${id}`
-                    };
-                }));
-                return;
-            }
+        if (tests.length === 0) {
+            this.output_channel.appendLine(`No test found with id ${id}`);
+            return ids.map((id): TestEvent => {
+                return {
+                    state: 'errored',
+                    type: 'test',
+                    test: id,
+                    message: `No test found with id ${id}`
+                };
+            });
+        }
 
-            try {
-                const results: TestEvent[] = await Promise.all(tests.map(async test => {
-                    const output: TestEvent = await this.runTest(test.info.id);
-                    return output;
-                }));
+        try {
+            const results: TestEvent[] = await Promise.all(tests.map(async test => {
+                const output: TestEvent = await this.runTest(test.info.id);
+                return output;
+            }));
 
-                this.output_channel.appendLine(`Resolving catkin_tools test suite with ${results.length} results`);
-                resolve([].concat(...results));
-            } catch (err) {
-                this.output_channel.appendLine(`Test suite error ${err}`);
-                resolve(ids.map((id): TestEvent => {
-                    return {
-                        type: 'test',
-                        state: 'errored',
-                        test: id,
-                        message: `Failure running test ${id}: ${err}`
-                    };
-                }
-                ));
-            }
-        });
+            this.output_channel.appendLine(`Resolving catkin_tools test suite with ${results.length} results`);
+            return [].concat(...results);
+
+        } catch (err) {
+            this.output_channel.appendLine(`Test suite error ${err}`);
+            return ids.map((id): TestEvent => {
+                return {
+                    type: 'test',
+                    state: 'errored',
+                    test: id,
+                    message: `Failure running test ${id}: ${err}`
+                };
+            });
+        }
     }
 
+    private async runTestCommand(id: string): Promise<TestEvent> {
+        this.output_channel.appendLine(`running test command for ${id}`);
 
+        let test = this.testcases[id];
+        this.output_channel.appendLine(`Id ${id} maps to test in package ${test.package.name}`);
 
-    private async runTestCommand(id) {
-        return new Promise<TestEvent>((resolve, reject) => {
-            this.output_channel.appendLine(`running test command for ${id}`);
+        const setup_bash = await this.catkin_workspace.getSetupBash();
+        let command = `source ${setup_bash};`;
 
-            let test = this.testcases[id];
-            this.output_channel.appendLine(`Id ${id} maps to test in package ${test.package.name}`);
-            let command = `source ${this.catkin_workspace.getSetupBash()};`;
+        if (!fs.existsSync(test.build_space)) {
+            command += `catkin build ${test.package.name} --no-status;`;
+        }
+        command += `pushd .; cd "${test.build_space}"; make -j $(nproc) ${test.build_target}; popd;`;
+        command += `${test.executable} --gtest_filter=${test.filter} --gtest_output=xml`;
 
-            if (!fs.existsSync(test.build_space)) {
-                command += `catkin build ${test.package.name} --no-status;`;
-            }
-            command += `pushd .; cd "${test.build_space}"; make -j $(nproc) ${test.build_target}; popd;`;
-            command += `${test.executable} --gtest_filter=${test.filter} --gtest_output=xml`;
+        this.output_channel.appendLine(`command: ${command}`);
 
-            this.output_channel.appendLine(`command: ${command}`);
+        let result: TestEvent = {
+            type: 'test',
+            test: id,
+            state: 'errored',
+            message: 'unknown error'
+        };
 
-            const execArgs: child_process.ExecOptions = {
-                cwd: this.workspaceRootDirectoryPath,
-                maxBuffer: 1024 * 1024
-            };
+        try {
+            const output = await runShellCommand(`bash -c '${command}'`);
+            this.output_channel.appendLine(`${output.stdout}`);
+            result.message = output.stdout;
+            result.state = 'passed';
 
-            const bash_command = `bash -c '${command}'`;
-            child_process.exec(bash_command, execArgs, (err, stdout, stderr) => {
-                if (err) {
-                    this.output_channel.appendLine("ERROR: stdout:");
-                    this.output_channel.appendLine(`${stdout}`);
-                    this.output_channel.appendLine("stderr:");
-                    this.output_channel.appendLine(`${stderr}`);
-                    return reject(err);
-                }
-                this.output_channel.appendLine(`${stdout}`);
-                let result: TestEvent = { type: 'test', 'test': id, state: err ? 'failed' : 'passed', message: stdout };
-                resolve(result);
-            });
-        });
+        } catch (error_output) {
+            this.output_channel.appendLine("ERROR: stdout:");
+            this.output_channel.appendLine(`${error_output.stdout}`);
+            this.output_channel.appendLine("stderr:");
+            this.output_channel.appendLine(`${error_output.stderr}`);
+
+            result.message = error_output.stdout;
+            result.state = 'failed';
+        }
+
+        return result;
     }
 
     public async debug(_tests: string[]): Promise<void> {
