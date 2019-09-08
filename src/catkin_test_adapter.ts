@@ -83,6 +83,8 @@ export class CatkinTestAdapter implements TestAdapter {
     executables: Map<string, CatkinTestExecutable> = new Map<string, CatkinTestExecutable>();
     testcases: Map<string, CatkinTestCase> = new Map<string, CatkinTestCase>();
 
+    private cancel_requested: boolean = false;
+
     constructor(
         public readonly workspaceRootDirectoryPath: string,
         public readonly catkin_workspace: CatkinWorkspace,
@@ -294,6 +296,8 @@ export class CatkinTestAdapter implements TestAdapter {
     }
 
     public async run(nodeIds: string[]): Promise<void> {
+        this.cancel_requested = false;
+        
         this.output_channel.appendLine(`Running test(s): ${nodeIds.join(', ')}`);
         this.testStatesEmitter.fire(<TestRunStartedEvent>{ type: 'started', tests: nodeIds });
         try {
@@ -370,6 +374,9 @@ export class CatkinTestAdapter implements TestAdapter {
         }
 
         for (let test of tests) {
+            if(this.cancel_requested) {
+                break;
+            }
             await this.runTest(test.info.id);
         }
     }
@@ -422,7 +429,7 @@ export class CatkinTestAdapter implements TestAdapter {
     }
 
     public cancel(): void {
-        throw new Error('Canceling ist not supported.');
+        this.cancel_requested = true;
     }
 
     public dispose(): void {
