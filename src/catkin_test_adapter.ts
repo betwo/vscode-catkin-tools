@@ -357,40 +357,39 @@ export class CatkinTestAdapter implements TestAdapter {
     private async runTestSuite(id: string): Promise<void> {
         this.output_channel.appendLine(`Running catkin_tools test suite ${id}`);
 
-        let tests: CatkinTestCase[] = [];
+        let tests: CatkinTestExecutable[] = [];
         let ids = [];
         if (id.startsWith("package_")) {
             let suite: CatkinTestSuite = this.suites.get(id);
             suite.executables.forEach((exe, key) => {
                 ids.push(exe.info.id);
-                tests = tests.concat(exe.tests);
+                tests.push(exe);
             });
 
         } else if (id.startsWith("exec_")) {
             let exe = this.executables.get(id);
             ids.push(id);
-            tests = tests.concat(exe.tests);
+            tests.push(exe);
 
         } else if (id === "all_tests") {
             this.suites.forEach((suite, key) => {
                 suite.executables.forEach((exe, key) => {
                     ids.push(exe.info.id);
-                    tests = tests.concat(exe.tests);
+                    tests.push(exe);
                 });
             });
         }
 
         if (tests.length === 0) {
             this.output_channel.appendLine(`No test found with id ${id}`);
-            ids.map((id) => {
-                this.testStatesEmitter.fire(
-                    {
-                        state: 'errored',
-                        type: 'test',
-                        test: id,
-                        message: `No test found with id ${id}`
-                    });
-            });
+            this.testStatesEmitter.fire(
+                {
+                    state: 'errored',
+                    type: 'test',
+                    test: id,
+                    message: `No test found with id ${id}`
+                });
+            return;
         }
 
         for (let test of tests) {
@@ -401,14 +400,17 @@ export class CatkinTestAdapter implements TestAdapter {
         }
     }
 
-    private async makeBuildCommand(test: CatkinTestCase) {
+    private async makeBuildCommand(test: any) {
+        return this.makePackageBuildCommand(test.package, test.build_space, test.build_target);
+    }
+    private async makePackageBuildCommand(catkin_package: CatkinPackage, build_space: fs.PathLike, build_target: String) {
         const setup_bash = await this.catkin_workspace.getSetupBash();
         let command = `source ${setup_bash};`;
 
-        if (!fs.existsSync(test.build_space)) {
-            command += `catkin build ${test.package.name} --no-status;`;
+        if (!fs.existsSync(build_space)) {
+            command += `catkin build ${catkin_package.name} --no-status;`;
         }
-        command += `pushd .; cd "${test.build_space}"; make -j $(nproc) ${test.build_target}; popd;`;
+        command += `pushd .; cd "${build_space}"; make -j $(nproc) ${build_target}; popd;`;
         return command;
     }
 
@@ -424,13 +426,31 @@ export class CatkinTestAdapter implements TestAdapter {
     private async runTestCommand(id: string): Promise<void> {
         this.output_channel.appendLine(`running test command for ${id}`);
 
-        let test: CatkinTestCase = this.testcases.get(id);
-        this.output_channel.appendLine(`Id ${id} maps to test in package ${test.package.name}`);
+        let command: string;
+        let test: any;
+        let test_ids: string[] = [];
 
-        let command = await this.makeBuildCommand(test);
-        command += `${test.executable} --gtest_filter=${test.filter} --gtest_output=xml`;
+        if (id.startsWith('test_')) {
+            // single test case 
+            test = this.testcases.get(id);
+            this.output_channel.appendLine(`Id ${id} maps to test in package ${test.package.name}`);
+            command = await this.makeBuildCommand(test);
+            command += `${test.executable} --gtest_filter=${test.filter} --gtest_output=xml`;
+            test_ids.push(id);
 
-        this.output_channel.appendLine(`command: ${command}`);
+        } else if (id.startsWith('exec_')) {
+            // full unit test run
+            test = this.executables.get(id);
+            this.output_channel.appendLine(`Id ${id} maps to executable in package ${test.package.name}`);
+            command = await this.makeBuildCommand(test);
+            command += `${test.executable} --gtest_output=xml`;
+            test.tests.forEach((test: CatkinTestCase, key) => {
+                test_ids.push(test.info.id);
+            });
+
+        } else {
+            throw Error(`Cannot handle test with id ${id}`);
+        }
 
         let result: TestEvent = {
             type: 'test',
@@ -439,7 +459,9 @@ export class CatkinTestAdapter implements TestAdapter {
             message: 'unknown error'
         };
 
+        // run the test
         try {
+            this.output_channel.appendLine(`command: ${command}`);
             let output = await this.runCommand(command);
             this.output_channel.appendLine(`${output.stdout}`);
             result.message = output.stdout;
@@ -455,8 +477,15 @@ export class CatkinTestAdapter implements TestAdapter {
             result.state = 'failed';
         }
 
-        this.testStatesEmitter.fire(result);
+        // send the result for all matching ids
+        test_ids.forEach((id) => {
+            result.test = id;
+            this.testStatesEmitter.fire(result);
+        });
 
+        // check if a test suite was changed
+        // this can happen, if a test executable was not compiled before the run,
+        // or if the user changes the test itself between runs
         let pkg_suite = await this.loadPackageTests(test.package, test.global_build_dir, test.global_devel_dir);
         let old_suite = this.suites.get(pkg_suite.info.id);
         if (!this.isSuiteEquivalent(old_suite, pkg_suite)) {
@@ -466,6 +495,14 @@ export class CatkinTestAdapter implements TestAdapter {
 
             this.updateSuiteSet();
             this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
+
+            pkg_suite.executables.forEach((exe) => {
+                exe.tests.forEach((test) => {
+                    result.test = test.info.id;
+                    this.testStatesEmitter.fire(result);
+                });
+            });
+
         }
     }
 
