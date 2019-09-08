@@ -103,8 +103,8 @@ export class CatkinTestAdapter implements TestAdapter {
         this.output_channel.appendLine('Loading catkin tools tests');
         this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
 
-        let build_dir = this.catkin_workspace.getBuildDir();
-        let devel_dir = this.catkin_workspace.getDevelDir();
+        let build_dir = await this.catkin_workspace.getBuildDir();
+        let devel_dir = await this.catkin_workspace.getDevelDir();
 
         return vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
