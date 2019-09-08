@@ -102,8 +102,8 @@ export class CatkinTestAdapter implements TestAdapter {
         this.output_channel.appendLine('Loading catkin tools tests');
         this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
 
-        let build_dir = await this.catkin_workspace.getBuildDir();
-        let devel_dir = await this.catkin_workspace.getDevelDir();
+        let build_dir_request = this.catkin_workspace.getBuildDir();
+        let devel_dir_request = this.catkin_workspace.getDevelDir();
 
         return vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
@@ -118,15 +118,19 @@ export class CatkinTestAdapter implements TestAdapter {
                         packages_with_tests++;
                     }
                 }
-                let progress_relative = (1.0 / packages_with_tests);
+                let progress_relative = (100.0 / packages_with_tests);
                 let accumulated_progress = 0.0;
                 let test_packages: CatkinTestSuite[] = [];
+
+                let build_dir = await build_dir_request;
+                let devel_dir = await devel_dir_request;
+
                 for (let catkin_package of this.catkin_workspace.packages) {
                     if (!catkin_package.has_tests) {
                         continue;
                     }
-
                     accumulated_progress += progress_relative;
+                    console.log(catkin_package.name);
                     if (accumulated_progress > 1.0) {
                         let integer_progress = Math.floor(accumulated_progress);
                         accumulated_progress -= integer_progress;
@@ -135,140 +139,12 @@ export class CatkinTestAdapter implements TestAdapter {
                             message: `Parsing ${catkin_package.name} for tests`
                         });
                     }
-
-                    let build_space = `${build_dir}/${catkin_package.name}`;
-
-                    // discover build targets:
-                    // ctest -N 
-                    //  ->
-                    // _ctest_csapex_math_tests_gtest_csapex_math_tests
-                    //                                `---------------`
-                    let options: child_process.ExecSyncOptionsWithStringEncoding = {
-                        'cwd': build_space,
-                        'encoding': 'utf8'
-                    };
-
-                    // find gtest build targets
-                    let build_targets = [];
-                    {
-                        try {
-                            let stdout = child_process.execSync('ctest -N -V', options);
-                            console.log(stdout);
-                            for (let line of stdout.split('\n')) {
-                                // GTest target test
-                                let gtest_match = line.match(/ Test\s+#.*gtest_(.*)/);
-                                if (gtest_match) {
-                                    build_targets.push(gtest_match[1]);
-                                } else {
-                                    // general CTest target test
-                                    let missing_exec_match = line.match(/Could not find executable\s+([^\s]+)/);
-                                    if (missing_exec_match) {
-                                        build_targets.push(path.basename(missing_exec_match[1]));
-                                    } else {
-                                        if (line.indexOf('catkin_generated') > 0) {
-                                            continue;
-                                        }
-                                        let ctest_match = line.match(/Test command:\s+([^\s]+)/);
-                                        if (ctest_match) {
-                                            let target = path.basename(ctest_match[1]);
-                                            if (target.length > 1 && target !== 'cmake') {
-                                                build_targets.push(target);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } catch (err) {
-                            console.log(`Cannot call ctest for ${catkin_package.name}`);
-                            continue;
-                        }
+                    try {
+                        const pkg_suite = await this.loadPackageTests(catkin_package, build_dir, devel_dir);
+                        test_packages.push(pkg_suite);
+                    } catch (error) {
+                        console.log(`Error loading tests of package ${catkin_package.name}`);
                     }
-                    if (build_targets.length === 0) {
-                        continue;
-                    }
-
-                    // generate a list of all tests in this target
-                    let pkg_executables: CatkinTestExecutable[] = [];
-                    for (let build_target of build_targets) {
-                        let exe = `${devel_dir}/.private/${catkin_package.name}/lib/${catkin_package.name}/${build_target}`;
-
-                        let test_cases: CatkinTestCase[] = [];
-                        {
-                            try {
-                                // try to extract test names, if the target is compiled
-                                let stdout = child_process.execSync(`${exe} --gtest_list_tests`, options);
-                                for (let line of stdout.split('\n')) {
-                                    let match = line.match(/^([^\s]+)\.\s*$/);
-                                    if (match) {
-                                        let test_label = match[1];
-                                        let test_case: CatkinTestCase = {
-                                            package: catkin_package,
-                                            build_space: build_space,
-                                            build_target: build_target,
-                                            executable: exe,
-                                            filter: `${test_label}.*`,
-                                            info: {
-                                                type: 'test',
-                                                id: `test_${build_target}_${test_label}`,
-                                                label: test_label
-                                            }
-                                        };
-                                        this.testcases[test_case.info.id] = test_case;
-                                        test_cases.push(test_case);
-                                    }
-                                }
-                            } catch (err) {
-                                // if the target is not compiled, do not add filters
-                                console.log(`Cannot determine ${exe}'s tests`);
-
-                                let test_case: CatkinTestCase = {
-                                    package: catkin_package,
-                                    build_space: build_space,
-                                    build_target: build_target,
-                                    executable: exe,
-                                    filter: `*`,
-                                    info: {
-                                        type: 'test',
-                                        id: `test_${build_target}`,
-                                        label: build_target
-                                    }
-                                };
-                                this.testcases[test_case.info.id] = test_case;
-                                test_cases.push(test_case);
-                            }
-                        }
-
-                        // create the executable
-                        let test_exec: CatkinTestExecutable = {
-                            package: catkin_package,
-                            build_space: build_space,
-                            build_target: build_target,
-                            executable: exe,
-                            info: {
-                                type: 'suite',
-                                id: `exec_${build_target}`,
-                                label: build_target,
-                                children: test_cases.map(test => test.info)
-                            },
-                            tests: test_cases
-                        };
-                        this.executables[test_exec.info.id] = test_exec;
-                        pkg_executables.push(test_exec);
-                    }
-
-                    // create the test suite
-                    let pkg_suite: CatkinTestSuite = {
-                        package: catkin_package,
-                        info: {
-                            type: 'suite',
-                            id: `package_${catkin_package.name}`,
-                            label: catkin_package.name,
-                            children: pkg_executables.map(exec => exec.info)
-                        },
-                        executables: pkg_executables
-                    };
-                    this.suites[pkg_suite.info.id] = (pkg_suite);
-                    test_packages.push(pkg_suite);
                 }
 
                 let catkin_tools_tests: TestSuiteInfo = {
@@ -282,6 +158,139 @@ export class CatkinTestAdapter implements TestAdapter {
                 this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished' });
             }
         });
+    }
+
+    private async loadPackageTests(catkin_package: CatkinPackage, build_dir: string, devel_dir: string):
+        Promise<CatkinTestSuite> {
+        let build_space = `${build_dir}/${catkin_package.name}`;
+
+        // discover build targets:
+        // ctest -N 
+        //  ->
+        // _ctest_csapex_math_tests_gtest_csapex_math_tests
+        //                                `---------------`
+
+        // find gtest build targets
+        let build_targets = [];
+        {
+            try {
+                let output = await runShellCommand('ctest -N -V', build_space);
+                console.log(output.stdout);
+                for (let line of output.stdout.split('\n')) {
+                    // GTest target test
+                    let gtest_match = line.match(/ Test\s+#.*gtest_(.*)/);
+                    if (gtest_match) {
+                        build_targets.push(gtest_match[1]);
+                    } else {
+                        // general CTest target test
+                        let missing_exec_match = line.match(/Could not find executable\s+([^\s]+)/);
+                        if (missing_exec_match) {
+                            build_targets.push(path.basename(missing_exec_match[1]));
+                        } else {
+                            if (line.indexOf('catkin_generated') > 0) {
+                                continue;
+                            }
+                            let ctest_match = line.match(/Test command:\s+([^\s]+)/);
+                            if (ctest_match) {
+                                let target = path.basename(ctest_match[1]);
+                                if (target.length > 1 && target !== 'cmake') {
+                                    build_targets.push(target);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.log(`Cannot call ctest for ${catkin_package.name}`);
+                throw err;
+            }
+        }
+        if (build_targets.length === 0) {
+            throw Error("No tests in package");
+        }
+
+        // generate a list of all tests in this target
+        let pkg_executables: CatkinTestExecutable[] = [];
+        for (let build_target of build_targets) {
+            let exe = `${devel_dir}/.private/${catkin_package.name}/lib/${catkin_package.name}/${build_target}`;
+
+            let test_cases: CatkinTestCase[] = [];
+            {
+                try {
+                    // try to extract test names, if the target is compiled
+                    let output = await runShellCommand(`${exe} --gtest_list_tests`, build_space);
+                    for (let line of output.stdout.split('\n')) {
+                        let match = line.match(/^([^\s]+)\.\s*$/);
+                        if (match) {
+                            let test_label = match[1];
+                            let test_case: CatkinTestCase = {
+                                package: catkin_package,
+                                build_space: build_space,
+                                build_target: build_target,
+                                executable: exe,
+                                filter: `${test_label}.*`,
+                                info: {
+                                    type: 'test',
+                                    id: `test_${build_target}_${test_label}`,
+                                    label: test_label
+                                }
+                            };
+                            this.testcases[test_case.info.id] = test_case;
+                            test_cases.push(test_case);
+                        }
+                    }
+                } catch (err) {
+                    // if the target is not compiled, do not add filters
+                    console.log(`Cannot determine ${exe}'s tests: ${err.error.message}`);
+
+                    let test_case: CatkinTestCase = {
+                        package: catkin_package,
+                        build_space: build_space,
+                        build_target: build_target,
+                        executable: exe,
+                        filter: `*`,
+                        info: {
+                            type: 'test',
+                            id: `test_${build_target}`,
+                            label: build_target
+                        }
+                    };
+                    this.testcases[test_case.info.id] = test_case;
+                    test_cases.push(test_case);
+                }
+            }
+
+            // create the executable
+            let test_exec: CatkinTestExecutable = {
+                package: catkin_package,
+                build_space: build_space,
+                build_target: build_target,
+                executable: exe,
+                info: {
+                    type: 'suite',
+                    id: `exec_${build_target}`,
+                    label: build_target,
+                    children: test_cases.map(test => test.info)
+                },
+                tests: test_cases
+            };
+            this.executables[test_exec.info.id] = test_exec;
+            pkg_executables.push(test_exec);
+        }
+
+        // create the test suite
+        let pkg_suite: CatkinTestSuite = {
+            package: catkin_package,
+            info: {
+                type: 'suite',
+                id: `package_${catkin_package.name}`,
+                label: catkin_package.name,
+                children: pkg_executables.map(exec => exec.info)
+            },
+            executables: pkg_executables
+        };
+        this.suites[pkg_suite.info.id] = (pkg_suite);
+        return pkg_suite;
     }
 
     public async run(nodeIds: string[]): Promise<void> {
