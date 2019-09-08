@@ -84,6 +84,7 @@ export class CatkinTestAdapter implements TestAdapter {
     testcases: Map<string, CatkinTestCase> = new Map<string, CatkinTestCase>();
 
     private cancel_requested: boolean = false;
+    private active_process: child_process.ChildProcess;
 
     constructor(
         public readonly workspaceRootDirectoryPath: string,
@@ -297,7 +298,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
     public async run(nodeIds: string[]): Promise<void> {
         this.cancel_requested = false;
-        
+
         this.output_channel.appendLine(`Running test(s): ${nodeIds.join(', ')}`);
         this.testStatesEmitter.fire(<TestRunStartedEvent>{ type: 'started', tests: nodeIds });
         try {
@@ -406,7 +407,11 @@ export class CatkinTestAdapter implements TestAdapter {
         };
 
         try {
-            const output = await runShellCommand(`bash -c '${command}'`);
+            let output_promise = runShellCommand(`bash -c '${command}'`, undefined, (process) => {
+                this.active_process = process;
+            });
+            const output = await output_promise;
+            this.active_process = undefined;
             this.output_channel.appendLine(`${output.stdout}`);
             result.message = output.stdout;
             result.state = 'passed';
@@ -430,6 +435,9 @@ export class CatkinTestAdapter implements TestAdapter {
 
     public cancel(): void {
         this.cancel_requested = true;
+        if(this.active_process !== undefined) {
+            this.active_process.kill();
+        }
     }
 
     public dispose(): void {
