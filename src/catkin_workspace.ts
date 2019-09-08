@@ -219,6 +219,16 @@ export class CatkinWorkspace {
   private parseCompilerDefaults(compiler: string) {
     this.default_system_include_paths = [];
 
+    if (compiler.endsWith('nvcc')) {
+      this.parseCompilerDefaultsNvcc(compiler);
+    } else {
+      this.parseCompilerDefaultsCpp(compiler);
+    }
+
+    this.system_paths_changed.dispatch();
+  }
+
+  private parseCompilerDefaultsCpp(compiler: string) {
     // Parse the default includes by invoking the compiler
     let options:
       child_process.ExecSyncOptionsWithStringEncoding = { 'encoding': 'utf8' };
@@ -247,8 +257,27 @@ export class CatkinWorkspace {
         this.default_system_include_paths.push(line.trim());
       }
     }
+  }
 
-    this.system_paths_changed.dispatch();
+  private parseCompilerDefaultsNvcc(compiler: string) {
+    // Parse the default includes by invoking the compiler
+    let options:
+      child_process.ExecSyncOptionsWithStringEncoding = { 'encoding': 'utf8' };
+    try {
+      child_process.execSync(compiler + ' --dryrun -v /dev/null 1>&2', options);
+    } catch (err) {
+      for (var line of err.message.split('\n')) {
+        let match = line.match(/^#\$ INCLUDES="(.*)"\s*$/);
+        if (match) {
+          for (let path of match[1].split("-I")) {
+            let trimmed = path.trim();
+            if (trimmed.length > 0) {
+              this.default_system_include_paths.push(trimmed);
+  }
+          }
+        }
+      }
+    }
   }
 
   private updateDatabase(db_file: string): any {
