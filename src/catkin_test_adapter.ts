@@ -461,20 +461,13 @@ export class CatkinTestAdapter implements TestAdapter {
             throw Error(`Cannot handle test with id ${id}`);
         }
 
-        let result: TestEvent = {
-            type: 'test',
-            test: id,
-            state: 'errored',
-            message: 'unknown error'
-        };
-
         // run the test
+        let test_result_message: string;
         try {
             this.output_channel.appendLine(`command: ${command}`);
             let output = await this.runCommand(command, '/tmp');
             this.output_channel.appendLine(`${output.stdout}`);
-            result.message = output.stdout;
-            result.state = 'passed';
+            test_result_message = output.stdout;
 
         } catch (error_output) {
             this.output_channel.appendLine("ERROR: stdout:");
@@ -482,8 +475,7 @@ export class CatkinTestAdapter implements TestAdapter {
             this.output_channel.appendLine("stderr:");
             this.output_channel.appendLine(`${error_output.stderr}`);
 
-            result.message = error_output.stdout;
-            result.state = 'failed';
+            test_result_message = error_output.stdout;
 
         }
 
@@ -496,12 +488,12 @@ export class CatkinTestAdapter implements TestAdapter {
             };
             dom = xml.parse(fs.readFileSync(output_xml).toString(), options);
         } catch (error) {
-            result.message = `Cannot read the test results results from ${output_xml}`;
+            test_result_message = `Cannot read the test results results from ${output_xml}`;
         }
 
         // send the result for all matching ids
         tests.forEach((test) => {
-           this.sendResultForTest(test, dom);
+            this.sendResultForTest(test, dom, test_result_message);
         });
 
         // check if a test suite was changed
@@ -520,20 +512,20 @@ export class CatkinTestAdapter implements TestAdapter {
             // send the test results again
             pkg_suite.executables.forEach((exe) => {
                 exe.tests.forEach((test) => {
-                    this.sendResultForTest(test, dom);
+                    this.sendResultForTest(test, dom, test_result_message);
                 });
             });
 
         }
     }
 
-    private sendResultForTest(test: CatkinTestCase, dom) {
+    private sendResultForTest(test: CatkinTestCase, dom, message: string) {
         let result: TestEvent = {
             type: 'test',
             test: test.info.id,
             state: 'errored',
-            message: 'unknown error'
-        };    
+            message: message
+        };
         let test_suite = test.filter.substr(0, test.filter.lastIndexOf('.'));
         let node_suites = dom['testsuites']['testsuite'];
         if (!Array.isArray(node_suites)) {
