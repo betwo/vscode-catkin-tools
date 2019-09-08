@@ -299,14 +299,10 @@ export class CatkinTestAdapter implements TestAdapter {
         try {
             await Promise.all(nodeIds.map(async id => {
                 if (id.startsWith("package_") || id.startsWith("exec_") || id === "all_tests") {
-                    let results = await this.runTestSuite(id);
-                    for (let result of results) {
-                        this.testStatesEmitter.fire(<TestEvent>result);
-                    }
+                    await this.runTestSuite(id);
 
                 } else if (id.startsWith("test_")) {
-                    let result = await this.runTestCommand(id);
-                    this.testStatesEmitter.fire(<TestEvent>result);
+                    await this.runTestCommand(id);
                 }
             }));
         } catch (err) {
@@ -317,23 +313,24 @@ export class CatkinTestAdapter implements TestAdapter {
         this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: 'finished' });
     }
 
-    public async runTest(id: string): Promise<TestEvent> {
+    public async runTest(id: string): Promise<void> {
         this.output_channel.appendLine(`Running catkin_tools test for package ${id}`);
 
         try {
-            return this.runTestCommand(id);
+            let result = await this.runTestCommand(id);
+            this.testStatesEmitter.fire(result);
         } catch (err) {
-            let result: TestEvent = {
-                type: 'test',
-                test: id,
-                state: 'errored',
-                message: err
-            };
-            return result;
+            this.testStatesEmitter.fire(
+                {
+                    state: 'errored',
+                    type: 'test',
+                    test: id,
+                    message: `Failure running test ${id}: ${err}`
+                });
         }
     }
 
-    private async runTestSuite(id: string): Promise<TestEvent[]> {
+    private async runTestSuite(id: string): Promise<void> {
         this.output_channel.appendLine(`Running catkin_tools test suite ${id}`);
 
         let tests: CatkinTestCase[] = [];
@@ -361,35 +358,19 @@ export class CatkinTestAdapter implements TestAdapter {
 
         if (tests.length === 0) {
             this.output_channel.appendLine(`No test found with id ${id}`);
-            return ids.map((id): TestEvent => {
-                return {
-                    state: 'errored',
-                    type: 'test',
-                    test: id,
-                    message: `No test found with id ${id}`
-                };
+            ids.map((id) => {
+                this.testStatesEmitter.fire(
+                    {
+                        state: 'errored',
+                        type: 'test',
+                        test: id,
+                        message: `No test found with id ${id}`
+                    });
             });
         }
 
-        try {
-            const results: TestEvent[] = await Promise.all(tests.map(async test => {
-                const output: TestEvent = await this.runTest(test.info.id);
-                return output;
-            }));
-
-            this.output_channel.appendLine(`Resolving catkin_tools test suite with ${results.length} results`);
-            return [].concat(...results);
-
-        } catch (err) {
-            this.output_channel.appendLine(`Test suite error ${err}`);
-            return ids.map((id): TestEvent => {
-                return {
-                    type: 'test',
-                    state: 'errored',
-                    test: id,
-                    message: `Failure running test ${id}: ${err}`
-                };
-            });
+        for (let test of tests) {
+            await this.runTest(test.info.id);
         }
     }
 
