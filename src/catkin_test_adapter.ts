@@ -344,14 +344,22 @@ export class CatkinTestAdapter implements TestAdapter {
         try {
             await this.runTestCommand(id);
         } catch (err) {
-            this.testStatesEmitter.fire(
-                {
-                    state: 'errored',
-                    type: 'test',
-                    test: id,
-                    message: `Failure running test ${id}: ${err}`
-                });
+            this.testStatesEmitter.fire({
+                state: 'errored',
+                type: 'test',
+                test: id,
+                message: `Failure running test ${id}: ${err}`
+            });
         }
+    }
+
+    public async skipTest(id: string) {
+        this.testStatesEmitter.fire({
+            state: 'errored',
+            type: 'test',
+            test: id,
+            message: `Skipped test ${id}`
+        });
     }
 
     private async runTestSuite(id: string): Promise<void> {
@@ -394,9 +402,10 @@ export class CatkinTestAdapter implements TestAdapter {
 
         for (let test of tests) {
             if (this.cancel_requested) {
-                break;
+                this.skipTest(test.info.id);
+            } else {
+                await this.runTest(test.info.id);
             }
-            await this.runTest(test.info.id);
         }
     }
 
@@ -482,36 +491,17 @@ export class CatkinTestAdapter implements TestAdapter {
         let output_xml = "/tmp/test_detail.xml";
         try {
             let options = {
-                ignoreAttributes : false,
+                ignoreAttributes: false,
                 attrNodeName: "attr"
             };
             dom = xml.parse(fs.readFileSync(output_xml).toString(), options);
-        } catch(error) {
+        } catch (error) {
             result.message = `Cannot read the test results results from ${output_xml}`;
         }
 
         // send the result for all matching ids
         tests.forEach((test) => {
-            let test_suite = test.filter.substr(0, test.filter.lastIndexOf('.'));
-            result.test = test.info.id;
-            result.state = 'errored';
-
-            let node_suites = dom['testsuites']['testsuite'];
-            if(!Array.isArray(node_suites)) {
-                node_suites = [node_suites];
-            }
-            for(let node of node_suites) {
-                if(node.attr['@_name'] === test_suite) {
-                    if(node.attr['@_failures'] > 0) {
-                        result.state = 'failed';
-                        // result.message
-                    } else {
-                        result.state = 'passed';
-                    }
-                    break;
-                }
-            }
-            this.testStatesEmitter.fire(result);
+           this.sendResultForTest(test, dom);
         });
 
         // check if a test suite was changed
@@ -520,21 +510,46 @@ export class CatkinTestAdapter implements TestAdapter {
         let pkg_suite = await this.loadPackageTests(test.package, test.global_build_dir, test.global_devel_dir);
         let old_suite = this.suites.get(pkg_suite.info.id);
         if (!this.isSuiteEquivalent(old_suite, pkg_suite)) {
+            // update the list of tests
             this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
             this.suites.set(pkg_suite.info.id, pkg_suite);
             old_suite = pkg_suite;
-
             this.updateSuiteSet();
             this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
 
+            // send the test results again
             pkg_suite.executables.forEach((exe) => {
                 exe.tests.forEach((test) => {
-                    result.test = test.info.id;
-                    this.testStatesEmitter.fire(result);
+                    this.sendResultForTest(test, dom);
                 });
             });
 
         }
+    }
+
+    private sendResultForTest(test: CatkinTestCase, dom) {
+        let result: TestEvent = {
+            type: 'test',
+            test: test.info.id,
+            state: 'errored',
+            message: 'unknown error'
+        };    
+        let test_suite = test.filter.substr(0, test.filter.lastIndexOf('.'));
+        let node_suites = dom['testsuites']['testsuite'];
+        if (!Array.isArray(node_suites)) {
+            node_suites = [node_suites];
+        }
+        for (let node of node_suites) {
+            if (node.attr['@_name'] === test_suite) {
+                if (node.attr['@_failures'] > 0) {
+                    result.state = 'failed';
+                } else {
+                    result.state = 'passed';
+                }
+                break;
+            }
+        }
+        this.testStatesEmitter.fire(result);
     }
 
     private isSuiteEquivalent(a: CatkinTestSuite, b: CatkinTestSuite): boolean {
