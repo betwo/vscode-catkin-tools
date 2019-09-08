@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import { SourceFileConfiguration } from 'vscode-cpptools';
 import { CatkinPackage } from './catkin_package';
 import { EntryItem } from 'fast-glob/out/types/entries';
-
+import { runCatkinCommand, ShellOutput } from './catkin_command';
 
 export class CatkinWorkspace {
   public workspace: vscode.WorkspaceFolder;
@@ -350,44 +350,26 @@ export class CatkinWorkspace {
   }
 
   public async getBuildDir(): Promise<string> {
-    const output = await this.runCatkinCommand('locate -b');
-    return output.split('\n')[0];
+    const output: ShellOutput = await runCatkinCommand('locate -b');
+    return output.stdout.split('\n')[0];
   }
   public async getDevelDir(): Promise<string> {
-    const output = await this.runCatkinCommand('locate -d');
-    return output.split('\n')[0];
+    const output: ShellOutput = await runCatkinCommand('locate -d');
+    return output.stdout.split('\n')[0];
+  }
+  public async getInstallDir(): Promise<string> {
+    const output: ShellOutput = await runCatkinCommand('locate -i');
+    return output.stdout.split('\n')[0];
   }
 
-  public runCatkinCommand(args: string): Thenable<string> {
-    let ws = vscode.workspace.rootPath;
-    let options: child_process.ExecSyncOptionsWithStringEncoding = {
-      'cwd': ws,
-      'encoding': 'utf8'
-    };
-    return new Promise<string>((resolve, reject) => {
-      child_process.exec(`catkin ${args}`, options, (error, output) => {
-        if (error) {
-          vscode.window.showErrorMessage(`Command catkin ${args} failed: ${error.message}`);
-          reject();
-        } else {
-          resolve(output);
-        }
-      });
-    });
-  }
-
-  public getSetupBash() {
-    let ws = vscode.workspace.rootPath;
-    let options: child_process.ExecSyncOptionsWithStringEncoding = {
-      'cwd': ws,
-      'encoding': 'utf8'
-    };
-    let setup = child_process.execSync('catkin locate -i', options).split('\n')[0] + '/setup.bash';
+  public async getSetupBash(): Promise<string>{
+    const install_dir = await this.getInstallDir();
+    let setup = install_dir + '/setup.bash';
     if (fs.existsSync(setup)) {
       return setup;
     }
-
-    return child_process.execSync('catkin locate -d', options).split('\n')[0] + '/setup.bash';
+    const devel_dir = await this.getDevelDir();
+    return devel_dir + '/setup.bash';
   }
 
   private startWatchingCatkinPackageBuildDir(file: string) {
