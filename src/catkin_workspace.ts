@@ -273,7 +273,7 @@ export class CatkinWorkspace {
             let trimmed = path.trim();
             if (trimmed.length > 0) {
               this.default_system_include_paths.push(trimmed);
-  }
+            }
           }
         }
       }
@@ -301,7 +301,7 @@ export class CatkinWorkspace {
   }
 
   private async loadAndWatchCompileCommands() {
-    let build_dir = this.getBuildDir();
+    let build_dir = await this.getBuildDir();
     if (build_dir === null) {
       vscode.window.showErrorMessage('Cannot determine build directory');
       return;
@@ -349,24 +349,31 @@ export class CatkinWorkspace {
 
   }
 
-  public getBuildDir() {
-    let ws = vscode.workspace.rootPath;
-    let options: child_process.ExecSyncOptionsWithStringEncoding = {
-      'cwd': ws,
-      'encoding': 'utf8'
-    };
-    let stdout = child_process.execSync('catkin locate -b', options);
-    return stdout.split('\n')[0];
+  public async getBuildDir(): Promise<string> {
+    const output = await this.runCatkinCommand('locate -b');
+    return output.split('\n')[0];
+  }
+  public async getDevelDir(): Promise<string> {
+    const output = await this.runCatkinCommand('locate -d');
+    return output.split('\n')[0];
   }
 
-  public getDevelDir() {
+  public runCatkinCommand(args: string): Thenable<string> {
     let ws = vscode.workspace.rootPath;
     let options: child_process.ExecSyncOptionsWithStringEncoding = {
       'cwd': ws,
       'encoding': 'utf8'
     };
-    let stdout = child_process.execSync('catkin locate -d', options);
-    return stdout.split('\n')[0];
+    return new Promise<string>((resolve, reject) => {
+      child_process.exec(`catkin ${args}`, options, (error, output) => {
+        if (error) {
+          vscode.window.showErrorMessage(`Command catkin ${args} failed: ${error.message}`);
+          reject();
+        } else {
+          resolve(output);
+        }
+      });
+    });
   }
 
   public getSetupBash() {
