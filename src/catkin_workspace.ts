@@ -51,7 +51,7 @@ export class CatkinWorkspace {
       progress.report({ increment: 0, message: "Clearing caches" });
 
       for (var key in this.watchers.keys()) {
-        this.watchers[key].close();
+        this.watchers.get(key).close();
       }
       this.watchers.clear();
       this.compile_commands.clear();
@@ -280,24 +280,37 @@ export class CatkinWorkspace {
     }
   }
 
-  private updateDatabase(db_file: string): any {
+  private async updateDatabase(db_file: string): Promise<boolean> {
     console.log('updating with file', db_file);
-    let db_part = jsonfile.readFileSync(db_file);
-    this.compile_commands[db_file] = db_part;
+    if (!fs.existsSync(db_file)) {
+      console.log(`${db_file} does not exist anymore`);
+      for (let [file, db] of this.file_to_compile_commands.entries()) {
+        if (db === db_file) {
+          this.file_to_command.delete(file);
+          this.file_to_compile_commands.delete(file);
+        }
+      }
+      this.build_commands_changed.dispatch();
+      return true;
+    }
+
+    let db_part = await jsonfile.readFile(db_file);
+    this.compile_commands.set(db_file, db_part);
     let change = false;
     for (var index in db_part) {
       let cmd = db_part[index];
       const file = cmd['file'];
-      if (this.file_to_command[file] !== cmd) {
-        this.file_to_command[file] = cmd;
+      if (this.file_to_command.get(file) !== cmd) {
+        this.file_to_command.set(file, cmd);
         change = true;
-        this.file_to_compile_commands[file] = db_file;
+        this.file_to_compile_commands.set(file, db_file);
       }
     }
     if (change) {
       console.log('Signalling change in config');
       this.build_commands_changed.dispatch();
     }
+    return change;
   }
 
   private async loadAndWatchCompileCommands() {
@@ -362,7 +375,7 @@ export class CatkinWorkspace {
     return output.stdout.split('\n')[0];
   }
 
-  public async getSetupBash(): Promise<string>{
+  public async getSetupBash(): Promise<string> {
     const install_dir = await this.getInstallDir();
     let setup = install_dir + '/setup.bash';
     if (fs.existsSync(setup)) {
@@ -375,7 +388,7 @@ export class CatkinWorkspace {
   private startWatchingCatkinPackageBuildDir(file: string) {
     console.log('watching directory', file);
     this.stopWatching(file);
-    this.watchers[file] = fs.watch(file, (eventType, filename) => {
+    this.watchers.set(file, fs.watch(file, (eventType, filename) => {
       if (filename === 'compile_commands.json') {
         console.log(
           'File', filename, 'in package', file, 'changed with', eventType);
@@ -384,13 +397,13 @@ export class CatkinWorkspace {
           this.startWatchingCompileCommandsFile(db_file);
         }
       }
-    });
+    }));
   }
 
   private stopWatching(file: string) {
     if (this.watchers.has(file)) {
       console.log('stop watching', file);
-      this.watchers[file].close();
+      this.watchers.get(file).close();
       this.watchers.delete(file);
     }
   }
@@ -399,11 +412,11 @@ export class CatkinWorkspace {
     this.updateDatabase(file);
     console.log('watching file', file);
     this.stopWatching(file);
-    this.watchers[file] = fs.watch(file, (eventType, filename) => {
+    this.watchers.set(file, fs.watch(file, (eventType, filename) => {
       if (filename) {
         console.log('Database file', file, 'changed');
         this.updateDatabase(file);
       }
-    });
+    }));
   }
 }

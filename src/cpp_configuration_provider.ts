@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import {CppToolsApi, CustomConfigurationProvider, SourceFileConfigurationItem, WorkspaceBrowseConfiguration} from 'vscode-cpptools';
-import {status_bar_item, status_bar_prefix} from './catkin_tools';
-import {CatkinWorkspace} from './catkin_workspace';
+import { CppToolsApi, CustomConfigurationProvider, SourceFileConfigurationItem, WorkspaceBrowseConfiguration } from 'vscode-cpptools';
+import { status_bar_item, status_bar_prefix } from './catkin_tools';
+import { CatkinWorkspace } from './catkin_workspace';
 
 // Worker class that implements a C++ configuration provider
 export class CatkinToolsProvider implements CustomConfigurationProvider {
@@ -14,7 +14,7 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     this.workspace = workspace;
     this.cppToolsApi = cppToolsApi;
   }
-  dispose() {}
+  dispose() { }
   public async loadDataBases() {
     await this.workspace.reload();
   }
@@ -27,8 +27,8 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     });
   }
   public async canProvideConfiguration(
-      uri: vscode.Uri,
-      token?: vscode.CancellationToken|undefined): Promise<boolean> {
+    uri: vscode.Uri,
+    token?: vscode.CancellationToken | undefined): Promise<boolean> {
     const fileWp = vscode.workspace.getWorkspaceFolder(uri);
     if (fileWp === undefined) {
       console.log('Cannot provide compile flags for', uri.fsPath);
@@ -38,30 +38,30 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     return true;
   }
   public async provideConfigurations(
-      uris: vscode.Uri[], token?: vscode.CancellationToken|undefined):
-      Promise<SourceFileConfigurationItem[]> {
+    uris: vscode.Uri[], token?: vscode.CancellationToken | undefined):
+    Promise<SourceFileConfigurationItem[]> {
     const ret: SourceFileConfigurationItem[] = [];
     for (var file of uris) {
       console.log('Providing compile flags for', file.fsPath);
-      let commands = this.workspace.file_to_command[file.fsPath];
+      let commands = this.workspace.file_to_command.get(file.fsPath);
       if (commands !== undefined) {
         ret.push({
           uri: file,
           configuration: this.workspace.getSourceFileConfiguration(commands)
         });
         status_bar_item.text = status_bar_prefix + ' (' +
-            this.workspace.file_to_compile_commands[file.fsPath] + ')';
+          this.workspace.file_to_compile_commands.get(file.fsPath) + ')';
       }
     }
     console.log(ret);
     return ret;
   }
   public async canProvideBrowseConfiguration(token?: vscode.CancellationToken):
-      Promise<boolean> {
+    Promise<boolean> {
     return true;
   }
   public async provideBrowseConfiguration(token?: vscode.CancellationToken):
-      Promise<WorkspaceBrowseConfiguration> {
+    Promise<WorkspaceBrowseConfiguration> {
     let paths = [];
     for (var f of vscode.workspace.workspaceFolders) {
       paths.push(f.uri.fsPath);
@@ -72,6 +72,6 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
     for (var dp of this.workspace.default_system_include_paths) {
       paths.push(dp);
     }
-    return {browsePath: paths};
+    return { browsePath: paths };
   }
 }
