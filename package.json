@@ -95,6 +95,50 @@
 						"loop": true
 					}
 				]
+			},
+			{
+				"name": "catkin-gtest-failed",
+				"fileLocation": "absolute",
+				"owner": "catkin",
+				"pattern": [
+					{
+						"regexp": "^(\\S+):(\\d+):\\s*(Failure\\s*)$",
+						"file": 1,
+						"line": 2,
+						"severity": 4,
+						"message": 3
+					},
+					{
+						"regexp": "^Failed$",
+						"message": 1
+					}
+				]
+			},
+			{
+				"name": "catkin-gtest",
+				"fileLocation": "absolute",
+				"owner": "catkin",
+				"pattern": [
+					{
+						"regexp": "^(\\S+):(\\d+):\\s*(Failure\\s*)$",
+						"file": 1,
+						"line": 2,
+						"severity": 4,
+						"message": 3
+					},
+					{
+						"regexp": "^(Failed|\\s*Value of\\s*:.*)$",
+						"message": 1
+					},
+					{
+						"regexp": "^(\\s*Actual\\s*:.*)$",
+						"message": 1
+					},
+					{
+						"regexp": "^(\\s*Expected\\s*:.*)$",
+						"message": 1
+					}
+				]
 			}
 		]
 	},
