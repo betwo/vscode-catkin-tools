@@ -109,3 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.6.2] - 2019-09-11
 ### Fixed
 - Fixed uncaught exception when a `compile_commands.json` file is deleted in parallel
+
+## [1.7.0] - 2019-09-12
+### Added
+- Added two problem matchers for GTest, those can be unified when multi-line matchers are fixed
