@@ -439,17 +439,12 @@ export class CatkinTestAdapter implements TestAdapter {
         let test: CatkinTestCase | CatkinTestExecutable;
         let tests: CatkinTestCase[] = [];
 
-        let output_xml = "/tmp/test_detail.xml";
-        if (fs.existsSync(output_xml)) {
-            fs.unlinkSync(output_xml);
-        }
-
         if (id.startsWith('test_')) {
             // single test case 
             test = this.testcases.get(id);
             this.output_channel.appendLine(`Id ${id} maps to test in package ${test.package.name}`);
             command = await this.makeBuildCommand(test);
-            command += `${test.executable} --gtest_filter=${test.filter} --gtest_output=xml`;
+            command += `${test.executable} --gtest_filter=${test.filter}`;
             tests.push(test);
 
         } else if (id.startsWith('exec_')) {
@@ -457,7 +452,7 @@ export class CatkinTestAdapter implements TestAdapter {
             test = this.executables.get(id);
             this.output_channel.appendLine(`Id ${id} maps to executable in package ${test.package.name}`);
             command = await this.makeBuildCommand(test);
-            command += `${test.executable} --gtest_output=xml`;
+            command += `${test.executable}`;
             test.tests.forEach((test: CatkinTestCase, key) => {
                 tests.push(test);
             });
@@ -465,6 +460,14 @@ export class CatkinTestAdapter implements TestAdapter {
         } else {
             throw Error(`Cannot handle test with id ${id}`);
         }
+
+        let output_dir = "/tmp";
+        let output_file = `${test.info.id}.xml`;
+        let output_xml = path.join(output_dir, output_file);
+        if (fs.existsSync(output_xml)) {
+            fs.unlinkSync(output_xml);
+        }
+        command += ` --gtest_output=xml:${output_dir}/${output_file}`;
 
         // run the test
         let test_result_message: string;
