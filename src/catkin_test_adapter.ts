@@ -277,7 +277,7 @@ export class CatkinTestAdapter implements TestAdapter {
                             info: {
                                 type: 'test',
                                 id: `test_${build_target}_${test_label}`,
-                                label: test_label
+                                label: `${build_target} :: ${test_label}`
                             }
                         };
                         this.testcases.set(test_case.info.id, test_case);
