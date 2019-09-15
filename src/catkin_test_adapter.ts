@@ -439,6 +439,11 @@ export class CatkinTestAdapter implements TestAdapter {
         let test: CatkinTestCase | CatkinTestExecutable;
         let tests: CatkinTestCase[] = [];
 
+        let output_xml = "/tmp/test_detail.xml";
+        if (fs.existsSync(output_xml)) {
+            fs.unlinkSync(output_xml);
+        }
+
         if (id.startsWith('test_')) {
             // single test case 
             test = this.testcases.get(id);
@@ -480,7 +485,6 @@ export class CatkinTestAdapter implements TestAdapter {
         }
 
         let dom = undefined;
-        let output_xml = "/tmp/test_detail.xml";
         try {
             let options = {
                 ignoreAttributes: false,
