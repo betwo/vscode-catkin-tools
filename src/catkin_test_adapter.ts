@@ -475,7 +475,7 @@ export class CatkinTestAdapter implements TestAdapter {
             this.output_channel.appendLine("stderr:");
             this.output_channel.appendLine(`${error_output.stderr}`);
 
-            test_result_message = error_output.stdout;
+            test_result_message = error_output.stdout + '\n' + error_output.stderr;
 
         }
 
@@ -488,7 +488,7 @@ export class CatkinTestAdapter implements TestAdapter {
             };
             dom = xml.parse(fs.readFileSync(output_xml).toString(), options);
         } catch (error) {
-            test_result_message = `Cannot read the test results results from ${output_xml}`;
+            test_result_message += `\n(Cannot read the test results results from ${output_xml})`;
         }
 
         // send the result for all matching ids
@@ -527,18 +527,20 @@ export class CatkinTestAdapter implements TestAdapter {
             message: message
         };
         let test_suite = test.filter.substr(0, test.filter.lastIndexOf('.'));
-        let node_suites = dom['testsuites']['testsuite'];
-        if (!Array.isArray(node_suites)) {
-            node_suites = [node_suites];
-        }
-        for (let node of node_suites) {
-            if (node.attr['@_name'] === test_suite) {
-                if (node.attr['@_failures'] > 0) {
-                    result.state = 'failed';
-                } else {
-                    result.state = 'passed';
+        if (dom !== undefined) {
+            let node_suites = dom['testsuites']['testsuite'];
+            if (!Array.isArray(node_suites)) {
+                node_suites = [node_suites];
+            }
+            for (let node of node_suites) {
+                if (node.attr['@_name'] === test_suite) {
+                    if (node.attr['@_failures'] > 0) {
+                        result.state = 'failed';
+                    } else {
+                        result.state = 'passed';
+                    }
+                    break;
                 }
-                break;
             }
         }
         this.testStatesEmitter.fire(result);
