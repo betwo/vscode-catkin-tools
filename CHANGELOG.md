@@ -113,3 +113,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.7.0] - 2019-09-12
 ### Added
 - Added two problem matchers for GTest, those can be unified when multi-line matchers are fixed
+
+## [1.8.0] - 2019-09-12
+### Added
+- Added a webpack config
+
+## [1.9.0] - 2019-09-16
+### Changed
+- Made unit test discovery and execution more robust
