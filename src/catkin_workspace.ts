@@ -75,6 +75,9 @@ export class CatkinWorkspace {
           (range_progress_packages_max - range_progress_packages_min);
 
         for (let package_xml of packages) {
+        if (token.isCancellationRequested) {
+          break;
+        }
           accumulated_progress += progress_relative;
           if (accumulated_progress > 1.0) {
             let integer_progress = Math.floor(accumulated_progress);
@@ -104,7 +107,9 @@ export class CatkinWorkspace {
         }
       }).then(() => {
         progress.report({ increment: 100, message: "Finalizing" });
+      if (!token.isCancellationRequested) {
         vscode.commands.executeCommand('test-explorer.reload');
+      }
         return this;
       });
     });
