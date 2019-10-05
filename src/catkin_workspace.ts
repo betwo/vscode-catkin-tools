@@ -87,7 +87,9 @@ export class CatkinWorkspace {
               message: `Parsing ${path.basename(path.dirname(package_xml.path))}`
             });
           }
+        try {
           let dom = xml.parse(fs.readFileSync(package_xml.fsPath).toString());
+          if (dom !== undefined && dom !== "" && 'package' in dom) {
           let src_path = path.dirname(package_xml.fsPath);
           let relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
           let cmake_lists_path = path.join(src_path, "CMakeLists.txt");
@@ -105,7 +107,10 @@ export class CatkinWorkspace {
 
           this.packages.push(item);
         }
-      }).then(() => {
+        } catch (err) {
+          console.log(`Error parsing package ${package_xml}: ${err}`);
+        }
+      }
         progress.report({ increment: 100, message: "Finalizing" });
       if (!token.isCancellationRequested) {
         vscode.commands.executeCommand('test-explorer.reload');
