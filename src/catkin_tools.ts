@@ -38,29 +38,28 @@ export async function registerProviders(
   context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel): Promise<CatkinWorkspace> {
   catkin_workspace =
     new CatkinWorkspace(vscode.workspace.workspaceFolders[0], outputChannel);
-  return getCppToolsApi(Version.v2).then((api: CppToolsApi | undefined) => {
-    if (api) {
-      if (api.notifyReady) {
-        provider = new CatkinToolsProvider(catkin_workspace, api);
-        // Inform cpptools that a custom config provider will be able to service
-        // the current workspace.
+  let api: CppToolsApi = await getCppToolsApi(Version.v2);
+  if (api) {
+    if (api.notifyReady) {
+      provider = new CatkinToolsProvider(catkin_workspace, api);
+      // Inform cpptools that a custom config provider will be able to service
+      // the current workspace.
 
-        api.registerCustomConfigurationProvider(provider);
-        api.notifyReady(provider);
-        provider.startListening();
+      api.registerCustomConfigurationProvider(provider);
+      api.notifyReady(provider);
+      provider.startListening();
 
-      } else {
-        vscode.window.showInformationMessage(
-          'Catkin tools only supports C/C++ API 2.0 or later.');
-      }
+    } else {
+      vscode.window.showInformationMessage(
+        'Catkin tools only supports C/C++ API 2.0 or later.');
     }
-    const package_xml_provider = vscode.languages.registerCompletionItemProvider(
-      { pattern: '**/package.xml' },
-      new CatkinPackageCompleterXml(catkin_workspace));
+  }
+  const package_xml_provider = vscode.languages.registerCompletionItemProvider(
+    { pattern: '**/package.xml' },
+    new CatkinPackageCompleterXml(catkin_workspace));
 
-    context.subscriptions.push(package_xml_provider);
-    return catkin_workspace.reload();
-  });
+  context.subscriptions.push(package_xml_provider);
+  return catkin_workspace.reload();
 }
 
 export function reloadCompileCommand() {

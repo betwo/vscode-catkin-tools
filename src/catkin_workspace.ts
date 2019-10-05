@@ -64,59 +64,58 @@ export class CatkinWorkspace {
 
       this.build_commands_changed.dispatch();
 
-      return this.loadAndWatchCompileCommands().then(() => {
-        progress.report({ increment: 1, message: "Searching packages" });
-        return vscode.workspace.findFiles("**/package.xml");
-      }).then(async (packages: vscode.Uri[]) => {
-        let range_progress_packages_min = 1;
-        let range_progress_packages_max = 99;
-        let accumulated_progress = 0.0;
-        let progress_relative = (1.0 / packages.length) *
-          (range_progress_packages_max - range_progress_packages_min);
+      await this.loadAndWatchCompileCommands();
 
-        for (let package_xml of packages) {
+      progress.report({ increment: 1, message: "Searching packages" });
+      const packages = await vscode.workspace.findFiles("**/package.xml");
+      let range_progress_packages_min = 1;
+      let range_progress_packages_max = 99;
+      let accumulated_progress = 0.0;
+      let progress_relative = (1.0 / packages.length) *
+        (range_progress_packages_max - range_progress_packages_min);
+
+      for (let package_xml of packages) {
         if (token.isCancellationRequested) {
           break;
         }
-          accumulated_progress += progress_relative;
-          if (accumulated_progress > 1.0) {
-            let integer_progress = Math.floor(accumulated_progress);
-            accumulated_progress -= integer_progress;
-            progress.report({
-              increment: integer_progress,
-              message: `Parsing ${path.basename(path.dirname(package_xml.path))}`
-            });
-          }
+        accumulated_progress += progress_relative;
+        if (accumulated_progress > 1.0) {
+          let integer_progress = Math.floor(accumulated_progress);
+          accumulated_progress -= integer_progress;
+          progress.report({
+            increment: integer_progress,
+            message: `Parsing ${path.basename(path.dirname(package_xml.path))}`
+          });
+        }
         try {
           let dom = xml.parse(fs.readFileSync(package_xml.fsPath).toString());
           if (dom !== undefined && dom !== "" && 'package' in dom) {
-          let src_path = path.dirname(package_xml.fsPath);
-          let relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
-          let cmake_lists_path = path.join(src_path, "CMakeLists.txt");
-          let item: CatkinPackage = {
-            name: dom['package']['name'],
-            package_xml: dom,
-            path: src_path,
-            relative_path: relative_path,
-            has_tests: false
-          };
+            let src_path = path.dirname(package_xml.fsPath);
+            let relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
+            let cmake_lists_path = path.join(src_path, "CMakeLists.txt");
+            let item: CatkinPackage = {
+              name: dom['package']['name'],
+              package_xml: dom,
+              path: src_path,
+              relative_path: relative_path,
+              has_tests: false
+            };
 
-          if (fs.existsSync(cmake_lists_path)) {
-            item.has_tests = await this.parseCmakeListsForTests(item);
+            if (fs.existsSync(cmake_lists_path)) {
+              item.has_tests = await this.parseCmakeListsForTests(item);
+            }
+
+            this.packages.push(item);
           }
-
-          this.packages.push(item);
-        }
         } catch (err) {
           console.log(`Error parsing package ${package_xml}: ${err}`);
         }
       }
-        progress.report({ increment: 100, message: "Finalizing" });
+      progress.report({ increment: 100, message: "Finalizing" });
       if (!token.isCancellationRequested) {
         vscode.commands.executeCommand('test-explorer.reload');
       }
-        return this;
-      });
+      return this;
     });
   }
 
@@ -126,23 +125,24 @@ export class CatkinWorkspace {
     for (let expr of config['gtestMacroRegex']) {
       test_regexes.push(new RegExp(`.*(${expr})`));
     }
-    return glob.async([`${vscode.workspace.rootPath}/${item.relative_path}/**/CMakeLists.txt`])
-      .then((cmake_files: EntryItem[]) => {
-        for (let cmake_file of cmake_files) {
-          let data = fs.readFileSync(cmake_file.toString());
-          let cmake = data.toString();
-          for (let test_regex of test_regexes) {
-            for (let row of cmake.split('\n')) {
-              let tests = row.match(test_regex);
-              if (tests) {
-                item.has_tests = true;
-                return true;
-              }
-            }
+
+    let cmake_files = await glob.async(
+      [`${vscode.workspace.rootPath}/${item.relative_path}/**/CMakeLists.txt`]
+    );
+    for (let cmake_file of cmake_files) {
+      let data = fs.readFileSync(cmake_file.toString());
+      let cmake = data.toString();
+      for (let test_regex of test_regexes) {
+        for (let row of cmake.split('\n')) {
+          let tests = row.match(test_regex);
+          if (tests) {
+            item.has_tests = true;
+            return true;
           }
         }
-        return false;
-      });
+      }
+    }
+    return false;
   }
 
   public getSourceFileConfiguration(commands): SourceFileConfiguration {
@@ -357,18 +357,17 @@ export class CatkinWorkspace {
 
     let expr = this.build_dir + '/**/compile_commands.json';
 
-    return glob.async([expr]).then((entries) => {
-      if (entries.length === 0 && !this.warned) {
-        this.warned = true;
-        vscode.window.showWarningMessage(
-          'No compile_commands.json file found in the workspace.\nMake sure that CMAKE_EXPORT_COMPILE_COMMANDS is on.');
-        return;
-      }
+    const entries = await glob.async([expr]);
+    if (entries.length === 0 && !this.warned) {
+      this.warned = true;
+      vscode.window.showWarningMessage(
+        'No compile_commands.json file found in the workspace.\nMake sure that CMAKE_EXPORT_COMPILE_COMMANDS is on.');
+      return;
+    }
 
-      for (let file of entries) {
-        this.startWatchingCompileCommandsFile(file.toString());
-      }
-    });
+    for (let file of entries) {
+      this.startWatchingCompileCommandsFile(file.toString());
+    }
 
   }
 
