@@ -121,3 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.9.0] - 2019-09-16
 ### Changed
 - Made unit test discovery and execution more robust
+
+## [1.9.1] - 2019-10-05
+### Fixed
+- Fixed exception on malformed package.xml causing packages not to be listed
