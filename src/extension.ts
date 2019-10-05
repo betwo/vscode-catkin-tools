@@ -3,14 +3,14 @@ import * as vscode_test from 'vscode-test-adapter-api';
 
 import * as catkin_build from './catkin_build';
 import * as catkin_tools from './catkin_tools';
-import { registerCatkinTest, CatkinTestAdapter } from './catkin_test_adapter';
+import { registerCatkinTest } from './catkin_test_adapter';
 
 
 let taskProvider: vscode.Disposable | undefined;
 let catkinPromise: Thenable<vscode.Task[]> | undefined = undefined;
 let outputChannel: vscode.OutputChannel = null;
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("catkin_tools");
 
   let disposable = vscode.commands.registerCommand(
@@ -32,13 +32,12 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  
-  catkin_tools.initialize(context, outputChannel).then(catkin_workspace => {
-    const test_explorer_extension = vscode.extensions.getExtension<vscode_test.TestHub>(vscode_test.testExplorerExtensionId);
-    if (test_explorer_extension) {
-      registerCatkinTest(context, catkin_workspace, test_explorer_extension, outputChannel);
-    }
-  });
+
+  let catkin_workspace = await catkin_tools.initialize(context, outputChannel);
+  const test_explorer_extension = vscode.extensions.getExtension<vscode_test.TestHub>(vscode_test.testExplorerExtensionId);
+  if (test_explorer_extension) {
+    registerCatkinTest(context, catkin_workspace, test_explorer_extension, outputChannel);
+  }
 }
 
 export function deactivate() {
