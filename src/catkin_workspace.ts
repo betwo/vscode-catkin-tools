@@ -162,7 +162,7 @@ export class CatkinWorkspace {
     let new_system_path_found = false;
     for (let i = 1; i < args.length; ++i) {
       let opt = args[i];
-      this.output_channel.appendLine(`- ${opt}`);
+      this.output_channel.appendLine(`-${opt}`);
       if (opt.startsWith('-I')) {
         let path = opt.slice(2);
         this.output_channel.appendLine(`   -> add path ${path}`);
@@ -177,6 +177,17 @@ export class CatkinWorkspace {
       } else if (opt === '-isystem') {
         ++i;
         let path = args[i];
+        this.output_channel.appendLine(`   -> add system path ${path}`);
+        includePaths.push(path);
+        if (!this.isWorkspacePath(path)) {
+          if (this.system_include_browse_paths.indexOf(path) < 0) {
+            this.output_channel.appendLine(`   -> add system_include_browse_path ${path}`);
+            this.system_include_browse_paths.push(path);
+            new_system_path_found = true;
+          }
+        }
+      } else if (opt.startsWith('-isystem=')) {
+        let path = opt.slice(9);
         this.output_channel.appendLine(`   -> add system path ${path}`);
         includePaths.push(path);
         if (!this.isWorkspacePath(path)) {
