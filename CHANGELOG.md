@@ -125,3 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.9.1] - 2019-10-05
 ### Fixed
 - Fixed exception on malformed package.xml causing packages not to be listed
+
+## [1.10] - 2019-11-10
+### Added
+- Added support for (s)ccache by forwarding requests to the host compiler
