@@ -153,7 +153,7 @@ export class CatkinWorkspace {
     let defines = [];
 
     if (this.default_system_include_paths.length === 0) {
-      this.parseCompilerDefaults(compiler);
+      this.parseCompilerDefaults(compiler, args.slice(1));
     }
 
     this.output_channel.appendLine(`Analyzing ${commands.command}`);
@@ -237,11 +237,13 @@ export class CatkinWorkspace {
     return false;
   }
 
-  private parseCompilerDefaults(compiler: string) {
+  private parseCompilerDefaults(compiler: string, args: string[]) {
     this.default_system_include_paths = [];
 
     if (compiler.endsWith('nvcc')) {
       this.parseCompilerDefaultsNvcc(compiler);
+    } if (compiler.indexOf('ccache') >= 0) {
+      this.parseCompilerDefaultsCcache(compiler, args);
     } else {
       this.parseCompilerDefaultsCpp(compiler);
     }
@@ -278,6 +280,15 @@ export class CatkinWorkspace {
         this.default_system_include_paths.push(line.trim());
       }
     }
+  }
+
+  private parseCompilerDefaultsCcache(caching_compiler: string, args: string[]) {
+    if (args.length === 0) {
+      console.log(`Cannot determine defaults for compiler ${caching_compiler} without any further arguments}`);
+      return;
+    }
+    console.log(`Defering default flags from cached compiler ${caching_compiler} to ${args[0]}`);
+    this.parseCompilerDefaults(args[0], args.slice(1));
   }
 
   private parseCompilerDefaultsNvcc(compiler: string) {
