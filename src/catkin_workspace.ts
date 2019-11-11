@@ -240,9 +240,12 @@ export class CatkinWorkspace {
   private parseCompilerDefaults(compiler: string, args: string[]) {
     this.default_system_include_paths = [];
 
-    if (compiler.endsWith('nvcc')) {
+    let compiler_path = compiler.split('/');
+    let compiler_name = compiler_path[compiler_path.length - 1];
+
+    if (compiler_name === 'nvcc') {
       this.parseCompilerDefaultsNvcc(compiler);
-    } if (compiler.indexOf('ccache') >= 0) {
+    } if (compiler_name.indexOf('ccache') >= 0) {
       this.parseCompilerDefaultsCcache(compiler, args);
     } else {
       this.parseCompilerDefaultsCpp(compiler);
