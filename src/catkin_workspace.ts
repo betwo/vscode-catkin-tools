@@ -27,6 +27,11 @@ export class CatkinWorkspace {
   private build_dir: string = null;
   private warned = false;
 
+  private catkin_profile: string = null;
+  private catkin_build_dir: string = null;
+  private catkin_devel_dir: string = null;
+  private catkin_install_dir: string = null;
+
   public build_commands_changed: Signal = new Signal();
   public system_paths_changed: Signal = new Signal();
 
@@ -393,20 +398,60 @@ export class CatkinWorkspace {
     for (let file of entries) {
       this.startWatchingCompileCommandsFile(file.toString());
     }
+  }
 
+  public async getProfile(): Promise<string> {
+    let profiles_path = path.join(vscode.workspace.rootPath, ".catkin_tools/profiles/profiles.yaml");
+    let content = fs.readFileSync(profiles_path).toString();
+
+    for (let row of content.split('\n')) {
+      let active = row.match(RegExp('active:\s*(.*)'));
+      if (active) {
+        return active[1];
+      }
+    }
+
+    return null;
+  }
+
+  private async checkProfile() {
+    let profile = await this.getProfile();
+    if(this.catkin_profile !== profile) {
+      this.switchProfile(profile);
+    }
+  }
+
+  private async switchProfile(profile) {
+    console.log(`PROFILE: Switching to ${profile}`);
+    this.catkin_profile = profile;
+    this.catkin_build_dir = null;
+    this.catkin_devel_dir = null;
+    this.catkin_install_dir = null; 
   }
 
   public async getBuildDir(): Promise<string> {
-    const output: ShellOutput = await runCatkinCommand('locate -b');
-    return output.stdout.split('\n')[0];
+    await this.checkProfile();
+    if (this.catkin_build_dir === null) {
+      const output: ShellOutput = await runCatkinCommand('locate -b');
+      this.catkin_build_dir = output.stdout.split('\n')[0];
+    }
+    return this.catkin_build_dir;
   }
   public async getDevelDir(): Promise<string> {
-    const output: ShellOutput = await runCatkinCommand('locate -d');
-    return output.stdout.split('\n')[0];
+    await this.checkProfile();
+    if (this.catkin_devel_dir === null) {
+      const output: ShellOutput = await runCatkinCommand('locate -d');
+      this.catkin_devel_dir = output.stdout.split('\n')[0];
+    }
+    return this.catkin_devel_dir;
   }
   public async getInstallDir(): Promise<string> {
-    const output: ShellOutput = await runCatkinCommand('locate -i');
-    return output.stdout.split('\n')[0];
+    await this.checkProfile();
+    if (this.catkin_install_dir === null) {
+      const output: ShellOutput = await runCatkinCommand('locate -i');
+      this.catkin_install_dir = output.stdout.split('\n')[0];
+    }
+    return this.catkin_install_dir;
   }
 
   public async getSetupBash(): Promise<string> {
