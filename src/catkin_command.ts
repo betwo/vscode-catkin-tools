@@ -27,6 +27,7 @@ export function runShellCommand(command: string, cwd?: string, callback?: (proce
         maxBuffer: 1024 * 1024
     };
     return new Promise<ShellOutput>((resolve, reject) => {
+        console.log(`Running command ${command}`);
         let process = child_process.exec(command, options, (error, stdout, stderr) => {
             const result = new ShellOutput(stdout, stderr, command);
             if (error) {

@@ -326,7 +326,8 @@ export class CatkinTestAdapter implements TestAdapter {
 
             try {
                 // try to extract test names, if the target is compiled
-                let output = await runShellCommand(`${build_target.exec_path} --gtest_list_tests`, build_space);
+                let cmd = await this.makeWorkspaceCommand(`${build_target.exec_path} --gtest_list_tests`);
+                let output = await runShellCommand(cmd, build_space);
                 for (let line of output.stdout.split('\n')) {
                     let match = line.match(/^([^\s]+)\.\s*$/);
                     if (match) {
@@ -512,9 +513,7 @@ export class CatkinTestAdapter implements TestAdapter {
     }
 
     private async makeBuildCommand(test: CatkinTestInterface) {
-        const setup_bash = await this.catkin_workspace.getSetupBash();
-        let command = `echo "source ${setup_bash}"; source ${setup_bash};`;
-        command += `pushd . > /dev/null; cd "${this.workspaceRootDirectoryPath}";`;
+        let command = "";
         if (!fs.existsSync(test.build_space)) {
             command += `catkin build ${test.package.name} --no-notify --no-status;`;
         }
@@ -523,8 +522,16 @@ export class CatkinTestAdapter implements TestAdapter {
             command += `make -j $(nproc) tests;`;
             command += `make run_tests;`;
         } else {
-            command += `make -j $(nproc) ${test.build_target};`;
+            command += `make -j $(nproc) ${test.build_target}`;
         }
+        return this.makeWorkspaceCommand(command);
+    }
+
+    private async makeWorkspaceCommand(payload: string) {
+        const setup_bash = await this.catkin_workspace.getSetupBash();
+        let command = `echo "source ${setup_bash}"; source ${setup_bash};`;
+        command += `pushd . > /dev/null; cd "${this.workspaceRootDirectoryPath}";`;
+        command += `${payload};`;
         command += `popd > /dev/null;`;
         return command;
     }
