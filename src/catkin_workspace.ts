@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { SourceFileConfiguration } from 'vscode-cpptools';
 import { CatkinPackage } from './catkin_package';
 import { runCatkinCommand, ShellOutput } from './catkin_command';
+import { CatkinTestAdapter } from './catkin_test_adapter';
 
 export class CatkinWorkspace {
   public workspace: vscode.WorkspaceFolder;
@@ -34,6 +35,8 @@ export class CatkinWorkspace {
   public system_paths_changed: Signal = new Signal();
 
   public packages: CatkinPackage[] = [];
+
+  public test_adapter: CatkinTestAdapter = null;
 
   private output_channel: vscode.OutputChannel;
 
@@ -90,12 +93,7 @@ export class CatkinWorkspace {
             message: `Parsing ${path.basename(path.dirname(package_xml.path))}`
           });
         }
-        try {
-          let catkin_package = await CatkinPackage.loadFromXML(package_xml.fsPath, this);
-          this.packages.push(catkin_package);
-        } catch (err) {
-          console.log(`Error parsing package ${package_xml}: ${err}`);
-        }
+        await this.loadPackage(package_xml.fsPath);
       }
       progress.report({ increment: 100, message: "Finalizing" });
       if (!token.isCancellationRequested) {
@@ -103,6 +101,28 @@ export class CatkinWorkspace {
       }
       return this;
     });
+  }
+
+  public async loadPackage(package_xml: fs.PathLike) {
+    try {
+      let catkin_package = await CatkinPackage.loadFromXML(package_xml, this);
+      this.packages.push(catkin_package);
+      return catkin_package;
+    } catch (err) {
+      console.log(`Error parsing package ${package_xml}: ${err}`);
+      return null;
+    }
+  }
+
+  public async locatePackageXML(package_name: String) {
+    const packages = await vscode.workspace.findFiles("**/package.xml");
+    for (let package_xml of packages) {
+      let name = await CatkinPackage.getNameFromPackageXML(package_xml.fsPath);
+      if (name === package_name) {
+        return package_xml;
+      }
+    }
+    return null;
   }
 
   public getSourceFileConfiguration(commands): SourceFileConfiguration {
@@ -322,14 +342,25 @@ export class CatkinWorkspace {
     if (this.build_dir !== build_dir) {
       this.build_dir = build_dir;
 
-      fs.watch(build_dir, (eventType, filename) => {
+      fs.watch(build_dir, async (eventType, filename) => {
         let abs_file = this.build_dir + '/' + filename;
         if (eventType === 'rename') {
           if (fs.existsSync(abs_file)) {
             if (fs.lstatSync(abs_file).isDirectory()) {
               // new package created
-              console.log('New package', filename);
               this.startWatchingCatkinPackageBuildDir(abs_file);
+              console.log(`New package ${filename}`);
+
+              this.test_adapter.signalReload();
+              let package_xml = await this.locatePackageXML(filename);
+              let catkin_package = await this.loadPackage(package_xml.fsPath);
+              if (catkin_package && catkin_package.has_tests) {
+                let [suite, _] = await this.test_adapter.loadPackageTests(catkin_package, true);
+                this.test_adapter.updateSuiteSet();
+                console.log(`New package ${catkin_package.name} found and ${suite.executables.length} tests added`);
+              } else {
+                console.log(`New package ${catkin_package.name} but no package.xml found`);
+              }
             }
           } else {
             // package cleaned

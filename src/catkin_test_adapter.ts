@@ -91,6 +91,7 @@ export class CatkinTestAdapter implements TestAdapter {
         private readonly testStatesEmitter: vscode.EventEmitter<TestRunEvent>,
         private readonly autorunEmitter: vscode.EventEmitter<void>
     ) {
+        this.catkin_workspace.test_adapter = this;
         this.output_channel.appendLine('Initializing catkin_tools test adapter');
         this.diagnostics = vscode.languages.createDiagnosticCollection(`catkin_tools`);
     }
@@ -101,7 +102,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
     public async load(): Promise<void> {
         this.output_channel.appendLine('Loading catkin tools tests');
-        this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
+        this.signalReload();
 
         let build_dir_request = this.catkin_workspace.getBuildDir();
         let devel_dir_request = this.catkin_workspace.getDevelDir();
@@ -139,17 +140,13 @@ export class CatkinTestAdapter implements TestAdapter {
                             message: `Parsing ${catkin_package.name} for tests`
                         });
                     }
-                    try {
-                        let pkg_suite = await this.loadPackageTests(catkin_package, build_dir, devel_dir, true);
-                        this.suites.set(pkg_suite.info.id, pkg_suite);
-                    } catch (error) {
-                        console.log(`Error loading tests of package ${catkin_package.name}`);
-                    }
+
+                    await this.loadPackageTests(catkin_package, true, build_dir, devel_dir);
                 }
                 this.updateSuiteSet();
 
                 progress.report({ increment: 100, message: `Found ${this.suites.size} test suites` });
-                this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
+                
             } catch (err) {
                 this.output_channel.appendLine(`Error loading catkin tools tests: ${err}`);
                 this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', errorMessage: err });
@@ -157,7 +154,10 @@ export class CatkinTestAdapter implements TestAdapter {
         });
     }
 
-    private updateSuiteSet() {
+    public signalReload() {
+        this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
+    }
+    public updateSuiteSet() {
         let test_packages: CatkinTestSuite[] = [];
         this.suites.forEach((value, key) => {
             test_packages.push(value);
@@ -165,23 +165,48 @@ export class CatkinTestAdapter implements TestAdapter {
         this.catkin_tools_tests = {
             id: "all_tests", label: "catkin_tools", type: 'suite', children: test_packages.map(suite => suite.info)
         };
+        this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
     }
 
-    private async loadPackageTests(catkin_package: CatkinPackage,
-        build_dir: String, devel_dir: String,
-        outline_only: boolean = false):
-        Promise<CatkinTestSuite> {
-        let suite = await catkin_package.loadTests(build_dir, devel_dir, outline_only);
-        console.log(suite);
+    public async loadPackageTests(catkin_package: CatkinPackage,
+        outline_only: boolean = false,
+        build_dir?: String, devel_dir?: String):
+        Promise<[CatkinTestSuite, CatkinTestSuite]> {
 
-        for(let executable of suite.executables) {
-            this.executables.set(executable.info.id, executable);
-            for(let test_case of executable.tests) {
-                this.testcases.set(test_case.info.id, test_case);
-            }
+        if(!catkin_package.has_tests) {
+            return;
         }
 
-        return suite;
+        if (build_dir === undefined) {
+            build_dir = await this.catkin_workspace.getBuildDir();
+        }
+        if (devel_dir === undefined) {
+            devel_dir = await this.catkin_workspace.getDevelDir();
+        }
+
+        try {
+            console.log("loading tests for package");
+            let suite = await catkin_package.loadTests(build_dir, devel_dir, outline_only);
+            console.log(suite.info);
+
+            for (let executable of suite.executables) {
+                console.log(`add executable ${executable.info.id}`);
+                console.log(executable);
+                this.executables.set(executable.info.id, executable);
+                for (let test_case of executable.tests) {
+                    console.log(`add test case ${test_case.info.id}`);
+                    this.testcases.set(test_case.info.id, test_case);
+                }
+            }
+
+            console.log(`setting suite ${suite.info.id}`);
+            let old_suite = this.suites.get(suite.info.id);
+            this.suites.set(suite.info.id, suite);
+
+            return [suite, old_suite];
+        } catch (error) {
+            console.log(`Error loading tests of package ${catkin_package.name}: ${error}`);
+        }
     }
 
     public async run(nodeIds: string[]): Promise<void> {
@@ -463,7 +488,18 @@ export class CatkinTestAdapter implements TestAdapter {
             return new TestRunResult();
 
         } else if (test.type === 'suite') {
-            return await this.analyzeCtestResult(test, test_result_message);
+            let suite: CatkinTestSuite = this.suites.get(id);
+            if(suite.executables.length === 0) {
+                console.log("Requested to run an empty suite, building and then retrying");
+                return <TestRunResult>{
+                    reload_packages: [<TestRunRepeatRequest>{
+                        test: suite
+                    }],
+                    repeat_ids: [id]
+                };
+            } else {
+                return await this.analyzeCtestResult(test, test_result_message);
+            }
         } else {
             return await this.analyzeGtestResult(test, output_file, test_result_message);
         }
@@ -574,8 +610,7 @@ export class CatkinTestAdapter implements TestAdapter {
         // check if a test suite was changed
         // this can happen, if a test executable was not compiled before the run,
         // or if the user changes the test itself between runs
-        let pkg_suite = await this.loadPackageTests(test.package, test.global_build_dir, test.global_devel_dir);
-        let old_suite = this.suites.get(pkg_suite.info.id);
+        let [pkg_suite, old_suite] = await this.loadPackageTests(test.package, false, test.global_build_dir, test.global_devel_dir);
         if (!this.isSuiteEquivalent(old_suite, pkg_suite)) {
             // update the list of tests
             this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });

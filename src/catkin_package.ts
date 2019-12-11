@@ -55,6 +55,15 @@ export class CatkinPackage {
     return instance;
   }
 
+  public static async getNameFromPackageXML(package_xml_path: fs.PathLike) {
+    try {
+      let package_xml = xml.parse(fs.readFileSync(package_xml_path).toString());
+      return package_xml['package']['name'];
+    } catch (err) {
+      return null;
+    }
+  }
+
   private async parseCmakeListsForTests() {
     let config = vscode.workspace.getConfiguration('catkin_tools');
     let test_regexes = [];
@@ -83,6 +92,10 @@ export class CatkinPackage {
   public async loadTests(build_dir: String, devel_dir: String, outline_only: boolean):
     Promise<CatkinTestSuite> {
     let build_space = `${build_dir}/${this.name}`;
+
+    if (!this.has_tests) {
+      throw Error("No tests in package");
+    }
 
     // discover build targets:
     // ctest -N 
@@ -163,9 +176,6 @@ export class CatkinPackage {
     } catch (err) {
       console.log(`Cannot call ctest for ${this.name}`);
       throw err;
-    }
-    if (this.test_build_targets.length === 0) {
-      throw Error("No tests in package");
     }
 
     // create the test suite
