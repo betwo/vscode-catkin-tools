@@ -18,6 +18,7 @@ import * as path from 'path';
 import { CatkinPackage } from './catkin_package';
 import { CatkinWorkspace } from './catkin_workspace';
 import { runShellCommand } from './catkin_command';
+import * as gtest_problem_matcher from './gtest_problem_matcher';
 import * as xml from 'fast-xml-parser';
 
 export const registerAdapter = (
@@ -110,6 +111,8 @@ export class CatkinTestAdapter implements TestAdapter {
 
     private catkin_tools_tests: TestSuiteInfo;
 
+    private diagnostics: vscode.DiagnosticCollection;
+
     constructor(
         public readonly workspaceRootDirectoryPath: string,
         public readonly catkin_workspace: CatkinWorkspace,
@@ -119,6 +122,7 @@ export class CatkinTestAdapter implements TestAdapter {
         private readonly autorunEmitter: vscode.EventEmitter<void>
     ) {
         this.output_channel.appendLine('Initializing catkin_tools test adapter');
+        this.diagnostics = vscode.languages.createDiagnosticCollection(`catkin_tools`);
     }
 
     public get tests() { return this.testsEmitter.event; }
@@ -389,6 +393,7 @@ export class CatkinTestAdapter implements TestAdapter {
     }
 
     public async run(nodeIds: string[]): Promise<void> {
+        this.diagnostics.clear();
         this.cancel_requested = false;
 
         this.output_channel.appendLine(`Running test(s): ${nodeIds.join(', ')}`);
@@ -842,6 +847,8 @@ export class CatkinTestAdapter implements TestAdapter {
             message: message
         };
 
+        gtest_problem_matcher.analyze(dom, this.diagnostics);
+        
         if (test.filter === undefined || test.filter === '*') {
             // this is the whole test executable
             let node_suites = dom['testsuites'];
