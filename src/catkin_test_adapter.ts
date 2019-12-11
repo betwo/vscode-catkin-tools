@@ -166,7 +166,7 @@ export class CatkinTestAdapter implements TestAdapter {
                         });
                     }
                     try {
-                        let pkg_suite = await this.loadPackageTests(catkin_package, build_dir, devel_dir);
+                        let pkg_suite = await this.loadPackageTests(catkin_package, build_dir, devel_dir, true);
                         this.suites.set(pkg_suite.info.id, pkg_suite);
                     } catch (error) {
                         console.log(`Error loading tests of package ${catkin_package.name}`);
@@ -178,7 +178,7 @@ export class CatkinTestAdapter implements TestAdapter {
                 this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
             } catch (err) {
                 this.output_channel.appendLine(`Error loading catkin tools tests: ${err}`);
-                this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished' });
+                this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', errorMessage: err });
             }
         });
     }
@@ -193,11 +193,10 @@ export class CatkinTestAdapter implements TestAdapter {
         };
     }
 
-    private async loadPackageTests(catkin_package: CatkinPackage, build_dir: String, devel_dir: String):
+    private async loadPackageTests(catkin_package: CatkinPackage, build_dir: String, devel_dir: String, outline_only: boolean = false):
         Promise<CatkinTestSuite> {
         let build_space = `${build_dir}/${catkin_package.name}`;
 
-        // TODO: only do this when the test is run, or when the user expands the entry
         // discover build targets:
         // ctest -N 
         //  ->
@@ -326,39 +325,40 @@ export class CatkinTestAdapter implements TestAdapter {
                 tests: []
             };
 
-            try {
-                // try to extract test names, if the target is compiled
-                let cmd = await this.makeWorkspaceCommand(`${build_target.exec_path} --gtest_list_tests`);
-                let output = await runShellCommand(cmd, build_space);
-                for (let line of output.stdout.split('\n')) {
-                    let match = line.match(/^([^\s]+)\.\s*$/);
-                    if (match) {
-                        let test_label = match[1];
-                        let test_case: CatkinTestCase = {
-                            package: catkin_package,
-                            build_space: build_space,
-                            build_target: build_target.cmake_target,
-                            global_build_dir: build_dir,
-                            global_devel_dir: devel_dir,
-                            executable: build_target.exec_path,
-                            filter: build_target.type === 'python' ? undefined : `${test_label}.*`,
-                            type: build_target.type,
-                            info: {
-                                type: 'test',
-                                id: `test_${build_target.cmake_target}_${test_label}`,
-                                label: `${build_target.cmake_target} :: ${test_label}`
-                            }
-                        };
-                        this.testcases.set(test_case.info.id, test_case);
-                        test_exec.tests.push(test_case);
-                        test_exec.info.children.push(test_case.info);
+            if(!outline_only) {    
+                try {
+                    // try to extract test names, if the target is compiled
+                    let cmd = await this.makeWorkspaceCommand(`${build_target.exec_path} --gtest_list_tests`);
+                    let output = await runShellCommand(cmd, build_space);
+                    for (let line of output.stdout.split('\n')) {
+                        let match = line.match(/^([^\s]+)\.\s*$/);
+                        if (match) {
+                            let test_label = match[1];
+                            let test_case: CatkinTestCase = {
+                                package: catkin_package,
+                                build_space: build_space,
+                                build_target: build_target.cmake_target,
+                                global_build_dir: build_dir,
+                                global_devel_dir: devel_dir,
+                                executable: build_target.exec_path,
+                                filter: build_target.type === 'python' ? undefined : `${test_label}.*`,
+                                type: build_target.type,
+                                info: {
+                                    type: 'test',
+                                    id: `test_${build_target.cmake_target}_${test_label}`,
+                                    label: test_label
+                                }
+                            };
+                            this.testcases.set(test_case.info.id, test_case);
+                            test_exec.tests.push(test_case);
+                            test_exec.info.children.push(test_case.info);
+                        }
                     }
+                } catch (err) {
+                    // if the target is not compiled, do not add filters
+                    console.log(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
                 }
-            } catch (err) {
-                // if the target is not compiled, do not add filters
-                console.log(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
             }
-
             if (test_exec.tests.length === 0) {
                 let test_case: CatkinTestCase = {
                     type: build_target.type,
@@ -371,7 +371,7 @@ export class CatkinTestAdapter implements TestAdapter {
                     filter: build_target.type === 'python' ? undefined : `*`,
                     info: {
                         type: 'test',
-                        id: `test_${build_target.cmake_target}`,
+                        id: `exec_${build_target.cmake_target}`,
                         label: build_target.cmake_target
                     }
                 };
@@ -429,14 +429,7 @@ export class CatkinTestAdapter implements TestAdapter {
                 let change_suite = await this.reloadPackageIfChanged(request.test);
                 if (change_suite !== undefined) {
                     console.log(`Changed suite: ${change_suite.info.id}`);
-                    // send the test results again
-                    this.testsEmitter.fire(<TestRunStartedEvent>{ type: 'started' });
-                    change_suite.executables.forEach((exe) => {
-                        exe.tests.forEach((test) => {
-                            this.sendResultForTest(test, request.dom, request.output);
-                        });
-                    });
-                    this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: 'finished' });
+                    result.repeat_ids.push(change_suite.info.id);
                 }
             }
         }
