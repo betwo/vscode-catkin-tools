@@ -18,6 +18,7 @@ import * as path from 'path';
 import { CatkinPackage } from './catkin_package';
 import { CatkinWorkspace } from './catkin_workspace';
 import { runShellCommand } from './catkin_command';
+import { CatkinTestInterface, CatkinTestCase, CatkinTestExecutable, CatkinTestSuite } from './catkin_test_types';
 import * as gtest_problem_matcher from './gtest_problem_matcher';
 import * as xml from 'fast-xml-parser';
 
@@ -50,37 +51,6 @@ export function registerCatkinTest(context: vscode.ExtensionContext,
         autorunEmitter
     );
     registerAdapter(testExplorerExtension, context, adapterFactory);
-}
-
-type TestType = "gtest" | "ctest" | "python" | "suite";
-
-class CatkinTestInterface {
-    public package: CatkinPackage;
-
-    public type: TestType;
-    public filter: String;
-    public executable?: fs.PathLike;
-
-    public build_space: fs.PathLike;
-    public build_target: String;
-    public global_build_dir: String;
-    public global_devel_dir: String;
-
-    public info: TestInfo | TestSuiteInfo;
-}
-
-class CatkinTestCase extends CatkinTestInterface {
-    public info: TestInfo;
-}
-
-class CatkinTestExecutable extends CatkinTestInterface {
-    public tests: CatkinTestCase[];
-    public info: TestSuiteInfo;
-}
-
-class CatkinTestSuite extends CatkinTestInterface {
-    public executables: CatkinTestExecutable[];
-    public info: TestSuiteInfo;
 }
 
 class TestRunRepeatRequest {
@@ -197,199 +167,21 @@ export class CatkinTestAdapter implements TestAdapter {
         };
     }
 
-    private async loadPackageTests(catkin_package: CatkinPackage, build_dir: String, devel_dir: String, outline_only: boolean = false):
+    private async loadPackageTests(catkin_package: CatkinPackage,
+        build_dir: String, devel_dir: String,
+        outline_only: boolean = false):
         Promise<CatkinTestSuite> {
-        let build_space = `${build_dir}/${catkin_package.name}`;
+        let suite = await catkin_package.loadTests(build_dir, devel_dir, outline_only);
+        console.log(suite);
 
-        // discover build targets:
-        // ctest -N 
-        //  ->
-        // _ctest_csapex_math_tests_gtest_csapex_math_tests
-        //                                `---------------`
-
-        // find gtest build targets
-        class BuildTarget {
-            constructor(public cmake_target: string,
-                public exec_path: string,
-                public type: TestType) { }
-        }
-        let build_targets: BuildTarget[] = [];
-        try {
-            let output = await runShellCommand('ctest -N -V', build_space);
-            console.log(output.stdout);
-            let current_executable: string = undefined;
-            let current_test_type: TestType = undefined;
-            let missing_exe = undefined;
-            for (let line of output.stdout.split('\n')) {
-
-                let test_command = line.match(/[0-9]+: Test command:\s+(.*)$/);
-                if (test_command !== null) {
-                    if (line.indexOf('catkin_generated') > 0) {
-                        let python_gtest_wrapper = line.match(/[0-9]+: Test command:\s+.*env_cached.sh\s*.*"([^"]+\s+--gtest_output=[^"]+)".*/);
-                        if (python_gtest_wrapper !== null) {
-                            current_executable = python_gtest_wrapper[1];
-                            current_test_type = 'gtest';
-                        } else {
-                            current_executable = test_command[1];
-                            current_test_type = 'python';
-                        }
-                    } else {
-                        current_executable = test_command[1];
-                        current_test_type = 'gtest';
-                    }
-                    continue;
-                }
-                // GTest target test
-                let gtest_match = line.match(/ Test\s+#.*gtest_(.*)/);
-                if (gtest_match) {
-                    if (current_executable === undefined) {
-                        continue;
-                    }
-                    let target: BuildTarget = {
-                        cmake_target: gtest_match[1],
-                        exec_path: current_executable,
-                        type: current_test_type
-                    };
-                    build_targets.push(target);
-                } else {
-                    if (line.indexOf('catkin_generated') > 0) {
-                        continue;
-                    }
-                    // general CTest target test
-                    let missing_exec_match = line.match(/Could not find executable\s+([^\s]+)/);
-                    if (missing_exec_match) {
-                        missing_exe = missing_exec_match[1];
-                    } else {
-                        let ctest_match = line.match(/\s+Test\s+#[0-9]+:\s+([^\s]+)/);
-                        if (ctest_match) {
-                            if (current_executable === undefined) {
-                                continue;
-                            }
-                            let target = ctest_match[1];
-                            if (target.length > 1 && target !== 'cmake') {
-                                let cmd = current_executable;
-                                if (missing_exe !== undefined) {
-                                    cmd = missing_exe + " " + cmd;
-                                }
-                                build_targets.push({
-                                    cmake_target: target,
-                                    exec_path: cmd,
-                                    type: 'ctest'
-                                });
-                            }
-                            missing_exe = undefined;
-                        }
-                    }
-                }
-            }
-        } catch (err) {
-            console.log(`Cannot call ctest for ${catkin_package.name}`);
-            throw err;
-        }
-        if (build_targets.length === 0) {
-            throw Error("No tests in package");
-        }
-
-        // create the test suite
-        let pkg_suite: CatkinTestSuite = {
-            type: 'suite',
-            package: catkin_package,
-            build_space: build_space,
-            build_target: 'run_tests',
-            global_build_dir: build_dir,
-            global_devel_dir: devel_dir,
-            filter: undefined,
-            info: {
-                type: 'suite',
-                id: `package_${catkin_package.name}`,
-                label: catkin_package.name,
-                children: []
-            },
-            executables: []
-        };
-
-        // generate a list of all tests in this target
-        for (let build_target of build_targets) {
-            // create the executable
-            let test_exec: CatkinTestExecutable = {
-                type: build_target.type,
-                package: catkin_package,
-                build_space: build_space,
-                build_target: build_target.cmake_target,
-                global_build_dir: build_dir,
-                global_devel_dir: devel_dir,
-                executable: build_target.exec_path,
-                filter: build_target.type === 'python' ? undefined : "*",
-                info: {
-                    type: 'suite',
-                    id: `exec_${build_target.cmake_target}`,
-                    label: build_target.cmake_target,
-                    children: []
-                },
-                tests: []
-            };
-
-            if(!outline_only) {    
-                try {
-                    // try to extract test names, if the target is compiled
-                    let cmd = await this.makeWorkspaceCommand(`${build_target.exec_path} --gtest_list_tests`);
-                    let output = await runShellCommand(cmd, build_space);
-                    for (let line of output.stdout.split('\n')) {
-                        let match = line.match(/^([^\s]+)\.\s*$/);
-                        if (match) {
-                            let test_label = match[1];
-                            let test_case: CatkinTestCase = {
-                                package: catkin_package,
-                                build_space: build_space,
-                                build_target: build_target.cmake_target,
-                                global_build_dir: build_dir,
-                                global_devel_dir: devel_dir,
-                                executable: build_target.exec_path,
-                                filter: build_target.type === 'python' ? undefined : `${test_label}.*`,
-                                type: build_target.type,
-                                info: {
-                                    type: 'test',
-                                    id: `test_${build_target.cmake_target}_${test_label}`,
-                                    label: test_label
-                                }
-                            };
-                            this.testcases.set(test_case.info.id, test_case);
-                            test_exec.tests.push(test_case);
-                            test_exec.info.children.push(test_case.info);
-                        }
-                    }
-                } catch (err) {
-                    // if the target is not compiled, do not add filters
-                    console.log(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
-                }
-            }
-            if (test_exec.tests.length === 0) {
-                let test_case: CatkinTestCase = {
-                    type: build_target.type,
-                    package: catkin_package,
-                    build_space: build_space,
-                    build_target: build_target.cmake_target,
-                    global_build_dir: build_dir,
-                    global_devel_dir: devel_dir,
-                    executable: build_target.exec_path,
-                    filter: build_target.type === 'python' ? undefined : `*`,
-                    info: {
-                        type: 'test',
-                        id: `exec_${build_target.cmake_target}`,
-                        label: build_target.cmake_target
-                    }
-                };
+        for(let executable of suite.executables) {
+            this.executables.set(executable.info.id, executable);
+            for(let test_case of executable.tests) {
                 this.testcases.set(test_case.info.id, test_case);
-                test_exec.tests.push(test_case);
-                test_exec.info.children.push(test_case.info);
             }
-
-            this.executables.set(test_exec.info.id, test_exec);
-            pkg_suite.executables.push(test_exec);
-            pkg_suite.info.children.push(test_exec.info);
         }
 
-        return pkg_suite;
+        return suite;
     }
 
     public async run(nodeIds: string[]): Promise<void> {
@@ -518,7 +310,7 @@ export class CatkinTestAdapter implements TestAdapter {
         return result;
     }
 
-    private async makeBuildCommand(test: CatkinTestInterface) {
+    private async makeBuildTestCommand(test: CatkinTestInterface) {
         let command = "";
         if (!fs.existsSync(test.build_space)) {
             command += `catkin build ${test.package.name} --no-notify --no-status;`;
@@ -530,19 +322,7 @@ export class CatkinTestAdapter implements TestAdapter {
         } else {
             command += `make -j $(nproc) ${test.build_target}`;
         }
-        return this.makeWorkspaceCommand(command);
-    }
-
-    private async makeWorkspaceCommand(payload: string) {
-        const setup_bash = await this.catkin_workspace.getSetupBash();
-        let command = `source ${setup_bash};`;
-        command += `pushd . > /dev/null; cd "${this.workspaceRootDirectoryPath}";`;
-        command += `${payload}`;
-        if (!payload.endsWith(";")) {
-            command += "; ";
-        }
-        command += `popd > /dev/null;`;
-        return command;
+        return this.catkin_workspace.makeCommand(command);
     }
 
     private async runCommand(command: string,
@@ -601,7 +381,7 @@ export class CatkinTestAdapter implements TestAdapter {
             // single test case 
             let testcase = this.testcases.get(id);
             this.output_channel.appendLine(`Id ${id} maps to test in package ${testcase.package.name}`);
-            command = await this.makeBuildCommand(testcase);
+            command = await this.makeBuildTestCommand(testcase);
             if (testcase.filter !== undefined) {
                 command += `${testcase.executable} --gtest_filter=${testcase.filter}`;
             }
@@ -611,7 +391,7 @@ export class CatkinTestAdapter implements TestAdapter {
             // full unit test run
             let exe = this.executables.get(id);
             this.output_channel.appendLine(`Id ${id} maps to executable ${exe.executable} in package ${exe.package.name}`);
-            command = await this.makeBuildCommand(exe);
+            command = await this.makeBuildTestCommand(exe);
             command += `${exe.executable}`;
             test = exe;
 
@@ -619,7 +399,7 @@ export class CatkinTestAdapter implements TestAdapter {
             // full package test run
             let suite: CatkinTestSuite = this.suites.get(id);
             this.output_channel.appendLine(`Id ${id} maps to package ${suite.package.name}`);
-            command = await this.makeBuildCommand(suite);
+            command = await this.makeBuildTestCommand(suite);
             test = suite;
 
         } else {
@@ -848,7 +628,7 @@ export class CatkinTestAdapter implements TestAdapter {
         };
 
         gtest_problem_matcher.analyze(dom, this.diagnostics);
-        
+
         if (test.filter === undefined || test.filter === '*') {
             // this is the whole test executable
             let node_suites = dom['testsuites'];
@@ -912,7 +692,7 @@ export class CatkinTestAdapter implements TestAdapter {
             this.testStatesEmitter.fire(<TestRunStartedEvent>{ type: 'started', tests: [test_id] });
 
             // build the teset
-            let command = await this.makeBuildCommand(test);
+            let command = await this.makeBuildTestCommand(test);
             await this.runCommand(command, undefined, undefined);
 
             if (vscode.debug.activeDebugSession !== undefined) {

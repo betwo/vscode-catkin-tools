@@ -98,13 +98,13 @@ export class CatkinWorkspace {
             let src_path = path.dirname(package_xml.fsPath);
             let relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
             let cmake_lists_path = path.join(src_path, "CMakeLists.txt");
-            let item: CatkinPackage = {
-              name: dom['package']['name'],
-              package_xml: dom,
-              path: src_path,
-              relative_path: relative_path,
-              has_tests: false
-            };
+            let item = new CatkinPackage(
+              dom['package']['name'],
+              src_path,
+              this,
+              relative_path,
+              cmake_lists_path,
+              dom);
 
             if (fs.existsSync(cmake_lists_path)) {
               item.has_tests = await this.parseCmakeListsForTests(item);
@@ -416,7 +416,7 @@ export class CatkinWorkspace {
 
   private async checkProfile() {
     let profile = await this.getProfile();
-    if(this.catkin_profile !== profile) {
+    if (this.catkin_profile !== profile) {
       this.switchProfile(profile);
     }
   }
@@ -426,7 +426,7 @@ export class CatkinWorkspace {
     this.catkin_profile = profile;
     this.catkin_build_dir = null;
     this.catkin_devel_dir = null;
-    this.catkin_install_dir = null; 
+    this.catkin_install_dir = null;
   }
 
   public async getBuildDir(): Promise<string> {
@@ -497,5 +497,17 @@ export class CatkinWorkspace {
         this.updateDatabase(file);
       }
     }));
+  }
+
+  public async makeCommand(payload: string) {
+    const setup_bash = await this.getSetupBash();
+    let command = `source ${setup_bash};`;
+    command += `pushd . > /dev/null; cd "${vscode.workspace.rootPath}";`;
+    command += `${payload}`;
+    if (!payload.endsWith(";")) {
+        command += "; ";
+    }
+    command += `popd > /dev/null;`;
+    return command;
   }
 }

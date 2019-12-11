@@ -1,14 +1,219 @@
 
 import * as fs from 'fs';
 
-export class CatkinPackage {
-  public name: string;
-  public path: string;
-  public relative_path: fs.PathLike;
+import { runShellCommand } from './catkin_command';
+import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite } from './catkin_test_types';
+import { CatkinWorkspace } from './catkin_workspace';
 
-  public package_xml: string;
+export type TestType = "gtest" | "ctest" | "python" | "suite";
+
+export class BuildTarget {
+  constructor(public cmake_target: string,
+    public exec_path: string,
+    public type: TestType) { }
+}
+
+export class CatkinPackage {
 
   public build_space?: fs.PathLike;
 
   public has_tests: boolean;
+  public test_build_targets: BuildTarget[] = [];
+
+  constructor(
+    public name: string,
+    public path: string,
+    public workspace: CatkinWorkspace,
+    public relative_path: fs.PathLike,
+    public cmakelists_path: string,
+    public package_xml: any) {
+    this.has_tests = false;
+  }
+
+  public async loadTests(build_dir: String, devel_dir: String, outline_only: boolean):
+    Promise<CatkinTestSuite> {
+    let build_space = `${build_dir}/${this.name}`;
+
+    // discover build targets:
+    // ctest -N 
+    //  ->
+    // _ctest_csapex_math_tests_gtest_csapex_math_tests
+    //                                `---------------`
+
+    // find gtest build targets
+    this.test_build_targets = [];
+    try {
+      let output = await runShellCommand('ctest -N -V', build_space);
+      console.log(output.stdout);
+      let current_executable: string = undefined;
+      let current_test_type: TestType = undefined;
+      let missing_exe = undefined;
+      for (let line of output.stdout.split('\n')) {
+
+        let test_command = line.match(/[0-9]+: Test command:\s+(.*)$/);
+        if (test_command !== null) {
+          if (line.indexOf('catkin_generated') > 0) {
+            let python_gtest_wrapper = line.match(/[0-9]+: Test command:\s+.*env_cached.sh\s*.*"([^"]+\s+--gtest_output=[^"]+)".*/);
+            if (python_gtest_wrapper !== null) {
+              current_executable = python_gtest_wrapper[1];
+              current_test_type = 'gtest';
+            } else {
+              current_executable = test_command[1];
+              current_test_type = 'python';
+            }
+          } else {
+            current_executable = test_command[1];
+            current_test_type = 'gtest';
+          }
+          continue;
+        }
+        // GTest target test
+        let gtest_match = line.match(/ Test\s+#.*gtest_(.*)/);
+        if (gtest_match) {
+          if (current_executable === undefined) {
+            continue;
+          }
+          let target: BuildTarget = {
+            cmake_target: gtest_match[1],
+            exec_path: current_executable,
+            type: current_test_type
+          };
+          this.test_build_targets.push(target);
+        } else {
+          if (line.indexOf('catkin_generated') > 0) {
+            continue;
+          }
+          // general CTest target test
+          let missing_exec_match = line.match(/Could not find executable\s+([^\s]+)/);
+          if (missing_exec_match) {
+            missing_exe = missing_exec_match[1];
+          } else {
+            let ctest_match = line.match(/\s+Test\s+#[0-9]+:\s+([^\s]+)/);
+            if (ctest_match) {
+              if (current_executable === undefined) {
+                continue;
+              }
+              let target = ctest_match[1];
+              if (target.length > 1 && target !== 'cmake') {
+                let cmd = current_executable;
+                if (missing_exe !== undefined) {
+                  cmd = missing_exe + " " + cmd;
+                }
+                this.test_build_targets.push({
+                  cmake_target: target,
+                  exec_path: cmd,
+                  type: 'ctest'
+                });
+              }
+              missing_exe = undefined;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.log(`Cannot call ctest for ${this.name}`);
+      throw err;
+    }
+    if (this.test_build_targets.length === 0) {
+      throw Error("No tests in package");
+    }
+
+    // create the test suite
+    let pkg_suite: CatkinTestSuite = {
+      type: 'suite',
+      package: this,
+      build_space: build_space,
+      build_target: 'run_tests',
+      global_build_dir: build_dir,
+      global_devel_dir: devel_dir,
+      filter: undefined,
+      info: {
+        type: 'suite',
+        id: `package_${this.name}`,
+        label: this.name,
+        // file: this.cmakelists_path,
+        children: []
+      },
+      executables: []
+    };
+
+    // generate a list of all tests in this target
+    for (let build_target of this.test_build_targets) {
+      // create the executable
+      let test_exec: CatkinTestExecutable = {
+        type: build_target.type,
+        package: this,
+        build_space: build_space,
+        build_target: build_target.cmake_target,
+        global_build_dir: build_dir,
+        global_devel_dir: devel_dir,
+        executable: build_target.exec_path,
+        filter: build_target.type === 'python' ? undefined : "*",
+        info: {
+          type: 'suite',
+          id: `exec_${build_target.cmake_target}`,
+          label: build_target.cmake_target,
+          children: []
+        },
+        tests: []
+      };
+
+      if (!outline_only) {
+        try {
+          // try to extract test names, if the target is compiled
+          let cmd = await this.workspace.makeCommand(`${build_target.exec_path} --gtest_list_tests`);
+          let output = await runShellCommand(cmd, build_space);
+          for (let line of output.stdout.split('\n')) {
+            let match = line.match(/^([^\s]+)\.\s*$/);
+            if (match) {
+              let test_label = match[1];
+              let test_case: CatkinTestCase = {
+                package: this,
+                build_space: build_space,
+                build_target: build_target.cmake_target,
+                global_build_dir: build_dir,
+                global_devel_dir: devel_dir,
+                executable: build_target.exec_path,
+                filter: build_target.type === 'python' ? undefined : `${test_label}.*`,
+                type: build_target.type,
+                info: {
+                  type: 'test',
+                  id: `test_${build_target.cmake_target}_${test_label}`,
+                  label: test_label
+                }
+              };
+              test_exec.tests.push(test_case);
+              test_exec.info.children.push(test_case.info);
+            }
+          }
+        } catch (err) {
+          // if the target is not compiled, do not add filters
+          console.log(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
+        }
+      }
+      if (test_exec.tests.length === 0) {
+        let test_case: CatkinTestCase = {
+          type: build_target.type,
+          package: this,
+          build_space: build_space,
+          build_target: build_target.cmake_target,
+          global_build_dir: build_dir,
+          global_devel_dir: devel_dir,
+          executable: build_target.exec_path,
+          filter: build_target.type === 'python' ? undefined : `*`,
+          info: {
+            type: 'test',
+            id: `exec_${build_target.cmake_target}`,
+            label: build_target.cmake_target
+          }
+        };
+        test_exec.tests.push(test_case);
+        test_exec.info.children.push(test_case.info);
+      }
+
+      pkg_suite.executables.push(test_exec);
+      pkg_suite.info.children.push(test_exec.info);
+    }
+    return pkg_suite;
+  }
 }
