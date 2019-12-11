@@ -216,6 +216,7 @@ export class CatkinTestAdapter implements TestAdapter {
             console.log(output.stdout);
             let current_executable: string = undefined;
             let current_test_type: TestType = undefined;
+            let missing_exe = undefined;
             for (let line of output.stdout.split('\n')) {
 
                 let test_command = line.match(/[0-9]+: Test command:\s+(.*)$/);
@@ -254,11 +255,7 @@ export class CatkinTestAdapter implements TestAdapter {
                     // general CTest target test
                     let missing_exec_match = line.match(/Could not find executable\s+([^\s]+)/);
                     if (missing_exec_match) {
-                        build_targets.push({
-                            cmake_target: path.basename(missing_exec_match[1]),
-                            exec_path: missing_exec_match[1],
-                            type: 'ctest'
-                        });
+                        missing_exe = missing_exec_match[1];
                     } else {
                         let ctest_match = line.match(/\s+Test\s+#[0-9]+:\s+([^\s]+)/);
                         if (ctest_match) {
@@ -267,12 +264,17 @@ export class CatkinTestAdapter implements TestAdapter {
                             }
                             let target = ctest_match[1];
                             if (target.length > 1 && target !== 'cmake') {
+                                let cmd = current_executable;
+                                if (missing_exe !== undefined) {
+                                    cmd = missing_exe + " " + cmd;
+                                }
                                 build_targets.push({
                                     cmake_target: target,
-                                    exec_path: current_executable,
+                                    exec_path: cmd,
                                     type: 'ctest'
                                 });
                             }
+                            missing_exe = undefined;
                         }
                     }
                 }
@@ -355,7 +357,9 @@ export class CatkinTestAdapter implements TestAdapter {
             } catch (err) {
                 // if the target is not compiled, do not add filters
                 console.log(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
+            }
 
+            if (test_exec.tests.length === 0) {
                 let test_case: CatkinTestCase = {
                     type: build_target.type,
                     package: catkin_package,
@@ -421,14 +425,18 @@ export class CatkinTestAdapter implements TestAdapter {
 
         if (result.reload_packages.length > 0) {
             for (let request of result.reload_packages) {
+                console.log(`Requested to reload ${request.test.info.id}`);
                 let change_suite = await this.reloadPackageIfChanged(request.test);
                 if (change_suite !== undefined) {
+                    console.log(`Changed suite: ${change_suite.info.id}`);
                     // send the test results again
+                    this.testsEmitter.fire(<TestRunStartedEvent>{ type: 'started' });
                     change_suite.executables.forEach((exe) => {
                         exe.tests.forEach((test) => {
                             this.sendResultForTest(test, request.dom, request.output);
                         });
                     });
+                    this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: 'finished' });
                 }
             }
         }
@@ -529,9 +537,12 @@ export class CatkinTestAdapter implements TestAdapter {
 
     private async makeWorkspaceCommand(payload: string) {
         const setup_bash = await this.catkin_workspace.getSetupBash();
-        let command = `echo "source ${setup_bash}"; source ${setup_bash};`;
+        let command = `source ${setup_bash};`;
         command += `pushd . > /dev/null; cd "${this.workspaceRootDirectoryPath}";`;
-        command += `${payload};`;
+        command += `${payload}`;
+        if (!payload.endsWith(";")) {
+            command += "; ";
+        }
         command += `popd > /dev/null;`;
         return command;
     }
@@ -601,7 +612,7 @@ export class CatkinTestAdapter implements TestAdapter {
         } else if (id.startsWith('exec_')) {
             // full unit test run
             let exe = this.executables.get(id);
-            this.output_channel.appendLine(`Id ${id} maps to executable in package ${exe.package.name}`);
+            this.output_channel.appendLine(`Id ${id} maps to executable ${exe.executable} in package ${exe.package.name}`);
             command = await this.makeBuildCommand(exe);
             command += `${exe.executable}`;
             test = exe;
@@ -623,7 +634,7 @@ export class CatkinTestAdapter implements TestAdapter {
                 let gtest_xml = /--gtest_output=xml:([^'"`\s]+)/.exec(command);
                 if (gtest_xml === undefined || gtest_xml === null) {
                     this.sendErrorForTest(test, `Cannot parse ${command}`);
-                    console.log(gtest_xml);
+                    console.log(`Cannot parse command ${command}`);
                     return new TestRunResult();
                 }
 
@@ -744,15 +755,15 @@ export class CatkinTestAdapter implements TestAdapter {
                 this.sendResultForTest(test, dom, test_output);
             });
 
-            if (test instanceof CatkinTestSuite) {
+            if (test.info.id.startsWith("package_")) {
                 result.reload_packages.push({
-                    test: test,
+                    test: test as CatkinTestSuite,
                     dom: dom,
                     output: test_output
                 });
 
-            } else if (test instanceof CatkinTestExecutable) {
-                let suite = this.geTestSuiteForExcutable(test.info.id);
+            } else if (test.info.id.startsWith("exec_")) {
+                let suite = this.getTestSuiteForExcutable(test.info.id);
                 let contained = result.reload_packages.reduce((result, pkg) => {
                     if (pkg.test.info.id === suite.info.id) {
                         return true;
@@ -810,13 +821,13 @@ export class CatkinTestAdapter implements TestAdapter {
         return undefined;
     }
 
-    private geTestSuiteForExcutable(id: string): CatkinTestSuite {
-        for (let [id, suite] of this.suites.entries()) {
-            suite.executables.forEach((executable) => {
+    private getTestSuiteForExcutable(id: string): CatkinTestSuite {
+        for (let [suite_id, suite] of this.suites.entries()) {
+            for (let executable of suite.executables) {
                 if (executable.info.id === id) {
                     return suite;
                 }
-            });
+            }
         }
         return undefined;
     }
@@ -838,7 +849,7 @@ export class CatkinTestAdapter implements TestAdapter {
             message: message
         };
 
-        if (test.filter === undefined) {
+        if (test.filter === undefined || test.filter === '*') {
             // this is the whole test executable
             let node_suites = dom['testsuites'];
             if (node_suites.attr['@_failures'] > 0 || node_suites.attr['@_errors'] > 0) {
