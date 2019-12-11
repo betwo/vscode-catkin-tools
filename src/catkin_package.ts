@@ -1,5 +1,9 @@
 
 import * as fs from 'fs';
+import * as vscode from 'vscode';
+import * as glob from 'fast-glob';
+import * as xml from 'fast-xml-parser';
+import * as path from 'path';
 
 import { runShellCommand } from './catkin_command';
 import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite } from './catkin_test_types';
@@ -17,17 +21,63 @@ export class CatkinPackage {
 
   public build_space?: fs.PathLike;
 
+  public name: string;
+  public package_xml: any;
+
   public has_tests: boolean;
   public test_build_targets: BuildTarget[] = [];
 
-  constructor(
-    public name: string,
-    public path: string,
-    public workspace: CatkinWorkspace,
-    public relative_path: fs.PathLike,
-    public cmakelists_path: string,
-    public package_xml: any) {
+  public path: string;
+  public relative_path: fs.PathLike;
+  public cmakelists_path: string;
+
+  private constructor(
+    public package_xml_path: fs.PathLike,
+    public workspace: CatkinWorkspace) {
+
+    this.package_xml = xml.parse(fs.readFileSync(package_xml_path).toString());
+    if (this.package_xml === undefined || this.package_xml === "" ||
+      !('package' in this.package_xml)) {
+      throw Error(`Invalid package xml file: ${package_xml_path}`);
+    }
+    this.name = this.package_xml['package']['name'];
+
+    let src_path = path.dirname(package_xml_path.toString());
+    this.relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
+    this.cmakelists_path = path.join(src_path, "CMakeLists.txt");
+
     this.has_tests = false;
+  }
+
+  public static async loadFromXML(package_xml_path: fs.PathLike, workspace: CatkinWorkspace) {
+    let instance = new CatkinPackage(package_xml_path, workspace);
+    await instance.parseCmakeListsForTests();
+    return instance;
+  }
+
+  private async parseCmakeListsForTests() {
+    let config = vscode.workspace.getConfiguration('catkin_tools');
+    let test_regexes = [];
+    for (let expr of config['gtestMacroRegex']) {
+      test_regexes.push(new RegExp(`.*(${expr})`));
+    }
+
+    this.has_tests = false;
+    let cmake_files = await glob.async(
+      [`${vscode.workspace.rootPath}/${this.relative_path}/**/CMakeLists.txt`]
+    );
+    for (let cmake_file of cmake_files) {
+      let data = fs.readFileSync(cmake_file.toString());
+      let cmake = data.toString();
+      for (let test_regex of test_regexes) {
+        for (let row of cmake.split('\n')) {
+          let tests = row.match(test_regex);
+          if (tests) {
+            this.has_tests = true;
+          }
+        }
+      }
+    }
   }
 
   public async loadTests(build_dir: String, devel_dir: String, outline_only: boolean):
@@ -188,7 +238,11 @@ export class CatkinPackage {
           }
         } catch (err) {
           // if the target is not compiled, do not add filters
-          console.log(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
+          if (err.error !== undefined) {
+            console.log(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
+          } else {
+            console.log(`Cannot determine ${build_target.exec_path}'s tests: ${err}`);
+          }
         }
       }
       if (test_exec.tests.length === 0) {

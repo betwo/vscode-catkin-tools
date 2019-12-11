@@ -4,12 +4,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as glob from 'fast-glob';
 import * as jsonfile from 'jsonfile';
-import * as xml from 'fast-xml-parser';
 import { Signal } from 'signals';
 import * as vscode from 'vscode';
 import { SourceFileConfiguration } from 'vscode-cpptools';
 import { CatkinPackage } from './catkin_package';
-import { EntryItem } from 'fast-glob/out/types/entries';
 import { runCatkinCommand, ShellOutput } from './catkin_command';
 
 export class CatkinWorkspace {
@@ -93,25 +91,8 @@ export class CatkinWorkspace {
           });
         }
         try {
-          let dom = xml.parse(fs.readFileSync(package_xml.fsPath).toString());
-          if (dom !== undefined && dom !== "" && 'package' in dom) {
-            let src_path = path.dirname(package_xml.fsPath);
-            let relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
-            let cmake_lists_path = path.join(src_path, "CMakeLists.txt");
-            let item = new CatkinPackage(
-              dom['package']['name'],
-              src_path,
-              this,
-              relative_path,
-              cmake_lists_path,
-              dom);
-
-            if (fs.existsSync(cmake_lists_path)) {
-              item.has_tests = await this.parseCmakeListsForTests(item);
-            }
-
-            this.packages.push(item);
-          }
+          let catkin_package = await CatkinPackage.loadFromXML(package_xml.fsPath, this);
+          this.packages.push(catkin_package);
         } catch (err) {
           console.log(`Error parsing package ${package_xml}: ${err}`);
         }
@@ -122,32 +103,6 @@ export class CatkinWorkspace {
       }
       return this;
     });
-  }
-
-  private async parseCmakeListsForTests(item): Promise<boolean> {
-    let config = vscode.workspace.getConfiguration('catkin_tools');
-    let test_regexes = [];
-    for (let expr of config['gtestMacroRegex']) {
-      test_regexes.push(new RegExp(`.*(${expr})`));
-    }
-
-    let cmake_files = await glob.async(
-      [`${vscode.workspace.rootPath}/${item.relative_path}/**/CMakeLists.txt`]
-    );
-    for (let cmake_file of cmake_files) {
-      let data = fs.readFileSync(cmake_file.toString());
-      let cmake = data.toString();
-      for (let test_regex of test_regexes) {
-        for (let row of cmake.split('\n')) {
-          let tests = row.match(test_regex);
-          if (tests) {
-            item.has_tests = true;
-            return true;
-          }
-        }
-      }
-    }
-    return false;
   }
 
   public getSourceFileConfiguration(commands): SourceFileConfiguration {
@@ -505,7 +460,7 @@ export class CatkinWorkspace {
     command += `pushd . > /dev/null; cd "${vscode.workspace.rootPath}";`;
     command += `${payload}`;
     if (!payload.endsWith(";")) {
-        command += "; ";
+      command += "; ";
     }
     command += `popd > /dev/null;`;
     return command;
