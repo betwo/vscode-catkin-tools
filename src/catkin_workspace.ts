@@ -388,6 +388,12 @@ export class CatkinWorkspace {
 
   public async getProfile(): Promise<string> {
     let profiles_path = path.join(vscode.workspace.rootPath, ".catkin_tools/profiles/profiles.yaml");
+    if(!fs.existsSync(profiles_path)) {
+      // profiles.yaml is only generated when there is more than one profile available
+      // if it does not exist, then the `default` profile is used
+      return 'default';
+    }
+
     let content = fs.readFileSync(profiles_path).toString();
 
     for (let row of content.split('\n')) {
