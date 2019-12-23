@@ -433,7 +433,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
         let output_file: string;
         if (test.type !== 'suite') {
-            if (test.type !== 'python') {
+            if (test.type !== 'generic') {
                 let gtest_xml = /--gtest_output=xml:([^'"`\s]+)/.exec(command);
                 if (gtest_xml === undefined || gtest_xml === null) {
                     this.sendErrorForTest(test, `Cannot parse ${command}`);
@@ -474,7 +474,7 @@ export class CatkinTestAdapter implements TestAdapter {
             test_result_message = error_output.stdout + '\n' + error_output.stderr;
         }
 
-        if (test.type === 'python') {
+        if (test.type === 'generic') {
             let tests = this.getTestCases(id);
             tests.forEach((test) => {
                 let result: TestEvent = {

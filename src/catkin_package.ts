@@ -9,7 +9,7 @@ import { runBashCommand } from './catkin_command';
 import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite } from './catkin_test_types';
 import { CatkinWorkspace } from './catkin_workspace';
 
-export type TestType = "gtest" | "ctest" | "python" | "suite";
+export type TestType = "gtest" | "ctest" | "generic" | "suite";
 
 export class BuildTarget {
   constructor(public cmake_target: string,
@@ -122,7 +122,7 @@ export class CatkinPackage {
               current_test_type = 'gtest';
             } else {
               current_executable = test_command[1];
-              current_test_type = 'python';
+              current_test_type = 'generic';
             }
           } else {
             current_executable = test_command[1];
@@ -208,7 +208,7 @@ export class CatkinPackage {
         global_build_dir: build_dir,
         global_devel_dir: devel_dir,
         executable: build_target.exec_path,
-        filter: build_target.type === 'python' ? undefined : "*",
+        filter: build_target.type === 'generic' ? undefined : "*",
         info: {
           type: 'suite',
           id: `exec_${build_target.cmake_target}`,
@@ -234,7 +234,7 @@ export class CatkinPackage {
                 global_build_dir: build_dir,
                 global_devel_dir: devel_dir,
                 executable: build_target.exec_path,
-                filter: build_target.type === 'python' ? undefined : `${test_label}.*`,
+                filter: build_target.type === 'generic' ? undefined : `${test_label}.*`,
                 type: build_target.type,
                 info: {
                   type: 'test',
@@ -264,7 +264,7 @@ export class CatkinPackage {
           global_build_dir: build_dir,
           global_devel_dir: devel_dir,
           executable: build_target.exec_path,
-          filter: build_target.type === 'python' ? undefined : `*`,
+          filter: build_target.type === 'generic' ? undefined : `*`,
           info: {
             type: 'test',
             id: `exec_${build_target.cmake_target}`,
