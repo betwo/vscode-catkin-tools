@@ -9,7 +9,7 @@ import { runBashCommand } from './catkin_command';
 import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite } from './catkin_test_types';
 import { CatkinWorkspace } from './catkin_workspace';
 
-export type TestType = "gtest" | "ctest" | "generic" | "suite";
+export type TestType = "unknown" | "gtest" | "generic" | "suite";
 
 export class BuildTarget {
   constructor(public cmake_target: string,
@@ -122,11 +122,17 @@ export class CatkinPackage {
               current_test_type = 'gtest';
             } else {
               current_executable = test_command[1];
-              current_test_type = 'generic';
+              current_test_type = 'unknown';
             }
           } else {
-            current_executable = test_command[1];
-            current_test_type = 'gtest';
+            let gtest_output = line.match(/[0-9]+: Test command:\s+"([^"]+\s+--gtest_output=[^"]+)".*/);
+            if (gtest_output !== null) {
+              current_executable = gtest_output[1];
+              current_test_type = 'gtest';
+            } else {
+              current_executable = test_command[1];
+              current_test_type = 'unknown';
+            }
           }
           continue;
         }
@@ -165,7 +171,7 @@ export class CatkinPackage {
                 this.test_build_targets.push({
                   cmake_target: path.basename(current_executable),
                   exec_path: cmd,
-                  type: 'ctest'
+                  type: current_test_type
                 });
               }
               missing_exe = undefined;
@@ -267,8 +273,9 @@ export class CatkinPackage {
           filter: build_target.type === 'generic' ? undefined : `*`,
           info: {
             type: 'test',
-            id: `exec_${build_target.cmake_target}`,
-            label: build_target.cmake_target
+            id: `test_unknown_${build_target.cmake_target}`,
+            label: "Run All Tests",
+            description: "(no information about test cases)"
           }
         };
         test_exec.tests.push(test_case);
