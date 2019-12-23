@@ -344,7 +344,6 @@ export class CatkinTestAdapter implements TestAdapter {
         command += `cd "${test.build_space}";`;
         if (test.type === 'suite') {
             command += `make -j $(nproc) tests;`;
-            command += `make run_tests;`;
         } else {
             command += `make -j $(nproc) ${test.build_target}`;
         }

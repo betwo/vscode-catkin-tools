@@ -163,7 +163,7 @@ export class CatkinPackage {
                   cmd = missing_exe + " " + cmd;
                 }
                 this.test_build_targets.push({
-                  cmake_target: target,
+                  cmake_target: path.basename(current_executable),
                   exec_path: cmd,
                   type: 'ctest'
                 });
