@@ -168,8 +168,20 @@ export class CatkinPackage {
                 if (missing_exe !== undefined) {
                   cmd = missing_exe + " " + cmd;
                 }
+
+                // determine executable
+                // trip quotes
+                let stripped_exe = current_executable.replace(/"/g, "");
+                // strip --gtest_output if present
+                stripped_exe = stripped_exe.replace(/--gtest_output\S+/g, "");
+                // then take the first argument when splitting with whitespace
+                let exe = path.basename(stripped_exe.split(/\s/)[0]);
+                if(exe.length === 0) {
+                  // assume that the executable has the same name as the cmake target
+                  exe = target;
+                }
                 this.test_build_targets.push({
-                  cmake_target: path.basename(current_executable),
+                  cmake_target: exe,
                   exec_path: cmd,
                   type: current_test_type
                 });
