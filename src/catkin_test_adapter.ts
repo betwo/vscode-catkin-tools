@@ -649,14 +649,23 @@ export class CatkinTestAdapter implements TestAdapter {
             // update the list of tests
             this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
             this.suites.set(pkg_suite.info.id, pkg_suite);
-            old_suite = pkg_suite;
             this.updateSuiteSet();
             this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
 
-            if (old_suite.executables === null && pkg_suite.executables === null) {
-                // if the old suite was not yet loaded, then this must be an empty suite
-                pkg_suite.executables = [];
+            if (pkg_suite.executables === null) {
+                if (old_suite.executables === null) {
+                    // if the old suite was not yet loaded, then this must be an empty suite
+                    pkg_suite.executables = [];
+                    old_suite.executables = [];
+
+                } else if (old_suite.executables.length === 0) {
+                    // this package is really empty, don't reload again
+                    pkg_suite.executables = [];
+                    return undefined;
+                }
             }
+
+            old_suite = pkg_suite;
 
             return pkg_suite;
         }
