@@ -17,7 +17,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CatkinPackage } from './catkin_package';
 import { CatkinWorkspace } from './catkin_workspace';
-import { runShellCommand } from './catkin_command';
+import { runBashCommand } from './catkin_command';
 import { CatkinTestInterface, CatkinTestCase, CatkinTestExecutable, CatkinTestSuite } from './catkin_test_types';
 import * as gtest_problem_matcher from './gtest_problem_matcher';
 import * as xml from 'fast-xml-parser';
@@ -173,7 +173,7 @@ export class CatkinTestAdapter implements TestAdapter {
         build_dir?: String, devel_dir?: String):
         Promise<[CatkinTestSuite, CatkinTestSuite]> {
 
-        if(!catkin_package.has_tests) {
+        if (!catkin_package.has_tests) {
             return;
         }
 
@@ -355,7 +355,7 @@ export class CatkinTestAdapter implements TestAdapter {
         token: vscode.CancellationToken,
         cwd?: string) {
 
-        let output_promise = runShellCommand(`bash -c '${command}'`, cwd, (process) => {
+        let output_promise = runBashCommand(command, cwd, (process) => {
             this.active_process = process;
 
             if (token !== undefined) {
@@ -489,7 +489,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
         } else if (test.type === 'suite') {
             let suite: CatkinTestSuite = this.suites.get(id);
-            if(suite.executables.length === 0) {
+            if (suite.executables.length === 0) {
                 console.log("Requested to run an empty suite, building and then retrying");
                 return <TestRunResult>{
                     reload_packages: [<TestRunRepeatRequest>{

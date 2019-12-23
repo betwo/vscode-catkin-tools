@@ -5,7 +5,7 @@ import * as glob from 'fast-glob';
 import * as xml from 'fast-xml-parser';
 import * as path from 'path';
 
-import { runShellCommand } from './catkin_command';
+import { runBashCommand } from './catkin_command';
 import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite } from './catkin_test_types';
 import { CatkinWorkspace } from './catkin_workspace';
 
@@ -106,7 +106,7 @@ export class CatkinPackage {
     // find gtest build targets
     this.test_build_targets = [];
     try {
-      let output = await runShellCommand('ctest -N -V', build_space);
+      let output = await runBashCommand('ctest -N -V', build_space);
       console.log(output.stdout);
       let current_executable: string = undefined;
       let current_test_type: TestType = undefined;
@@ -222,7 +222,7 @@ export class CatkinPackage {
         try {
           // try to extract test names, if the target is compiled
           let cmd = await this.workspace.makeCommand(`${build_target.exec_path} --gtest_list_tests`);
-          let output = await runShellCommand(cmd, build_space);
+          let output = await runBashCommand(cmd, build_space);
           for (let line of output.stdout.split('\n')) {
             let match = line.match(/^([^\s]+)\.\s*$/);
             if (match) {
