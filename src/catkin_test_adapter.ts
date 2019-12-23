@@ -545,7 +545,9 @@ export class CatkinTestAdapter implements TestAdapter {
 
     private async determineTestType(test: CatkinTestInterface): Promise<TestType> {
         try {
-            let output = await runBashCommand(`${test.executable} --help`, test.build_space.toString());
+            let exe = test.executable.toString().split(new RegExp("\\s"))[0];
+            let ws_command = await this.catkin_workspace.makeCommand(`${exe} --help`);
+            let output = await runBashCommand(ws_command, test.build_space.toString());
             let needle = "This program contains tests written using Google Test";
             if (output.stdout.indexOf(needle) >= 0) {
                 return "gtest";
