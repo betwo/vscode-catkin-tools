@@ -357,7 +357,7 @@ export class CatkinWorkspace {
               if (catkin_package && catkin_package.has_tests) {
                 let [suite, _] = await this.test_adapter.loadPackageTests(catkin_package, true);
                 this.test_adapter.updateSuiteSet();
-                console.log(`New package ${catkin_package.name} found and ${suite.executables.length} tests added`);
+                console.log(`New package ${catkin_package.name} found and ${suite.executables === null ? "unknown" : suite.executables.length} tests added`);
               } else {
                 console.log(`New package ${catkin_package.name} but no package.xml found`);
               }

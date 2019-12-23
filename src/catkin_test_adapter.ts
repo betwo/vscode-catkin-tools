@@ -189,6 +189,7 @@ export class CatkinTestAdapter implements TestAdapter {
             let suite = await catkin_package.loadTests(build_dir, devel_dir, outline_only);
             console.log(suite.info);
 
+            if (suite.executables !== null) {
             for (let executable of suite.executables) {
                 console.log(`add executable ${executable.info.id}`);
                 console.log(executable);
@@ -198,7 +199,7 @@ export class CatkinTestAdapter implements TestAdapter {
                     this.testcases.set(test_case.info.id, test_case);
                 }
             }
-
+            }
             console.log(`setting suite ${suite.info.id}`);
             let old_suite = this.suites.get(suite.info.id);
             this.suites.set(suite.info.id, suite);
@@ -489,7 +490,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
         } else if (test.type === 'suite') {
             let suite: CatkinTestSuite = this.suites.get(id);
-            if (suite.executables.length === 0) {
+            if (suite.executables === null) {
                 console.log("Requested to run an empty suite, building and then retrying");
                 return <TestRunResult>{
                     reload_packages: [<TestRunRepeatRequest>{
@@ -498,7 +499,11 @@ export class CatkinTestAdapter implements TestAdapter {
                     repeat_ids: [id]
                 };
             } else {
-                return await this.analyzeCtestResult(test, test_result_message);
+                // run the individual executables of the suite
+                return <TestRunResult>{
+                    reload_packages: [],
+                    repeat_ids: suite.executables.map((exe) => exe.info.id)
+                };
             }
         } else {
             return await this.analyzeGtestResult(test, output_file, test_result_message);
@@ -521,9 +526,12 @@ export class CatkinTestAdapter implements TestAdapter {
         } else if (id.startsWith('package_')) {
             // full package test run
             let suite = this.suites.get(id);
+
+            if (suite.executables !== null) {
             suite.executables.forEach((exe) => {
                 tests = tests.concat(exe.tests);
             });
+            }
 
         } else {
             throw Error(`Cannot handle test with id ${id}`);
@@ -597,7 +605,7 @@ export class CatkinTestAdapter implements TestAdapter {
             test_output += `\n(Cannot read the test results results from ${output_file})`;
             this.sendErrorForTest(test, test_output);
 
-            if (test.info.id.startsWith('exec_')) {
+            if (test.info.id.startsWith('exec_') || test.info.id.startsWith('package_')) {
                 // suite failed, run tests individually
                 result.repeat_ids = this.executables.get(test.info.id).tests.map((test) => test.info.id);
             }
@@ -619,6 +627,11 @@ export class CatkinTestAdapter implements TestAdapter {
             this.updateSuiteSet();
             this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
 
+            if (old_suite.executables === null && pkg_suite.executables === null) {
+                // if the old suite was not yet loaded, then this must be an empty suite
+                pkg_suite.executables = [];
+            }
+
             return pkg_suite;
         }
 
@@ -636,11 +649,13 @@ export class CatkinTestAdapter implements TestAdapter {
 
     private getTestSuiteForExcutable(id: string): CatkinTestSuite {
         for (let [suite_id, suite] of this.suites.entries()) {
+            if (suite.executables !== null) {
             for (let executable of suite.executables) {
                 if (executable.info.id === id) {
                     return suite;
                 }
             }
+        }
         }
         return undefined;
     }
@@ -696,6 +711,9 @@ export class CatkinTestAdapter implements TestAdapter {
     }
 
     private isSuiteEquivalent(a: CatkinTestSuite, b: CatkinTestSuite): boolean {
+        if (a.executables === null || b.executables === null) {
+            return false;
+        }
         if (a.executables.length !== b.executables.length) {
             return false;
         }

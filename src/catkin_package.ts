@@ -194,7 +194,7 @@ export class CatkinPackage {
         // file: this.cmakelists_path,
         children: []
       },
-      executables: []
+      executables: null
     };
 
     // generate a list of all tests in this target
@@ -275,6 +275,9 @@ export class CatkinPackage {
         test_exec.info.children.push(test_case.info);
       }
 
+      if (pkg_suite.executables === null) {
+        pkg_suite.executables = [];
+      }
       pkg_suite.executables.push(test_exec);
       pkg_suite.info.children.push(test_exec.info);
     }
