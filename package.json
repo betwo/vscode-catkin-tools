@@ -54,6 +54,11 @@
 							"^\\s*[^\\s\\(]*add[^\\s\\(]*test"
 						],
 						"description": "Regular expression(s) to check a CMakeLists.txt file for (possible) GTest targets"
+					},
+					"catkin_tools.testParsingEnabled": {
+						"type": "boolean",
+						"default": "true",
+						"description": "If true, parse all catkin packages for unit tests and integrate into TestExplorer."
 					}
 				}
 			}

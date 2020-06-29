@@ -34,9 +34,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
 
   let catkin_workspace = await catkin_tools.initialize(context, outputChannel);
-  const test_explorer_extension = vscode.extensions.getExtension<vscode_test.TestHub>(vscode_test.testExplorerExtensionId);
-  if (test_explorer_extension) {
-    registerCatkinTest(context, catkin_workspace, test_explorer_extension, outputChannel);
+
+  const config = vscode.workspace.getConfiguration('catkin_tools');
+  if (config['testParsingEnabled']) {
+    const test_explorer_extension = vscode.extensions.getExtension<vscode_test.TestHub>(vscode_test.testExplorerExtensionId);
+    if (test_explorer_extension) {
+      registerCatkinTest(context, catkin_workspace, test_explorer_extension, outputChannel);
+    }
   }
 }
 
