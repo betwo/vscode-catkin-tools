@@ -226,7 +226,7 @@ export class CatkinPackage {
         global_build_dir: build_dir,
         global_devel_dir: devel_dir,
         executable: build_target.exec_path,
-        filter: build_target.type === 'generic' ? undefined : "*",
+        filter: build_target.type === 'generic' ? undefined : "\\*",
         info: {
           type: 'suite',
           id: `exec_${build_target.cmake_target}`,
@@ -252,7 +252,7 @@ export class CatkinPackage {
                 global_build_dir: build_dir,
                 global_devel_dir: devel_dir,
                 executable: build_target.exec_path,
-                filter: build_target.type === 'generic' ? undefined : `${test_label}.*`,
+                filter: build_target.type === 'generic' ? undefined : `${test_label}.\\*`,
                 type: build_target.type,
                 info: {
                   type: 'test',
@@ -282,7 +282,7 @@ export class CatkinPackage {
           global_build_dir: build_dir,
           global_devel_dir: devel_dir,
           executable: build_target.exec_path,
-          filter: build_target.type === 'generic' ? undefined : `*`,
+          filter: build_target.type === 'generic' ? undefined : `\\*`,
           info: {
             type: 'test',
             id: `test_unknown_${build_target.cmake_target}`,

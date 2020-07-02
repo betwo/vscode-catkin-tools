@@ -731,7 +731,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
         gtest_problem_matcher.analyze(dom, this.diagnostics);
 
-        if (test.filter === undefined || test.filter === '*') {
+        if (test.filter === undefined || test.filter === '\\*') {
             // this is the whole test executable
             let node_suites = dom['testsuites'];
             if (node_suites.attr['@_failures'] > 0 || node_suites.attr['@_errors'] > 0) {
@@ -747,7 +747,7 @@ export class CatkinTestAdapter implements TestAdapter {
             if (!Array.isArray(node_suites)) {
                 node_suites = [node_suites];
             }
-            let test_suite = test.filter === undefined ? '*' : test.filter.substr(0, test.filter.lastIndexOf('.'));
+            let test_suite = test.filter === undefined ? '\\*' : test.filter.substr(0, test.filter.lastIndexOf('.'));
             for (let node of node_suites) {
                 if (node.attr['@_name'] === test_suite) {
                     if (node.attr['@_failures'] > 0 || node.attr['@_errors'] > 0) {
@@ -816,7 +816,7 @@ export class CatkinTestAdapter implements TestAdapter {
                     request: 'launch',
                     MIMode: 'gdb',
                     cwd: this.workspaceRootDirectoryPath,
-                    program: cmd, //"${workspaceFolder}",
+                    program: cmd,
                     args: args.concat(['--gtest_break_on_failure', `--gtest_filter=${test.filter}`])
                 };
                 await vscode.debug.startDebugging(undefined, config);
