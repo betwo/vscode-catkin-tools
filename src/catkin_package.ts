@@ -6,7 +6,7 @@ import * as xml from 'fast-xml-parser';
 import * as path from 'path';
 
 import { runBashCommand } from './catkin_command';
-import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite } from './catkin_test_types';
+import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
 import { CatkinWorkspace } from './catkin_workspace';
 
 export type TestType = "unknown" | "gtest" | "generic" | "suite";
@@ -176,7 +176,7 @@ export class CatkinPackage {
                 stripped_exe = stripped_exe.replace(/--gtest_output\S+/g, "");
                 // then take the first argument when splitting with whitespace
                 let exe = path.basename(stripped_exe.split(/\s/)[0]);
-                if(exe.length === 0) {
+                if (exe.length === 0) {
                   // assume that the executable has the same name as the cmake target
                   exe = target;
                 }
@@ -233,7 +233,7 @@ export class CatkinPackage {
           label: build_target.cmake_target,
           children: []
         },
-        tests: []
+        fixtures: []
       };
 
       if (!outline_only) {
@@ -241,10 +241,32 @@ export class CatkinPackage {
           // try to extract test names, if the target is compiled
           let cmd = await this.workspace.makeCommand(`${build_target.exec_path} --gtest_list_tests`);
           let output = await runBashCommand(cmd, build_space);
+          let current_fixture_label: string = null;
           for (let line of output.stdout.split('\n')) {
-            let match = line.match(/^([^\s]+)\.\s*$/);
-            if (match) {
-              let test_label = match[1];
+            let fixture_match = line.match(/^([^\s]+)\.\s*$/);
+            if (fixture_match) {
+              current_fixture_label = fixture_match[1];
+              test_exec.fixtures.push({
+                type: 'gtest',
+                package: this,
+                build_space: build_space,
+                build_target: build_target.cmake_target,
+                global_build_dir: build_dir,
+                global_devel_dir: devel_dir,
+                executable: build_target.exec_path,
+                filter: build_target.type === 'generic' ? undefined : `${current_fixture_label}.\\*`,
+                info: {
+                  type: 'suite',
+                  id: `fixture_${build_target.cmake_target}_${current_fixture_label}`,
+                  label: current_fixture_label,
+                  children: []
+                },
+                cases: []
+              });
+              test_exec.info.children.push(test_exec.fixtures[test_exec.fixtures.length - 1].info);
+
+            } else if (current_fixture_label !== null && line.length > 0) {
+              let test_label = line.substr(2);
               let test_case: CatkinTestCase = {
                 package: this,
                 build_space: build_space,
@@ -252,16 +274,17 @@ export class CatkinPackage {
                 global_build_dir: build_dir,
                 global_devel_dir: devel_dir,
                 executable: build_target.exec_path,
-                filter: build_target.type === 'generic' ? undefined : `${test_label}.\\*`,
+                filter: build_target.type === 'generic' ? undefined : `${current_fixture_label}.${test_label}`,
                 type: build_target.type,
                 info: {
                   type: 'test',
-                  id: `test_${build_target.cmake_target}_${test_label}`,
-                  label: test_label
+                  id: `test_${build_target.cmake_target}_${current_fixture_label}_${test_label}`,
+                  label: `${current_fixture_label}::${test_label}`
                 }
               };
-              test_exec.tests.push(test_case);
-              test_exec.info.children.push(test_case.info);
+              let fixture = test_exec.fixtures[test_exec.fixtures.length - 1];
+              fixture.cases.push(test_case);
+              fixture.info.children.push(fixture.cases[fixture.cases.length - 1].info);
             }
           }
         } catch (err) {
@@ -273,8 +296,8 @@ export class CatkinPackage {
           }
         }
       }
-      if (test_exec.tests.length === 0) {
-        let test_case: CatkinTestCase = {
+      if (test_exec.fixtures.length === 0) {
+        let test_case: CatkinTestFixture = {
           type: build_target.type,
           package: this,
           build_space: build_space,
@@ -282,15 +305,17 @@ export class CatkinPackage {
           global_build_dir: build_dir,
           global_devel_dir: devel_dir,
           executable: build_target.exec_path,
+          cases: [],
           filter: build_target.type === 'generic' ? undefined : `\\*`,
           info: {
-            type: 'test',
-            id: `test_unknown_${build_target.cmake_target}`,
+            type: 'suite',
+            id: `fixture_unknown_${build_target.cmake_target}`,
             label: "Run All Tests",
+            children: [],
             description: "(no information about test cases)"
           }
         };
-        test_exec.tests.push(test_case);
+        test_exec.fixtures.push(test_case);
         test_exec.info.children.push(test_case.info);
       }
 

@@ -17,7 +17,7 @@ import * as path from 'path';
 import { CatkinPackage, TestType } from './catkin_package';
 import { CatkinWorkspace } from './catkin_workspace';
 import { runBashCommand } from './catkin_command';
-import { CatkinTestInterface, CatkinTestCase, CatkinTestExecutable, CatkinTestSuite } from './catkin_test_types';
+import { CatkinTestInterface, CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
 import * as gtest_problem_matcher from './gtest_problem_matcher';
 import * as xml from 'fast-xml-parser';
 
@@ -73,6 +73,7 @@ class TestRunResult {
 export class CatkinTestAdapter implements TestAdapter {
     suites: Map<string, CatkinTestSuite> = new Map<string, CatkinTestSuite>();
     executables: Map<string, CatkinTestExecutable> = new Map<string, CatkinTestExecutable>();
+    testfixtures: Map<string, CatkinTestFixture> = new Map<string, CatkinTestFixture>();
     testcases: Map<string, CatkinTestCase> = new Map<string, CatkinTestCase>();
 
     private cancel_requested: boolean = false;
@@ -193,9 +194,12 @@ export class CatkinTestAdapter implements TestAdapter {
                     console.log(`add executable ${executable.info.id}`);
                     console.log(executable);
                     this.executables.set(executable.info.id, executable);
-                    for (let test_case of executable.tests) {
-                        console.log(`add test case ${test_case.info.id}`);
-                        this.testcases.set(test_case.info.id, test_case);
+                    for (let fixture of executable.fixtures) {
+                        console.log(`add test fixture ${fixture.info.id}`);
+                        this.testfixtures.set(fixture.info.id, fixture);
+                        for (let testcase of fixture.cases) {
+                            this.testcases.set(testcase.info.id, testcase);
+                        }
                     }
                 }
             }
@@ -227,7 +231,7 @@ export class CatkinTestAdapter implements TestAdapter {
             try {
                 for (let id of nodeIds) {
                     let intermediate_result: TestRunResult;
-                    if (id.startsWith("package_") || id.startsWith("exec_") || id === "all_tests") {
+                    if (id.startsWith("package_") || id.startsWith("exec_") || id.startsWith("fixture_") || id === "all_tests") {
                         intermediate_result = await this.runTestSuite(id, progress, token);
 
                     } else if (id.startsWith("test_")) {
@@ -293,7 +297,7 @@ export class CatkinTestAdapter implements TestAdapter {
         token: vscode.CancellationToken): Promise<TestRunResult> {
         this.output_channel.appendLine(`Running catkin_tools test suite ${id}`);
 
-        let tests: (CatkinTestExecutable | CatkinTestSuite)[] = [];
+        let tests: (CatkinTestExecutable | CatkinTestSuite | CatkinTestFixture)[] = [];
         let result = new TestRunResult();
         if (id.startsWith("package_")) {
             let suite: CatkinTestSuite = this.suites.get(id);
@@ -302,6 +306,10 @@ export class CatkinTestAdapter implements TestAdapter {
         } else if (id.startsWith("exec_")) {
             let exe = this.executables.get(id);
             tests.push(exe);
+
+        } else if (id.startsWith("fixture_")) {
+            let fixture = this.testfixtures.get(id);
+            tests.push(fixture);
 
         } else if (id === "all_tests") {
             this.suites.forEach((suite, key) => {
@@ -399,9 +407,9 @@ export class CatkinTestAdapter implements TestAdapter {
         let command: string;
         let test: CatkinTestInterface;
 
-        if (id.startsWith("test_unknown_")) {
+        if (id.startsWith("fixture_unknown_")) {
             // Run an unknown executable's tests
-            let exe = this.getExecutableForTestCase(id);
+            let exe = this.getExecutableForTestFixture(id);
             this.output_channel.appendLine(`Id ${id} maps to executable ${exe.executable} in package ${exe.package.name}`);
             command = await this.makeBuildTestCommand(exe);
             command += `${exe.executable}`;
@@ -416,6 +424,16 @@ export class CatkinTestAdapter implements TestAdapter {
                 command += `${testcase.executable} --gtest_filter=${testcase.filter}`;
             }
             test = testcase;
+
+        } else if (id.startsWith('fixture_')) {
+            // test fixture
+            let testfixture = this.testfixtures.get(id);
+            this.output_channel.appendLine(`Id ${id} maps to test fixture in package ${testfixture.package.name}`);
+            command = await this.makeBuildTestCommand(testfixture);
+            if (testfixture.filter !== undefined) {
+                command += `${testfixture.executable} --gtest_filter=${testfixture.filter}`;
+            }
+            test = testfixture;
 
         } else if (id.startsWith('exec_')) {
             // full unit test run
@@ -517,7 +535,7 @@ export class CatkinTestAdapter implements TestAdapter {
                     this.testStatesEmitter.fire(result);
                 } else {
                     let exe = this.getTestForExecutable(test.executable.toString());
-                    exe.tests.forEach((test) => {
+                    exe.fixtures.forEach((test) => {
                         let result: TestEvent = {
                             type: 'test',
                             test: test.info.id,
@@ -567,10 +585,17 @@ export class CatkinTestAdapter implements TestAdapter {
             let testcase = this.testcases.get(id);
             tests.push(testcase);
 
+        } else if (id.startsWith('fixture_')) {
+            // full unit test run
+            let fixture = this.testfixtures.get(id);
+            tests = fixture.cases;
+
         } else if (id.startsWith('exec_')) {
             // full unit test run
             let exe = this.executables.get(id);
-            tests = tests.concat(exe.tests);
+            for (let fixture of exe.fixtures) {
+                tests = tests.concat(fixture.cases);
+            }
 
         } else if (id.startsWith('package_')) {
             // full package test run
@@ -578,7 +603,9 @@ export class CatkinTestAdapter implements TestAdapter {
 
             if (suite.executables !== null) {
                 suite.executables.forEach((exe) => {
-                    tests = tests.concat(exe.tests);
+                    for (let fixture of exe.fixtures) {
+                        tests = tests.concat(fixture.cases);
+                    }
                 });
             }
 
@@ -635,7 +662,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
             if (test.info.id.startsWith('exec_') || test.info.id.startsWith('package_')) {
                 // suite failed, run tests individually
-                result.repeat_ids = this.executables.get(test.info.id).tests.map((test) => test.info.id);
+                result.repeat_ids = this.executables.get(test.info.id).fixtures.map((test) => test.info.id);
             }
         }
 
@@ -697,13 +724,30 @@ export class CatkinTestAdapter implements TestAdapter {
         return undefined;
     }
 
+    private getExecutableForTestFixture(id: string): CatkinTestExecutable {
+        for (let [suite_id, suite] of this.suites.entries()) {
+            if (suite.executables !== null) {
+                for (let executable of suite.executables) {
+                    for (let fiture of executable.fixtures) {
+                        if (fiture.info.id === id) {
+                            return executable;
+                        }
+                    }
+                }
+            }
+        }
+        return undefined;
+    }
+
     private getExecutableForTestCase(id: string): CatkinTestExecutable {
         for (let [suite_id, suite] of this.suites.entries()) {
             if (suite.executables !== null) {
                 for (let executable of suite.executables) {
-                    for (let testcase of executable.tests) {
-                        if (testcase.info.id === id) {
-                            return executable;
+                    for (let fixture of executable.fixtures) {
+                        for (let testcase of fixture.cases) {
+                            if (testcase.info.id === id) {
+                                return executable;
+                            }
                         }
                     }
                 }
@@ -721,6 +765,15 @@ export class CatkinTestAdapter implements TestAdapter {
         };
         this.testStatesEmitter.fire(result);
     }
+
+    private wrapArray<T>(value: T): T[] {
+        if (!Array.isArray(value)) {
+            return [value];
+        } else {
+            return value;
+        }
+    }
+
     private sendGtestResultForTest(test: CatkinTestInterface, dom, message: string) {
         let result: TestEvent = {
             type: 'test',
@@ -743,17 +796,31 @@ export class CatkinTestAdapter implements TestAdapter {
 
         } else {
             // this is one single test case
-            let node_suites = dom['testsuites']['testsuite'];
-            if (!Array.isArray(node_suites)) {
-                node_suites = [node_suites];
-            }
-            let test_suite = test.filter === undefined ? '\\*' : test.filter.substr(0, test.filter.lastIndexOf('.'));
+            let node_suites = this.wrapArray(dom['testsuites']['testsuite']);
+            let test_fixture = test.filter === undefined ? '\\*' : test.filter.substr(0, test.filter.lastIndexOf('.'));
+            let test_case_id = test.filter === undefined ? null : test.filter.substr(test.filter.lastIndexOf('.') + 1);
             for (let node of node_suites) {
-                if (node.attr['@_name'] === test_suite) {
-                    if (node.attr['@_failures'] > 0 || node.attr['@_errors'] > 0) {
-                        result.state = 'failed';
+                if (node.attr['@_name'] === test_fixture) {
+                    if (test_case_id !== null) {
+                        let testcases = this.wrapArray(node['testcase']);
+                        for (let test_case of testcases) {
+                            if (test_case.attr['@_name'] === test_case_id) {
+                                let failure = test_case['failure'];
+                                if (failure !== undefined) {
+                                    result.state = 'failed';
+                                    result.message = failure['#text'];
+                                } else {
+                                    result.state = 'passed';
+                                }
+                                break;
+                            }
+                        }
                     } else {
-                        result.state = 'passed';
+                        if (node.attr['@_failures'] > 0 || node.attr['@_errors'] > 0) {
+                            result.state = 'failed';
+                        } else {
+                            result.state = 'passed';
+                        }
                     }
                     break;
                 }
@@ -777,23 +844,32 @@ export class CatkinTestAdapter implements TestAdapter {
         return true;
     }
     private isExecutableEquivalent(a: CatkinTestExecutable, b: CatkinTestExecutable): boolean {
-        if (a.tests.length !== b.tests.length) {
+        if (a.fixtures.length !== b.fixtures.length) {
             return false;
         }
-        for (let i = 0; i < a.tests.length; ++i) {
-            if (!this.isTestCaseEquivalent(a.tests[i], b.tests[i])) {
+        for (let i = 0; i < a.fixtures.length; ++i) {
+            let fixture_a = a.fixtures[i];
+            let fixture_b = b.fixtures[i];
+            if (fixture_a.cases.length !== fixture_b.cases.length) {
                 return false;
+            }
+            for (let j = 0; j < fixture_a.cases.length; ++j) {
+                let case_a = fixture_a.cases[j];
+                let case_b = fixture_b.cases[j];
+                if (!this.isTestCaseEquivalent(case_a, case_b)) {
+                    return false;
+                }
             }
         }
         return true;
     }
     private isTestCaseEquivalent(a: CatkinTestCase, b: CatkinTestCase): boolean {
-        return a.executable === b.executable && a.filter === b.filter;
+        return a.filter === b.filter;
     }
 
     public async debug(test_ids: string[]): Promise<void> {
         for (let test_id of test_ids) {
-            let test: CatkinTestCase = this.testcases.get(test_id);
+            let test: CatkinTestFixture | CatkinTestCase = test_id.startsWith("fixture_") ? this.testfixtures.get(test_id) : this.testcases.get(test_id);
             this.testStatesEmitter.fire(<TestRunStartedEvent>{ type: 'started', tests: [test_id] });
 
             // build the teset

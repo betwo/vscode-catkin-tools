@@ -23,8 +23,12 @@ export class CatkinTestCase extends CatkinTestInterface {
     public info: TestInfo;
 }
 
+export class CatkinTestFixture extends CatkinTestInterface {
+    public cases: CatkinTestCase[];
+    public info: TestSuiteInfo;
+}
 export class CatkinTestExecutable extends CatkinTestInterface {
-    public tests: CatkinTestCase[];
+    public fixtures: CatkinTestFixture[];
     public info: TestSuiteInfo;
 }
 
