@@ -133,10 +133,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.11] - 2019-12-11
 ### Fixed
 - Made test handling more robust
-- 
+
 ## [1.12] - 2019-12-23
 ### Fixed
 - Fixed bash dependent built-in problems
 
 ### Added
 - Added proper support for non-gtest test cases
+
+## [1.14] - 2020-07-03
+### Fixed
+- Fixed debugging of test cases not working in `zsh`
+
+### Added
+- Added support for launching and debugging individual gtest test cases
