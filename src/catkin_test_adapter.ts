@@ -886,10 +886,28 @@ export class CatkinTestAdapter implements TestAdapter {
                 parts.shift();
                 let args: string[] = parts;
 
+                let env_command = await this.catkin_workspace.makeCommand(`env`);
+                let output = await runBashCommand(env_command);
+                if (output.error !== undefined) {
+                    console.error(output.stderr);
+                    vscode.window.showErrorMessage("Cannot start debugger, could not determine environment. Please check the console log.");
+                    return;
+                }
+
+                let environment = output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
+                    let [name, value] = env_entry.split("=");
+                    return {
+                        name: name,
+                        value: value
+                    };
+                });
+                console.log(environment);
+
                 let config: vscode.DebugConfiguration = {
                     type: 'cppdbg',
                     name: cmd,
                     request: 'launch',
+                    environment: environment,
                     MIMode: 'gdb',
                     cwd: this.workspaceRootDirectoryPath,
                     program: cmd,
