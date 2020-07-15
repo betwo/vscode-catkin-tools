@@ -152,6 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Made test case debugging more robust
 - Fixed debugger starting even though tests do not compile
+- Fixed endless retrying on test build error
 
 ### Changed
 - Made test parsing faster by not calling `ctest` for each package initially
