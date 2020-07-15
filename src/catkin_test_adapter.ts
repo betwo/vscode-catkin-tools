@@ -868,16 +868,26 @@ export class CatkinTestAdapter implements TestAdapter {
     }
 
     public async debug(test_ids: string[]): Promise<void> {
-        for (let test_id of test_ids) {
-            let test: CatkinTestFixture | CatkinTestCase = test_id.startsWith("fixture_") ? this.testfixtures.get(test_id) : this.testcases.get(test_id);
-            this.testStatesEmitter.fire(<TestRunStartedEvent>{ type: 'started', tests: [test_id] });
+        if (test_ids.length > 1) {
+            vscode.window.showWarningMessage("Debugging more than one test case is not yet supported.");
+        }
+        if (test_ids.length > 0) {
+            let test_id = test_ids[0];
+            let test: CatkinTestFixture | CatkinTestCase | CatkinTestExecutable;
+            if (test_id.startsWith("exec_")) {
+                test = this.executables.get(test_id);
+            } else if (test_id.startsWith("fixture_")) {
+                test = this.testfixtures.get(test_id);
+            } else {
+                test = this.testcases.get(test_id);
+            }
 
             // build the teset
             let command = await this.makeBuildTestCommand(test);
             await this.runCommand(command, undefined, undefined);
 
             if (vscode.debug.activeDebugSession !== undefined) {
-                vscode.window.showInformationMessage("Cannot start debugger, another session is opened.");
+                vscode.window.showErrorMessage("Cannot start debugger, another session is opened.");
 
             } else {
                 // start the debugging session
@@ -915,8 +925,6 @@ export class CatkinTestAdapter implements TestAdapter {
                 };
                 await vscode.debug.startDebugging(undefined, config);
             }
-
-            this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: 'finished' });
         }
     }
 
