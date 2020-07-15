@@ -8,6 +8,8 @@ import * as path from 'path';
 import { runBashCommand } from './catkin_command';
 import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
 import { CatkinWorkspace } from './catkin_workspace';
+import { error } from 'console';
+import { exec } from 'child_process';
 
 export type TestType = "unknown" | "gtest" | "generic" | "suite";
 
@@ -105,95 +107,97 @@ export class CatkinPackage {
 
     // find gtest build targets
     this.test_build_targets = [];
-    try {
-      let output = await runBashCommand('ctest -N -V', build_space);
-      console.log(output.stdout);
-      let current_executable: string = undefined;
-      let current_test_type: TestType = undefined;
-      let missing_exe = undefined;
-      for (let line of output.stdout.split('\n')) {
+    if (!outline_only) {
+      try {
+        let output = await runBashCommand('ctest -N -V', build_space);
+        console.log(output.stdout);
+        let current_executable: string = undefined;
+        let current_test_type: TestType = undefined;
+        let missing_exe = undefined;
+        for (let line of output.stdout.split('\n')) {
 
-        let test_command = line.match(/[0-9]+: Test command:\s+(.*)$/);
-        if (test_command !== null) {
-          if (line.indexOf('catkin_generated') > 0) {
-            let python_gtest_wrapper = line.match(/[0-9]+: Test command:\s+.*env_cached.sh\s*.*"([^"]+\s+--gtest_output=[^"]+)".*/);
-            if (python_gtest_wrapper !== null) {
-              current_executable = python_gtest_wrapper[1];
-              current_test_type = 'gtest';
+          let test_command = line.match(/[0-9]+: Test command:\s+(.*)$/);
+          if (test_command !== null) {
+            if (line.indexOf('catkin_generated') > 0) {
+              let python_gtest_wrapper = line.match(/[0-9]+: Test command:\s+.*env_cached.sh\s*.*"([^"]+\s+--gtest_output=[^"]+)".*/);
+              if (python_gtest_wrapper !== null) {
+                current_executable = python_gtest_wrapper[1];
+                current_test_type = 'gtest';
+              } else {
+                current_executable = test_command[1];
+                current_test_type = 'unknown';
+              }
             } else {
-              current_executable = test_command[1];
-              current_test_type = 'unknown';
+              let gtest_output = line.match(/[0-9]+: Test command:\s+"([^"]+\s+--gtest_output=[^"]+)".*/);
+              if (gtest_output !== null) {
+                current_executable = gtest_output[1];
+                current_test_type = 'gtest';
+              } else {
+                current_executable = test_command[1];
+                current_test_type = 'unknown';
+              }
             }
-          } else {
-            let gtest_output = line.match(/[0-9]+: Test command:\s+"([^"]+\s+--gtest_output=[^"]+)".*/);
-            if (gtest_output !== null) {
-              current_executable = gtest_output[1];
-              current_test_type = 'gtest';
-            } else {
-              current_executable = test_command[1];
-              current_test_type = 'unknown';
-            }
-          }
-          continue;
-        }
-        // GTest target test
-        let gtest_match = line.match(/ Test\s+#.*gtest_(.*)/);
-        if (gtest_match) {
-          if (current_executable === undefined) {
             continue;
           }
-          let target: BuildTarget = {
-            cmake_target: gtest_match[1],
-            exec_path: current_executable,
-            type: current_test_type
-          };
-          this.test_build_targets.push(target);
-        } else {
-          if (line.indexOf('catkin_generated') > 0) {
-            continue;
-          }
-          // general CTest target test
-          let missing_exec_match = line.match(/Could not find executable\s+([^\s]+)/);
-          if (missing_exec_match) {
-            missing_exe = missing_exec_match[1];
+          // GTest target test
+          let gtest_match = line.match(/ Test\s+#.*gtest_(.*)/);
+          if (gtest_match) {
+            if (current_executable === undefined) {
+              continue;
+            }
+            let target: BuildTarget = {
+              cmake_target: gtest_match[1],
+              exec_path: current_executable,
+              type: current_test_type
+            };
+            this.test_build_targets.push(target);
           } else {
-            let ctest_match = line.match(/\s+Test\s+#[0-9]+:\s+([^\s]+)/);
-            if (ctest_match) {
-              if (current_executable === undefined) {
-                continue;
-              }
-              let target = ctest_match[1];
-              if (target.length > 1 && target !== 'cmake') {
-                let cmd = current_executable;
-                if (missing_exe !== undefined) {
-                  cmd = missing_exe + " " + cmd;
+            if (line.indexOf('catkin_generated') > 0) {
+              continue;
+            }
+            // general CTest target test
+            let missing_exec_match = line.match(/Could not find executable\s+([^\s]+)/);
+            if (missing_exec_match) {
+              missing_exe = missing_exec_match[1];
+            } else {
+              let ctest_match = line.match(/\s+Test\s+#[0-9]+:\s+([^\s]+)/);
+              if (ctest_match) {
+                if (current_executable === undefined) {
+                  continue;
                 }
+                let target = ctest_match[1];
+                if (target.length > 1 && target !== 'cmake') {
+                  let cmd = current_executable;
+                  if (missing_exe !== undefined) {
+                    cmd = missing_exe + " " + cmd;
+                  }
 
-                // determine executable
-                // trip quotes
-                let stripped_exe = current_executable.replace(/"/g, "");
-                // strip --gtest_output if present
-                stripped_exe = stripped_exe.replace(/--gtest_output\S+/g, "");
-                // then take the first argument when splitting with whitespace
-                let exe = path.basename(stripped_exe.split(/\s/)[0]);
-                if (exe.length === 0) {
-                  // assume that the executable has the same name as the cmake target
-                  exe = target;
+                  // determine executable
+                  // trip quotes
+                  let stripped_exe = current_executable.replace(/"/g, "");
+                  // strip --gtest_output if present
+                  stripped_exe = stripped_exe.replace(/--gtest_output\S+/g, "");
+                  // then take the first argument when splitting with whitespace
+                  let exe = path.basename(stripped_exe.split(/\s/)[0]);
+                  if (exe.length === 0) {
+                    // assume that the executable has the same name as the cmake target
+                    exe = target;
+                  }
+                  this.test_build_targets.push({
+                    cmake_target: exe,
+                    exec_path: cmd,
+                    type: current_test_type
+                  });
                 }
-                this.test_build_targets.push({
-                  cmake_target: exe,
-                  exec_path: cmd,
-                  type: current_test_type
-                });
+                missing_exe = undefined;
               }
-              missing_exe = undefined;
             }
           }
         }
+      } catch (err) {
+        console.log(`Cannot call ctest for ${this.name}`);
+        throw err;
       }
-    } catch (err) {
-      console.log(`Cannot call ctest for ${this.name}`);
-      throw err;
     }
 
     // create the test suite
@@ -206,11 +210,13 @@ export class CatkinPackage {
       global_devel_dir: devel_dir,
       filter: undefined,
       info: {
-        type: 'suite',
+        type: this.test_build_targets.length === 0 ? 'test' : 'suite',
         id: `package_${this.name}`,
+        debuggable: false,
         label: this.name,
         // file: this.cmakelists_path,
-        children: []
+        children: [],
+        description: this.test_build_targets.length === 0 ? "(unloaded)" : "",
       },
       executables: null
     };
@@ -323,7 +329,9 @@ export class CatkinPackage {
         pkg_suite.executables = [];
       }
       pkg_suite.executables.push(test_exec);
-      pkg_suite.info.children.push(test_exec.info);
+      if (pkg_suite.info.type === 'suite') {
+        pkg_suite.info.children.push(test_exec.info);
+      }
     }
     return pkg_suite;
   }

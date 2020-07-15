@@ -34,5 +34,5 @@ export class CatkinTestExecutable extends CatkinTestInterface {
 
 export class CatkinTestSuite extends CatkinTestInterface {
     public executables: CatkinTestExecutable[];
-    public info: TestSuiteInfo;
+    public info: TestSuiteInfo | TestInfo;
 }
