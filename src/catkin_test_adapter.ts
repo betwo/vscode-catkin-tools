@@ -347,6 +347,9 @@ export class CatkinTestAdapter implements TestAdapter {
             command += `catkin build ${test.package.name} --no-notify --no-status;`;
         }
         command += `cd "${test.build_space}";`;
+        command += `make -j $(nproc); `;
+        command += `{ make -q install ; [ "$?" = "1" ] && make install; }; `;
+
         if (test.type === 'suite') {
             command += `make -j $(nproc) tests;`;
         } else {
@@ -412,7 +415,7 @@ export class CatkinTestAdapter implements TestAdapter {
             let exe = this.getExecutableForTestFixture(id);
             this.output_channel.appendLine(`Id ${id} maps to executable ${exe.executable} in package ${exe.package.name}`);
             command = await this.makeBuildTestCommand(exe);
-            command += `${exe.executable}`;
+            command += `${exe.executable} || true`;
             test = exe;
 
         } else if (id.startsWith('test_')) {
@@ -421,7 +424,7 @@ export class CatkinTestAdapter implements TestAdapter {
             this.output_channel.appendLine(`Id ${id} maps to test in package ${testcase.package.name}`);
             command = await this.makeBuildTestCommand(testcase);
             if (testcase.filter !== undefined) {
-                command += `${testcase.executable} --gtest_filter=${testcase.filter}`;
+                command += `${testcase.executable} --gtest_filter=${testcase.filter} || true`;
             }
             test = testcase;
 
@@ -431,7 +434,7 @@ export class CatkinTestAdapter implements TestAdapter {
             this.output_channel.appendLine(`Id ${id} maps to test fixture in package ${testfixture.package.name}`);
             command = await this.makeBuildTestCommand(testfixture);
             if (testfixture.filter !== undefined) {
-                command += `${testfixture.executable} --gtest_filter=${testfixture.filter}`;
+                command += `${testfixture.executable} --gtest_filter=${testfixture.filter} || true`;
             }
             test = testfixture;
 
@@ -440,7 +443,7 @@ export class CatkinTestAdapter implements TestAdapter {
             let exe = this.executables.get(id);
             this.output_channel.appendLine(`Id ${id} maps to executable ${exe.executable} in package ${exe.package.name}`);
             command = await this.makeBuildTestCommand(exe);
-            command += `${exe.executable}`;
+            command += `${exe.executable} || true`;
             test = exe;
 
         } else if (id.startsWith('package_')) {
@@ -511,7 +514,7 @@ export class CatkinTestAdapter implements TestAdapter {
                     reload_packages: [<TestRunReloadRequest>{
                         test: suite
                     }],
-                    repeat_ids: [id]
+                    repeat_ids: []
                 };
             } else {
                 // run the individual executables of the suite
@@ -633,6 +636,7 @@ export class CatkinTestAdapter implements TestAdapter {
             });
 
             if (test.info.id.startsWith("package_")) {
+                this.sendGtestResultForTest(test, dom, test_output);
                 result.reload_packages.push({
                     test: test as CatkinTestSuite,
                     dom: dom,
@@ -640,6 +644,7 @@ export class CatkinTestAdapter implements TestAdapter {
                 });
 
             } else if (test.info.id.startsWith("exec_")) {
+                this.sendGtestResultForTest(test, dom, test_output);
                 let suite = this.getTestSuiteForExcutable(test.info.id);
                 let contained = result.reload_packages.reduce((result, pkg) => {
                     if (pkg.test.info.id === suite.info.id) {
@@ -655,6 +660,7 @@ export class CatkinTestAdapter implements TestAdapter {
                     });
                 }
             } else {
+                this.sendGtestResultForTest(test, dom, test_output);
                 let executable = (test.info.id.startsWith("fixture_")) ? this.getExecutableForTestFixture(test.info.id) : this.getExecutableForTestCase(test.info.id);
                 let suite = this.getTestSuiteForExcutable(executable.info.id);
                 result.reload_packages.push({
@@ -667,11 +673,6 @@ export class CatkinTestAdapter implements TestAdapter {
         } catch (error) {
             test_output += `\n(Cannot read the test results results from ${output_file})`;
             this.sendErrorForTest(test, test_output);
-
-            if (test.info.id.startsWith('exec_') || test.info.id.startsWith('package_')) {
-                // suite failed, run tests individually
-                result.repeat_ids = this.executables.get(test.info.id).fixtures.map((test) => test.info.id);
-            }
         }
 
         return result;
@@ -765,13 +766,22 @@ export class CatkinTestAdapter implements TestAdapter {
     }
 
     private sendErrorForTest(test: CatkinTestInterface, message: string) {
-        let result: TestEvent = {
-            type: 'test',
-            test: test.info.id,
-            state: 'errored',
-            message: message
-        };
-        this.testStatesEmitter.fire(result);
+        if (test.info.type === 'suite') {
+            this.testStatesEmitter.fire(<TestSuiteEvent>{
+                type: 'suite',
+                suite: test.info.id,
+                state: 'errored',
+                message: message
+            });
+
+        } else {
+            this.testStatesEmitter.fire(<TestEvent>{
+                type: 'test',
+                test: test.info.id,
+                state: 'errored',
+                message: message
+            });
+        }
     }
 
     private wrapArray<T>(value: T): T[] {
