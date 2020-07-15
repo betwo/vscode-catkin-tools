@@ -273,6 +273,13 @@ export class CatkinPackage {
 
             } else if (current_fixture_label !== null && line.length > 0) {
               let test_label = line.substr(2);
+              let test_description = undefined;
+              if (test_label.indexOf("#") > 0) {
+                // This is an instanced test
+                let parts = test_label.split("#");
+                test_label = parts[0].trim();
+                test_description = parts[1].trim();
+              }
               let test_case: CatkinTestCase = {
                 package: this,
                 build_space: build_space,
@@ -285,6 +292,7 @@ export class CatkinPackage {
                 info: {
                   type: 'test',
                   id: `test_${build_target.cmake_target}_${current_fixture_label}_${test_label}`,
+                  description: test_description,
                   label: `${current_fixture_label}::${test_label}`
                 }
               };
