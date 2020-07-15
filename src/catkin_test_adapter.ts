@@ -884,7 +884,12 @@ export class CatkinTestAdapter implements TestAdapter {
 
             // build the teset
             let command = await this.makeBuildTestCommand(test);
-            await this.runCommand(command, undefined, undefined);
+            try {
+                await runBashCommand(command);
+            } catch (error) {
+                console.error(error.stderr);
+                throw Error(`Cannot rebuild test executable: ${error.stderr}`);
+            }
 
             if (vscode.debug.activeDebugSession !== undefined) {
                 vscode.window.showErrorMessage("Cannot start debugger, another session is opened.");
@@ -897,20 +902,21 @@ export class CatkinTestAdapter implements TestAdapter {
                 let args: string[] = parts;
 
                 let env_command = await this.catkin_workspace.makeCommand(`env`);
-                let output = await runBashCommand(env_command);
-                if (output.error !== undefined) {
-                    console.error(output.stderr);
-                    vscode.window.showErrorMessage("Cannot start debugger, could not determine environment. Please check the console log.");
-                    return;
+                let environment = [];
+                try {
+                    let env_output = await runBashCommand(env_command);
+                    environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
+                        let [name, value] = env_entry.split("=");
+                        return {
+                            name: name,
+                            value: value
+                        };
+                    });
+                } catch (error) {
+                    console.error(error.stderr);
+                    throw Error(`Cannot determine environment: ${error.stderr}`);
                 }
 
-                let environment = output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
-                    let [name, value] = env_entry.split("=");
-                    return {
-                        name: name,
-                        value: value
-                    };
-                });
                 console.log(environment);
 
                 let config: vscode.DebugConfiguration = {

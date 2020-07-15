@@ -497,9 +497,9 @@ export class CatkinWorkspace {
     command += `pushd . > /dev/null; cd "${vscode.workspace.rootPath}";`;
     command += `${payload}`;
     if (!payload.endsWith(";")) {
-      command += "; ";
+      command += "; EXIT_CODE=$?; ";
     }
-    command += `popd > /dev/null;`;
+    command += `popd > /dev/null; [ $EXIT_CODE -eq 0 ] || exit $EXIT_CODE;`;
     return command;
   }
 }
