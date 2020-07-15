@@ -52,14 +52,14 @@ export function registerCatkinTest(context: vscode.ExtensionContext,
     registerAdapter(testExplorerExtension, context, adapterFactory);
 }
 
-class TestRunRepeatRequest {
+class TestRunReloadRequest {
     test: CatkinTestSuite;
     dom?;
     output?: string;
 }
 class TestRunResult {
     public repeat_ids: string[];
-    public reload_packages: TestRunRepeatRequest[];
+    public reload_packages: TestRunReloadRequest[];
 
     constructor() {
         this.repeat_ids = [];
@@ -508,7 +508,7 @@ export class CatkinTestAdapter implements TestAdapter {
             if (suite.executables === null) {
                 console.log("Requested to run an empty suite, building and then retrying");
                 return <TestRunResult>{
-                    reload_packages: [<TestRunRepeatRequest>{
+                    reload_packages: [<TestRunReloadRequest>{
                         test: suite
                     }],
                     repeat_ids: [id]
@@ -516,7 +516,7 @@ export class CatkinTestAdapter implements TestAdapter {
             } else {
                 // run the individual executables of the suite
                 return <TestRunResult>{
-                    reload_packages: [<TestRunRepeatRequest>{
+                    reload_packages: [<TestRunReloadRequest>{
                         test: suite
                     }],
                     repeat_ids: suite.executables.map((exe) => exe.info.id)
@@ -654,6 +654,14 @@ export class CatkinTestAdapter implements TestAdapter {
                         output: test_output
                     });
                 }
+            } else {
+                let executable = (test.info.id.startsWith("fixture_")) ? this.getExecutableForTestFixture(test.info.id) : this.getExecutableForTestCase(test.info.id);
+                let suite = this.getTestSuiteForExcutable(executable.info.id);
+                result.reload_packages.push({
+                    test: suite,
+                    dom: dom,
+                    output: test_output
+                });
             }
 
         } catch (error) {
