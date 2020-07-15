@@ -147,3 +147,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added support for launching and debugging individual gtest test cases
+
+## [1.15] - 2020-07-15
+### Fixed
+- Made test case debugging more robust
+- Fixed debugger starting even though tests do not compile
+
+### Changed
+- Made test parsing faster by not calling `ctest` for each package initially
