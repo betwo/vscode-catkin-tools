@@ -178,6 +178,7 @@
 		"fs": "0.0.1-security",
 		"jsonfile": "^5.0.0",
 		"signals": "^1.0.0",
+		"tree-kill": "^1.2.2",
 		"vscode-cpptools": "^2.1.2",
 		"vscode-jsonrpc": "^4.0.0",
 		"vscode-test-adapter-api": "^1.9.0",

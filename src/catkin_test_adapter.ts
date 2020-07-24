@@ -20,6 +20,7 @@ import { runBashCommand } from './catkin_command';
 import { CatkinTestInterface, CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
 import * as gtest_problem_matcher from './gtest_problem_matcher';
 import * as xml from 'fast-xml-parser';
+import * as treekill from 'tree-kill';
 
 export const registerAdapter = (
     testExplorerExtension: vscode.Extension<TestHub>,
@@ -368,7 +369,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
             if (token !== undefined) {
                 token.onCancellationRequested(() => {
-                    this.active_process.kill();
+                    treekill(this.active_process.pid);
                 });
             }
 
@@ -955,7 +956,7 @@ export class CatkinTestAdapter implements TestAdapter {
     public cancel(): void {
         this.cancel_requested = true;
         if (this.active_process !== undefined) {
-            this.active_process.kill();
+            treekill(this.active_process.pid);
         }
     }
 
