@@ -156,3 +156,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Made test parsing faster by not calling `ctest` for each package initially
+
+## [1.15.2] - 2020-07-24
+### Fixed
+- Fixed canceling running tests not working
+- Fixed test result not being updated for test fixtures

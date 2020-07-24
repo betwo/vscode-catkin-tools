@@ -4,7 +4,7 @@
 	"publisher": "betwo",
 	"license": "MIT",
 	"description": "Support for catkin_tools workspaces",
-	"version": "1.15.1",
+	"version": "1.15.2",
 	"icon": "assets/icon.png",
 	"repository": {
 		"type": "git",
@@ -160,7 +160,7 @@
 	"devDependencies": {
 		"@types/mocha": "^2.2.42",
 		"@types/node": "^8.10.61",
-		"lodash": ">=4.17.13",
+		"lodash": "^4.17.19",
 		"terser": "^4.8.0",
 		"ts-loader": "^6.2.2",
 		"tslint": "^5.20.1",
