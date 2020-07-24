@@ -803,7 +803,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
         gtest_problem_matcher.analyze(dom, this.diagnostics);
 
-        if (test.filter === undefined || test.filter === '\\*') {
+        if (test.filter === undefined || test.filter.endsWith('\\*')) {
             // this is the whole test executable
             let node_suites = dom['testsuites'];
             if (node_suites.attr['@_failures'] > 0 || node_suites.attr['@_errors'] > 0) {
