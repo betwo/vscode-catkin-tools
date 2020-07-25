@@ -13,11 +13,14 @@ let outputChannel: vscode.OutputChannel = null;
 export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("catkin_tools");
 
-  let disposable = vscode.commands.registerCommand(
+  context.subscriptions.push(vscode.commands.registerCommand(
     'extension.b2.catkin_tools.reload_compile_commands', () => {
       catkin_tools.reloadCompileCommand();
-    });
-  context.subscriptions.push(disposable);
+    }));
+  context.subscriptions.push(vscode.commands.registerCommand(
+    'extension.b2.catkin_tools.switch_profile', () => {
+      catkin_tools.switchProfile();
+    }));
 
   taskProvider = vscode.tasks.registerTaskProvider('catkin_build', {
     provideTasks: () => {
@@ -42,6 +45,8 @@ export async function activate(context: vscode.ExtensionContext) {
       registerCatkinTest(context, catkin_workspace, test_explorer_extension, outputChannel);
     }
   }
+
+  catkin_workspace.checkProfile();
 }
 
 export function deactivate() {

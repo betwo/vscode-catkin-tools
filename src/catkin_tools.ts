@@ -9,14 +9,23 @@ import { CatkinPackageCompleterXml } from './package_xml_tools';
 let catkin_workspace: CatkinWorkspace = null;
 let provider: CatkinToolsProvider = null;
 
-export let status_bar_item =
+export let status_bar_status =
   vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
 
-export let status_bar_prefix = 'catkin workspace: ';
-status_bar_item.text = status_bar_prefix + 'initialized';
-status_bar_item.command = 'extension.b2.catkin_tools.reload_compile_commands';
-status_bar_item.tooltip = 'Reload the compile_commands.json data bases';
-status_bar_item.show();
+
+export let status_bar_profile =
+  vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+export let status_bar_profile_prefix = 'catkin profile: ';
+status_bar_profile.text = status_bar_profile_prefix;
+status_bar_profile.command = 'extension.b2.catkin_tools.switch_profile';
+status_bar_profile.tooltip = 'Change the catkin_tools profile';
+status_bar_profile.show();
+
+export let status_bar_prefix = '';
+status_bar_status.text = status_bar_prefix + 'initialized';
+status_bar_status.command = 'extension.b2.catkin_tools.reload_compile_commands';
+status_bar_status.tooltip = 'Reload the compile_commands.json data bases';
+status_bar_status.show();
 
 // Public functions
 
@@ -59,13 +68,32 @@ export async function registerProviders(
     new CatkinPackageCompleterXml(catkin_workspace));
 
   context.subscriptions.push(package_xml_provider);
-  return catkin_workspace.reload();
+  return catkin_workspace;
 }
 
 export function reloadCompileCommand() {
-  status_bar_item.text = status_bar_prefix + 'reloading';
+  status_bar_status.text = status_bar_prefix + 'reloading';
 
   provider.loadDataBases();
 
-  status_bar_item.text = status_bar_prefix + 'reload complete';
+  status_bar_status.text = status_bar_prefix + 'reload complete';
+}
+
+
+export async function switchProfile() {
+  const [active_profile, profiles] = await provider.workspace.getProfile();
+
+  const profile_list = [];
+  for (const profile of profiles) {
+    profile_list.push(<vscode.QuickPickItem>{
+      label: profile,
+      description: profile === active_profile ? "(active)" : "",
+      picked: profile === active_profile
+    });
+  }
+  const selection = await vscode.window.showQuickPick(profile_list);
+
+  if (selection !== undefined) {
+    provider.workspace.switchProfile(selection.label);
+  }
 }

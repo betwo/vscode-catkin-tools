@@ -10,6 +10,7 @@ import { SourceFileConfiguration } from 'vscode-cpptools';
 import { CatkinPackage } from './catkin_package';
 import { runCatkinCommand, ShellOutput } from './catkin_command';
 import { CatkinTestAdapter } from './catkin_test_adapter';
+import { status_bar_profile, status_bar_profile_prefix, reloadCompileCommand } from './catkin_tools';
 
 export class CatkinWorkspace {
   public workspace: vscode.WorkspaceFolder;
@@ -25,6 +26,7 @@ export class CatkinWorkspace {
 
   private build_dir: string = null;
   private warned = false;
+  private is_initialized = false;
 
   private catkin_profile: string = null;
   private catkin_build_dir: string = null;
@@ -47,6 +49,10 @@ export class CatkinWorkspace {
   }
 
   dispose() { }
+
+  public isInitialized() {
+      return this.is_initialized;
+  }
 
   public async reload(): Promise<CatkinWorkspace> {
     return vscode.window.withProgress({
@@ -95,6 +101,7 @@ export class CatkinWorkspace {
         }
         await this.loadPackage(package_xml.fsPath);
       }
+      this.is_initialized = true;
       progress.report({ increment: 100, message: "Finalizing" });
       if (!token.isCancellationRequested) {
         vscode.commands.executeCommand('test-explorer.reload');
@@ -386,39 +393,53 @@ export class CatkinWorkspace {
     }
   }
 
-  public async getProfile(): Promise<string> {
-    let profiles_path = path.join(vscode.workspace.rootPath, ".catkin_tools/profiles/profiles.yaml");
-    if(!fs.existsSync(profiles_path)) {
+  public async getProfile(): Promise<[string, string[]]> {
+    let profile_base_path = path.join(vscode.workspace.rootPath, ".catkin_tools/profiles");
+
+    let profiles_path = path.join(profile_base_path, "profiles.yaml");
+    if (!fs.existsSync(profiles_path)) {
       // profiles.yaml is only generated when there is more than one profile available
       // if it does not exist, then the `default` profile is used
-      return 'default';
+      return ['default', []];
     }
 
-    let content = fs.readFileSync(profiles_path).toString();
+    const configs = await glob.async([profile_base_path + '/**/config.yaml']);
+    const profiles = configs.map((yaml) => path.basename(path.dirname(yaml.toString())));
 
+    let content = fs.readFileSync(profiles_path).toString();
     for (let row of content.split('\n')) {
       let active = row.match(RegExp('active:\s*(.*)'));
       if (active) {
-        return active[1];
+        return [active[1].trim(), profiles];
       }
     }
 
-    return null;
+    return [null, []];
   }
 
-  private async checkProfile() {
-    let profile = await this.getProfile();
+  public async switchProfile(profile) {
+    await runCatkinCommand(`profile set ${profile}`);
+    this.checkProfile();
+  }
+
+
+  public async checkProfile() {
+    let [profile, _] = await this.getProfile();
     if (this.catkin_profile !== profile) {
-      this.switchProfile(profile);
+      this.updateProfile(profile);
     }
   }
 
-  private async switchProfile(profile) {
+  private async updateProfile(profile) {
     console.log(`PROFILE: Switching to ${profile}`);
     this.catkin_profile = profile;
     this.catkin_build_dir = null;
     this.catkin_devel_dir = null;
     this.catkin_install_dir = null;
+
+    status_bar_profile.text = status_bar_profile_prefix + profile;
+
+    reloadCompileCommand();
   }
 
   public async getBuildDir(): Promise<string> {

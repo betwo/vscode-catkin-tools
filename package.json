@@ -67,6 +67,10 @@
 			{
 				"command": "extension.b2.catkin_tools.reload_compile_commands",
 				"title": "Reload compile_commands.json files"
+			},
+			{
+				"command": "extension.b2.catkin_tools.switch_profile",
+				"title": "Change active catkin_tools profile"
 			}
 		],
 		"problemMatchers": [

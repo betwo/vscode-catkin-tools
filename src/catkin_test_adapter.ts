@@ -102,6 +102,10 @@ export class CatkinTestAdapter implements TestAdapter {
     public get autorun() { return this.autorunEmitter.event; }
 
     public async load(): Promise<void> {
+        if (!this.catkin_workspace.isInitialized()) {
+            return;
+        }
+
         this.output_channel.appendLine('Loading catkin tools tests');
         this.signalReload();
 

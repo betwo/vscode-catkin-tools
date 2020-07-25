@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { CppToolsApi, CustomConfigurationProvider, SourceFileConfigurationItem, WorkspaceBrowseConfiguration } from 'vscode-cpptools';
-import { status_bar_item, status_bar_prefix } from './catkin_tools';
+import { status_bar_status, status_bar_prefix } from './catkin_tools';
 import { CatkinWorkspace } from './catkin_workspace';
 
 // Worker class that implements a C++ configuration provider
@@ -49,7 +49,7 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
           uri: file,
           configuration: this.workspace.getSourceFileConfiguration(commands)
         });
-        status_bar_item.text = status_bar_prefix + ' (' +
+        status_bar_status.text = status_bar_prefix + ' (' +
           this.workspace.file_to_compile_commands.get(file.fsPath) + ')';
       }
     }
