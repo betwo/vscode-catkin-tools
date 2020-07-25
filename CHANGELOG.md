@@ -161,3 +161,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed canceling running tests not working
 - Fixed test result not being updated for test fixtures
+
+## [1.16.0] - 2020-07-25
+### Added
+- Added a command to switch catkin profiles
+- Added a second task bar item to display the current profile

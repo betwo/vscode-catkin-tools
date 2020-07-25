@@ -12,6 +12,7 @@ This extension makes it easier to work with [catkin-tools](https://github.com/ca
 * Provides catkin build tasks for
   * Build all packages in the workspace
   * Build the package containing the currently open file
+* Allows switching between different catkin profiles
 * Provides Test Explorer client to handle GTest targets
 
 ## Setup / Configuration
