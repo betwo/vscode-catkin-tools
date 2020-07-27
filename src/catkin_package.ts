@@ -217,6 +217,9 @@ export class CatkinPackage {
         // file: this.cmakelists_path,
         children: [],
         description: this.test_build_targets.length === 0 ? "(unloaded)" : "",
+        tooltip: this.test_build_targets.length === 0 ?
+          `Unloaded package test for ${this.name}. Run to load the test.` :
+          `Package test for ${this.name}.`,
       },
       executables: null
     };
@@ -237,7 +240,8 @@ export class CatkinPackage {
           type: 'suite',
           id: `exec_${build_target.cmake_target}`,
           label: build_target.cmake_target,
-          children: []
+          children: [],
+          tooltip: `Executable test ${build_target.cmake_target}.`,
         },
         fixtures: []
       };
@@ -265,7 +269,8 @@ export class CatkinPackage {
                   type: 'suite',
                   id: `fixture_${build_target.cmake_target}_${current_fixture_label}`,
                   label: current_fixture_label,
-                  children: []
+                  children: [],
+                  tooltip: `Test fixture ${build_target.cmake_target}::${current_fixture_label}.`,
                 },
                 cases: []
               });
@@ -293,7 +298,8 @@ export class CatkinPackage {
                   type: 'test',
                   id: `test_${build_target.cmake_target}_${current_fixture_label}_${test_label}`,
                   description: test_description,
-                  label: `${current_fixture_label}::${test_label}`
+                  label: `${current_fixture_label}::${test_label}`,
+                  tooltip: `Test case ${build_target.cmake_target}::${current_fixture_label}::${test_label}.`,
                 }
               };
               let fixture = test_exec.fixtures[test_exec.fixtures.length - 1];
@@ -326,7 +332,8 @@ export class CatkinPackage {
             id: `fixture_unknown_${build_target.cmake_target}`,
             label: "Run All Tests",
             children: [],
-            description: "(no information about test cases)"
+            description: "(no information about test cases)",
+            tooltip: `Unknown fixture. Run to detect tests.`,
           }
         };
         test_exec.fixtures.push(test_case);
