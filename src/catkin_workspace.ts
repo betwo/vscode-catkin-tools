@@ -29,6 +29,7 @@ export class CatkinWorkspace {
   private is_initialized = false;
 
   private catkin_profile: string = null;
+  private catkin_src_dir: string = null;
   private catkin_build_dir: string = null;
   private catkin_devel_dir: string = null;
   private catkin_install_dir: string = null;
@@ -433,6 +434,7 @@ export class CatkinWorkspace {
   private async updateProfile(profile) {
     console.log(`PROFILE: Switching to ${profile}`);
     this.catkin_profile = profile;
+    this.catkin_src_dir = null;
     this.catkin_build_dir = null;
     this.catkin_devel_dir = null;
     this.catkin_install_dir = null;
@@ -442,6 +444,14 @@ export class CatkinWorkspace {
     reloadCompileCommand();
   }
 
+  public async getSrcDir(): Promise<string> {
+    await this.checkProfile();
+    if (this.catkin_src_dir === null) {
+      const output: ShellOutput = await runCatkinCommand('locate -s');
+      this.catkin_src_dir = output.stdout.split('\n')[0];
+    }
+    return this.catkin_src_dir;
+  }
   public async getBuildDir(): Promise<string> {
     await this.checkProfile();
     if (this.catkin_build_dir === null) {
