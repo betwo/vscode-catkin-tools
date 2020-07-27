@@ -166,3 +166,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added a command to switch catkin profiles
 - Added a second task bar item to display the current profile
+
+## [1.17.0] - 2020-07-27
+### Changed
+- Display all tests using the directory tree instead of a flat package list
