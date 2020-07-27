@@ -57,9 +57,9 @@ export class CatkinPackage {
     return instance;
   }
 
-  public async getWorkspacePath(): Promise<string[]> {
+  public async getWorkspacePath(src_dir: string = undefined): Promise<string[]> {
     let parts = this.relative_path.toString().split(path.sep);
-    const src = await this.workspace.getSrcDir();
+    const src = src_dir !== undefined ? src_dir : await this.workspace.getSrcDir();
     if (parts[0] === path.basename(src)) {
       return parts.slice(1);
     }

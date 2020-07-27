@@ -9,7 +9,8 @@ import {
     TestRunFinishedEvent,
     TestSuiteEvent,
     TestAdapter,
-    TestSuiteInfo
+    TestSuiteInfo,
+    TestInfo
 } from 'vscode-test-adapter-api';
 import { TestAdapterRegistrar } from 'vscode-test-adapter-util';
 import * as fs from 'fs';
@@ -162,15 +163,59 @@ export class CatkinTestAdapter implements TestAdapter {
     public signalReload() {
         this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
     }
-    public updateSuiteSet() {
-        let test_packages: CatkinTestSuite[] = [];
-        this.suites.forEach((value, key) => {
-            test_packages.push(value);
-        });
-        this.catkin_tools_tests = {
-            id: "all_tests", label: "catkin_tools", type: 'suite', children: test_packages.map(suite => suite.info)
+    public async updateSuiteSet() {
+        let test_tree = <TestSuiteInfo>{
+            id: "all_tests", label: "catkin_tools", type: 'suite', children: []
         };
+        const src_dir = await this.catkin_workspace.getSrcDir();
+        for (const [key, value] of this.suites) {
+            let info = value.info;
+            const workspace_path = await value.package.getWorkspacePath(src_dir);
+            let subtree = CatkinTestAdapter.getSubtree(test_tree, "", workspace_path.slice(0, workspace_path.length - 1), true);
+            subtree.children.push(info);
+        }
+        this.catkin_tools_tests = test_tree;
         this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
+    }
+
+    private static getSubtree(tree: TestSuiteInfo, prefix: string, key: string[], createIfNonExistent = false) {
+        if (key.length === 0) {
+            return tree;
+        }
+        const subdir = `${prefix}${key[0]}`;
+        let matching = tree.children.filter((suite) => suite.type === 'suite' && suite.label === key[0]);
+        if (matching.length > 0) {
+            return CatkinTestAdapter.getSubtree(matching[0] as TestSuiteInfo, `${subdir}${path.sep}`, key.slice(1), createIfNonExistent);
+        } else if (createIfNonExistent) {
+            let layer = <TestSuiteInfo>{
+                type: 'suite',
+                id: `directory_${subdir}`,
+                tooltip: `Subdirectory ${subdir}`,
+                label: key[0],
+                debuggable: false,
+                children: []
+            };
+            tree.children.push(layer);
+            return CatkinTestAdapter.getSubtree(layer, `${subdir}${path.sep}`, key.slice(1), createIfNonExistent);
+        } else {
+            return undefined;
+        }
+    }
+
+    private getAllTestsOfTree(tree: TestSuiteInfo): CatkinTestSuite[] {
+        let tests: CatkinTestSuite[] = [];
+        for (const child of tree.children) {
+            if (child.id.startsWith("directory_")) {
+                let child_tests = this.getAllTestsOfTree(child as TestSuiteInfo);
+                for (const test of child_tests) {
+                    tests.push(test);
+                }
+            } else {
+                let child_suite = this.suites.get(child.id);
+                tests.push(child_suite);
+            }
+        }
+        return tests;
     }
 
     public async loadPackageTests(catkin_package: CatkinPackage,
@@ -238,7 +283,8 @@ export class CatkinTestAdapter implements TestAdapter {
                     let intermediate_result: TestRunResult;
                     if (id.startsWith("package_") || id.startsWith("exec_") || id.startsWith("fixture_") || id === "all_tests") {
                         intermediate_result = await this.runTestSuite(id, progress, token);
-
+                    } else if (id.startsWith("directory")) {
+                        intermediate_result = await this.runTestSuite(id, progress, token);
                     } else if (id.startsWith("test_")) {
                         intermediate_result = await this.runTest(id, progress, token);
                     }
@@ -315,6 +361,13 @@ export class CatkinTestAdapter implements TestAdapter {
         } else if (id.startsWith("fixture_")) {
             let fixture = this.testfixtures.get(id);
             tests.push(fixture);
+
+        } else if (id.startsWith("directory_")) {
+            const subdir = id.slice("directory_".length).split(path.sep);
+            const st = CatkinTestAdapter.getSubtree(this.catkin_tools_tests, "", subdir);
+            for (const child of this.getAllTestsOfTree(st)) {
+                tests.push(child);
+            }
 
         } else if (id === "all_tests") {
             this.suites.forEach((suite, key) => {
@@ -424,7 +477,7 @@ export class CatkinTestAdapter implements TestAdapter {
             test = exe;
 
         } else if (id.startsWith('test_')) {
-            // single test case 
+            // single test case
             let testcase = this.testcases.get(id);
             this.output_channel.appendLine(`Id ${id} maps to test in package ${testcase.package.name}`);
             command = await this.makeBuildTestCommand(testcase);
@@ -469,7 +522,7 @@ export class CatkinTestAdapter implements TestAdapter {
                 console.log(`Command does not set gtest_output ${command}`);
                 if (test.type === 'gtest') {
                     output_file = "/tmp/gtest_output.xml";
-                    if(command.endsWith("|| true")) {
+                    if (command.endsWith("|| true")) {
                         command = command.slice(0, command.length - 7) + ` --gtest_output=xml:${output_file} || true`;
                     } else {
                         command += ` --gtest_output=xml:${output_file}`;
@@ -536,18 +589,33 @@ export class CatkinTestAdapter implements TestAdapter {
             }
         } else {
             let tests = this.getTestCases(id);
-            tests.forEach((test) => {
-                if (test.info.id.startsWith('test_')) {
-                    let result: TestEvent = {
-                        type: 'test',
-                        test: test.info.id,
-                        state: success ? 'passed' : 'failed',
-                        message: test_result_message
-                    };
-                    this.testStatesEmitter.fire(result);
+            if (tests.length === 0) {
+                if (id.startsWith("fixture_unknown_")) {
+                    let exe = this.getExecutableForTestFixture(id);
+                    exe.fixtures.forEach((test) => {
+                        let result: TestSuiteEvent = {
+                            type: 'suite',
+                            suite: test.info.id,
+                            state: success ? 'completed' : 'errored',
+                            message: test_result_message
+                        };
+                        this.testStatesEmitter.fire(result);
+                    });
                 } else {
                     let exe = this.getTestForExecutable(test.executable.toString());
                     exe.fixtures.forEach((test) => {
+                        let result: TestSuiteEvent = {
+                            type: 'suite',
+                            suite: test.info.id,
+                            state: success ? 'completed' : 'errored',
+                            message: test_result_message
+                        };
+                        this.testStatesEmitter.fire(result);
+                    });
+                }
+            } else {
+                tests.forEach((test) => {
+                    if (test.info.id.startsWith('test_')) {
                         let result: TestEvent = {
                             type: 'test',
                             test: test.info.id,
@@ -555,9 +623,20 @@ export class CatkinTestAdapter implements TestAdapter {
                             message: test_result_message
                         };
                         this.testStatesEmitter.fire(result);
-                    });
-                }
-            });
+                    } else {
+                        let exe = this.getTestForExecutable(test.executable.toString());
+                        exe.fixtures.forEach((test) => {
+                            let result: TestEvent = {
+                                type: 'test',
+                                test: test.info.id,
+                                state: success ? 'passed' : 'failed',
+                                message: test_result_message
+                            };
+                            this.testStatesEmitter.fire(result);
+                        });
+                    }
+                });
+            }
 
             if (test.type === 'unknown') {
                 test.type = await this.determineTestType(test);
