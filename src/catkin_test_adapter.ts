@@ -469,7 +469,11 @@ export class CatkinTestAdapter implements TestAdapter {
                 console.log(`Command does not set gtest_output ${command}`);
                 if (test.type === 'gtest') {
                     output_file = "/tmp/gtest_output.xml";
-                    command += ` --gtest_output=xml:${output_file}`;
+                    if(command.endsWith("|| true")) {
+                        command = command.slice(0, command.length - 7) + ` --gtest_output=xml:${output_file} || true`;
+                    } else {
+                        command += ` --gtest_output=xml:${output_file}`;
+                    }
                 } else {
                     this.sendErrorForTest(test, `Cannot parse ${command}`);
                     return new TestRunResult();
