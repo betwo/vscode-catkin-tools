@@ -57,6 +57,15 @@ export class CatkinPackage {
     return instance;
   }
 
+  public async getWorkspacePath(): Promise<string[]> {
+    let parts = this.relative_path.toString().split(path.sep);
+    const src = await this.workspace.getSrcDir();
+    if (parts[0] === path.basename(src)) {
+      return parts.slice(1);
+    }
+    return parts;
+  }
+
   public static async getNameFromPackageXML(package_xml_path: fs.PathLike) {
     try {
       let package_xml = xml.parse(fs.readFileSync(package_xml_path).toString());
