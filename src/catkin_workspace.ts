@@ -11,6 +11,7 @@ import { CatkinPackage } from './catkin_package';
 import { runCatkinCommand, ShellOutput } from './catkin_command';
 import { CatkinTestAdapter } from './catkin_test_adapter';
 import { status_bar_profile, status_bar_profile_prefix, reloadCompileCommand } from './catkin_tools';
+import { config } from 'process';
 
 export class CatkinWorkspace {
   public workspace: vscode.WorkspaceFolder;
@@ -25,10 +26,11 @@ export class CatkinWorkspace {
   public default_system_include_paths = [];
 
   private build_dir: string = null;
-  private warned = false;
+  private ignore_missing_db = false;
   private is_initialized = false;
 
   private catkin_profile: string = null;
+  private catkin_config: Map<string, string> = new Map<string, string>();
   private catkin_src_dir: string = null;
   private catkin_build_dir: string = null;
   private catkin_devel_dir: string = null;
@@ -342,56 +344,100 @@ export class CatkinWorkspace {
       vscode.window.showErrorMessage('Cannot determine build directory');
       return;
     }
-    if (!fs.existsSync(build_dir)) {
-      vscode.window.showErrorMessage(
-        'Build directory ' + build_dir + ' does not exist');
-      return;
-    }
-    if (this.build_dir !== build_dir) {
-      this.build_dir = build_dir;
+    let db_found = false;
+    if (fs.existsSync(build_dir)) {
+      if (this.build_dir !== build_dir) {
+        this.build_dir = build_dir;
 
-      fs.watch(build_dir, async (eventType, filename) => {
-        let abs_file = this.build_dir + '/' + filename;
-        if (eventType === 'rename') {
-          if (fs.existsSync(abs_file)) {
-            if (fs.lstatSync(abs_file).isDirectory()) {
-              // new package created
-              this.startWatchingCatkinPackageBuildDir(abs_file);
-              console.log(`New package ${filename}`);
+        fs.watch(build_dir, async (eventType, filename) => {
+          let abs_file = this.build_dir + '/' + filename;
+          if (eventType === 'rename') {
+            if (fs.existsSync(abs_file)) {
+              if (fs.lstatSync(abs_file).isDirectory()) {
+                // new package created
+                this.startWatchingCatkinPackageBuildDir(abs_file);
+                console.log(`New package ${filename}`);
 
-              this.test_adapter.signalReload();
-              let package_xml = await this.locatePackageXML(filename);
-              let catkin_package = await this.loadPackage(package_xml.fsPath);
-              if (catkin_package && catkin_package.has_tests) {
-                let [suite, _] = await this.test_adapter.loadPackageTests(catkin_package, true);
-                this.test_adapter.updateSuiteSet();
-                console.log(`New package ${catkin_package.name} found and ${suite.executables === null ? "unknown" : suite.executables.length} tests added`);
-              } else {
-                console.log(`New package ${catkin_package.name} but no package.xml found`);
+                this.test_adapter.signalReload();
+                let package_xml = await this.locatePackageXML(filename);
+                let catkin_package = await this.loadPackage(package_xml.fsPath);
+                if (catkin_package && catkin_package.has_tests) {
+                  let [suite, _] = await this.test_adapter.loadPackageTests(catkin_package, true);
+                  this.test_adapter.updateSuiteSet();
+                  console.log(`New package ${catkin_package.name} found and ${suite.executables === null ? "unknown" : suite.executables.length} tests added`);
+                } else {
+                  console.log(`New package ${catkin_package.name} but no package.xml found`);
+                }
               }
+            } else {
+              // package cleaned
+              console.log('Package', filename, 'was cleaned');
+              this.stopWatching(abs_file);
             }
-          } else {
-            // package cleaned
-            console.log('Package', filename, 'was cleaned');
-            this.stopWatching(abs_file);
           }
-        }
-      });
+        });
+      }
+
+      let expr = this.build_dir + '/**/compile_commands.json';
+
+      const entries = await glob.async([expr]);
+      for (let file of entries) {
+        this.startWatchingCompileCommandsFile(file.toString());
+      }
+      db_found = entries.length !== 0;
     }
 
-    let expr = this.build_dir + '/**/compile_commands.json';
+    if (!db_found && !this.ignore_missing_db) {
+      let ask_trigger_build = !db_found;
+      if (this.catkin_config["Additional CMake Args"].indexOf("CMAKE_EXPORT_COMPILE_COMMANDS") < 0) {
+        const ignore = {
+          title: "Ignore this"
+        };
+        const update = {
+          title: "Update catkin config"
+        };
+        let result = await vscode.window.showWarningMessage(
+          `CMAKE_EXPORT_COMPILE_COMMANDS is not enabled in your catkin configuration.`,
+          {},
+          ignore, update);
 
-    const entries = await glob.async([expr]);
-    if (entries.length === 0 && !this.warned) {
-      this.warned = true;
-      vscode.window.showWarningMessage(
-        'No compile_commands.json file found in the workspace.\nMake sure that CMAKE_EXPORT_COMPILE_COMMANDS is on.');
+        if (result === ignore) {
+          this.ignore_missing_db = true;
+          return;
+        } else if (result === update) {
+          this.enableCompileCommandsGeneration();
+          ask_trigger_build = true;
+        }
+      }
+
+      if (ask_trigger_build) {
+        const ignore = {
+          title: "Ignore this"
+        };
+        const build = {
+          title: "Build workspace"
+        };
+        let build_task = await vscode.tasks.fetchTasks({
+          type: "catkin_build"
+        });
+        let items = [ignore];
+        if (build_task !== undefined && build_task.length > 0) {
+          items.push(build);
+        }
+        let result = await vscode.window.showWarningMessage(
+          `No compile_commands.json files found in ${this.build_dir}.\n` +
+          `Please build your workspace to generate the files.`,
+          {},
+          ...items);
+        if (result === ignore) {
+          this.ignore_missing_db = true;
+        } else if (result === build) {
+          vscode.tasks.executeTask(build_task[0]);
+        }
+      }
       return;
     }
 
-    for (let file of entries) {
-      this.startWatchingCompileCommandsFile(file.toString());
-    }
   }
 
   public async getProfile(): Promise<[string, string[]]> {
@@ -441,7 +487,21 @@ export class CatkinWorkspace {
 
     status_bar_profile.text = status_bar_profile_prefix + profile;
 
+    await this.loadCatkinConfig();
     reloadCompileCommand();
+  }
+
+  private async loadCatkinConfig(): Promise<void> {
+    const output = await runCatkinCommand(['config']);
+
+    this.catkin_config.clear();
+    for (const line of output.stdout.split("\n")) {
+      if (line.indexOf(":") > 0) {
+        const [key, val] = line.split(":").map(s => s.trim());
+        console.log(key, val);
+        this.catkin_config[key] = val;
+      }
+    }
   }
 
   public async getSrcDir(): Promise<string> {
@@ -530,6 +590,12 @@ export class CatkinWorkspace {
         this.updateDatabase(file);
       }
     }));
+  }
+
+  private async enableCompileCommandsGeneration() {
+    const cmake_opts = this.catkin_config["Additional CMake Args"];
+    await runCatkinCommand(['config', '--cmake-args', `${cmake_opts} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`]);
+    this.loadCatkinConfig();
   }
 
   public async makeCommand(payload: string) {
