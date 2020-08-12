@@ -22,6 +22,10 @@ export async function getCatkinBuildTask(): Promise<vscode.Task[]> {
   // command to pop a directory without printing
   let pop_dir = 'popd > /dev/null';
 
+  let find_source_script = 'export SOURCE_SCRIPT="${DEVEL_PREFIX}/setup.$(echo ${SHELL} | xargs basename)"'
+    + ' && '
+    + 'if [[ ! -f "${SOURCE_SCRIPT}" ]]; then export SOURCE_SCRIPT=$(catkin config | grep Extending | cut -c 30-)/setup.bash; fi';
+
   // command to source the setup shell file for the enveloping workspace of the current directory
   //  1. find the base dir. If it can be found, change into it
   //  2.1 call `catkin locate -d` to find the current devel space, which is not guaranteed to be "devel"
@@ -29,7 +33,9 @@ export async function getCatkinBuildTask(): Promise<vscode.Task[]> {
   //  3. reset the working directory to the original
   let source_catkin = find_basedir + ' && ' + push_current_dir + ' && '
     + 'if [[ "${basedir}" != "/" ]]; then cd ${basedir}; fi' + ' && '
-    + 'source "$(catkin locate -d)/setup.$(echo ${SHELL} | xargs basename)"' + ' && '
+    + 'export DEVEL_PREFIX=$(catkin locate -d) && '
+    + find_source_script + ' && '
+    + 'source "${SOURCE_SCRIPT}"' + ' && '
     + pop_dir;
 
   // command to source the setup shell file for the enveloping workspace of the workspace folder
