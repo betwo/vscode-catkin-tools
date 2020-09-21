@@ -52,7 +52,7 @@ export class CatkinWorkspace {
   dispose() { }
 
   public isInitialized() {
-      return this.is_initialized;
+    return this.is_initialized;
   }
 
   public async reload(): Promise<CatkinWorkspace> {
@@ -457,6 +457,9 @@ export class CatkinWorkspace {
     if (this.catkin_build_dir === null) {
       const output: ShellOutput = await runCatkinCommand('locate -b');
       this.catkin_build_dir = output.stdout.split('\n')[0];
+      if (this.catkin_build_dir.endsWith("/")) {
+        this.catkin_build_dir = this.catkin_build_dir.slice(0, -1);
+      }
     }
     return this.catkin_build_dir;
   }
@@ -465,6 +468,9 @@ export class CatkinWorkspace {
     if (this.catkin_devel_dir === null) {
       const output: ShellOutput = await runCatkinCommand('locate -d');
       this.catkin_devel_dir = output.stdout.split('\n')[0];
+      if (this.catkin_devel_dir.endsWith("/")) {
+        this.catkin_devel_dir = this.catkin_devel_dir.slice(0, -1);
+      }
     }
     return this.catkin_devel_dir;
   }
@@ -473,6 +479,9 @@ export class CatkinWorkspace {
     if (this.catkin_install_dir === null) {
       const output: ShellOutput = await runCatkinCommand('locate -i');
       this.catkin_install_dir = output.stdout.split('\n')[0];
+      if (this.catkin_install_dir.endsWith("/")) {
+        this.catkin_install_dir = this.catkin_install_dir.slice(0, -1);
+      }
     }
     return this.catkin_install_dir;
   }
