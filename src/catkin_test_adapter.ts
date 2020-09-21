@@ -1031,6 +1031,13 @@ export class CatkinTestAdapter implements TestAdapter {
                     request: 'launch',
                     environment: environment,
                     MIMode: 'gdb',
+                    setupCommands: [
+                        {
+                            "description": "Enable pretty-printing for gdb",
+                            "text": "-enable-pretty-printing",
+                            "ignoreFailures": true
+                        }
+                    ],
                     cwd: this.workspaceRootDirectoryPath,
                     program: cmd,
                     args: args.concat(['--gtest_break_on_failure', `--gtest_filter=${test.filter}`])
