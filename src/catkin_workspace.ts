@@ -419,7 +419,7 @@ export class CatkinWorkspace {
   }
 
   public async switchProfile(profile) {
-    await runCatkinCommand(`profile set ${profile}`);
+    await runCatkinCommand(['profile', 'set', profile]);
     this.checkProfile();
   }
 
@@ -447,7 +447,7 @@ export class CatkinWorkspace {
   public async getSrcDir(): Promise<string> {
     await this.checkProfile();
     if (this.catkin_src_dir === null) {
-      const output: ShellOutput = await runCatkinCommand('locate -s');
+      const output: ShellOutput = await runCatkinCommand(['locate', '-s']);
       this.catkin_src_dir = output.stdout.split('\n')[0];
     }
     return this.catkin_src_dir;
@@ -455,7 +455,7 @@ export class CatkinWorkspace {
   public async getBuildDir(): Promise<string> {
     await this.checkProfile();
     if (this.catkin_build_dir === null) {
-      const output: ShellOutput = await runCatkinCommand('locate -b');
+      const output: ShellOutput = await runCatkinCommand(['locate', '-b']);
       this.catkin_build_dir = output.stdout.split('\n')[0];
       if (this.catkin_build_dir.endsWith("/")) {
         this.catkin_build_dir = this.catkin_build_dir.slice(0, -1);
@@ -466,7 +466,7 @@ export class CatkinWorkspace {
   public async getDevelDir(): Promise<string> {
     await this.checkProfile();
     if (this.catkin_devel_dir === null) {
-      const output: ShellOutput = await runCatkinCommand('locate -d');
+      const output: ShellOutput = await runCatkinCommand(['locate', '-d']);
       this.catkin_devel_dir = output.stdout.split('\n')[0];
       if (this.catkin_devel_dir.endsWith("/")) {
         this.catkin_devel_dir = this.catkin_devel_dir.slice(0, -1);
@@ -477,7 +477,7 @@ export class CatkinWorkspace {
   public async getInstallDir(): Promise<string> {
     await this.checkProfile();
     if (this.catkin_install_dir === null) {
-      const output: ShellOutput = await runCatkinCommand('locate -i');
+      const output: ShellOutput = await runCatkinCommand(['locate', '-i']);
       this.catkin_install_dir = output.stdout.split('\n')[0];
       if (this.catkin_install_dir.endsWith("/")) {
         this.catkin_install_dir = this.catkin_install_dir.slice(0, -1);

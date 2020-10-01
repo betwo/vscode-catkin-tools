@@ -11,9 +11,9 @@ export class ShellOutput {
     }
 }
 
-export function runCatkinCommand(args: string, cwd?: string): Thenable<ShellOutput> {
+export function runCatkinCommand(args: string[], cwd?: string): Thenable<ShellOutput> {
     try {
-        return runShellCommand(`catkin ${args}`, cwd);
+        return runCommand("catkin", args, cwd);
     } catch (error) {
         vscode.window.showErrorMessage(`Command ${error.command} failed: ${error.error.message}`);
         throw error;
@@ -33,6 +33,30 @@ export function runShellCommand(command: string, cwd?: string, callback?: (proce
         console.log(`Running ${shell} command ${shell_command}`);
         let process = child_process.exec(shell_command, options, (error, stdout, stderr) => {
             const result = new ShellOutput(stdout, stderr, shell_command);
+            if (error) {
+                result.error = error;
+                reject(result);
+            } else {
+                resolve(result);
+            }
+        });
+        if (callback) {
+            callback(process);
+        }
+    });
+}
+
+export function runCommand(command: string, args: string[], cwd?: string, callback?: (process: child_process.ChildProcess) => any): Thenable<ShellOutput> {
+    let ws = cwd === undefined ? vscode.workspace.rootPath : cwd;
+    let options: child_process.ExecOptions = {
+        cwd: ws,
+        maxBuffer: 1024 * 1024
+    };
+    return new Promise<ShellOutput>((resolve, reject) => {
+        let full_command = `${command} ${args.join(" ")}`;
+        console.log(`Running command ${full_command}`);
+        let process = child_process.execFile(command, args, options, (error, stdout, stderr) => {
+            const result = new ShellOutput(stdout, stderr, full_command);
             if (error) {
                 result.error = error;
                 reject(result);
