@@ -5,11 +5,9 @@ import * as glob from 'fast-glob';
 import * as xml from 'fast-xml-parser';
 import * as path from 'path';
 
-import { runShellCommand } from './catkin_command';
+import { runShellCommand, runCommand } from './catkin_command';
 import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
 import { CatkinWorkspace } from './catkin_workspace';
-import { error } from 'console';
-import { exec } from 'child_process';
 
 export type TestType = "unknown" | "gtest" | "generic" | "suite";
 
@@ -109,7 +107,7 @@ export class CatkinPackage {
     }
 
     // discover build targets:
-    // ctest -N 
+    // ctest -N
     //  ->
     // _ctest_csapex_math_tests_gtest_csapex_math_tests
     //                                `---------------`
@@ -118,7 +116,7 @@ export class CatkinPackage {
     this.test_build_targets = [];
     if (!outline_only) {
       try {
-        let output = await runShellCommand('ctest -N -V', build_space);
+        let output = await runCommand('ctest', ['-N', '-V'], build_space);
         console.log(output.stdout);
         let current_executable: string = undefined;
         let current_test_type: TestType = undefined;
