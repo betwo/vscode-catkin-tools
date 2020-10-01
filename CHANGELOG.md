@@ -170,3 +170,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.17.0] - 2020-07-27
 ### Changed
 - Display all tests using the directory tree instead of a flat package list
+
+## [1.19.0] - 2020-10-01
+### Added
+- Added option to specify which shell to use
+
+### Changed
+- Changed subprocess calls to support echoing dotfile configurations
