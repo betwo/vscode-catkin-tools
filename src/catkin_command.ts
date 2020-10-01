@@ -28,8 +28,11 @@ export function runShellCommand(command: string, cwd?: string, callback?: (proce
     };
     const config = vscode.workspace.getConfiguration('catkin_tools');
     const shell = config['shell'];
+
+    const shell_args = (shell === 'bash' || shell === 'sh') ? "--norc" : "";
+
     return new Promise<ShellOutput>((resolve, reject) => {
-        let shell_command = `${shell} -c '${command}'`;
+        let shell_command = `${shell} ${shell_args} -c '${command}'`;
         console.log(`Running ${shell} command ${shell_command}`);
         let process = child_process.exec(shell_command, options, (error, stdout, stderr) => {
             const result = new ShellOutput(stdout, stderr, shell_command);
