@@ -17,7 +17,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CatkinPackage, TestType } from './catkin_package';
 import { CatkinWorkspace } from './catkin_workspace';
-import { runBashCommand } from './catkin_command';
+import { runShellCommand } from './catkin_command';
 import { CatkinTestInterface, CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
 import * as gtest_problem_matcher from './gtest_problem_matcher';
 import * as xml from 'fast-xml-parser';
@@ -421,7 +421,7 @@ export class CatkinTestAdapter implements TestAdapter {
         token: vscode.CancellationToken,
         cwd?: string) {
 
-        let output_promise = runBashCommand(command, cwd, (process) => {
+        let output_promise = runShellCommand(command, cwd, (process) => {
             this.active_process = process;
 
             if (token !== undefined) {
@@ -656,7 +656,7 @@ export class CatkinTestAdapter implements TestAdapter {
         try {
             let exe = test.executable.toString().split(new RegExp("\\s"))[0];
             let ws_command = await this.catkin_workspace.makeCommand(`${exe} --help`);
-            let output = await runBashCommand(ws_command, test.build_space.toString());
+            let output = await runShellCommand(ws_command, test.build_space.toString());
             let needle = "This program contains tests written using Google Test";
             if (output.stdout.indexOf(needle) >= 0) {
                 return "gtest";
@@ -991,7 +991,7 @@ export class CatkinTestAdapter implements TestAdapter {
             // build the teset
             let command = await this.makeBuildTestCommand(test);
             try {
-                await runBashCommand(command);
+                await runShellCommand(command);
             } catch (error) {
                 console.error(error.stderr);
                 throw Error(`Cannot rebuild test executable: ${error.stderr}`);
@@ -1010,7 +1010,7 @@ export class CatkinTestAdapter implements TestAdapter {
                 let env_command = await this.catkin_workspace.makeCommand(`env`);
                 let environment = [];
                 try {
-                    let env_output = await runBashCommand(env_command);
+                    let env_output = await runShellCommand(env_command);
                     environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
                         let [name, value] = env_entry.split("=");
                         return {

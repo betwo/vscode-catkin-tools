@@ -486,14 +486,15 @@ export class CatkinWorkspace {
     return this.catkin_install_dir;
   }
 
-  public async getSetupBash(): Promise<string> {
+  public async getSetupShell(): Promise<string> {
+    const config = vscode.workspace.getConfiguration('catkin_tools');
     const install_dir = await this.getInstallDir();
-    let setup = install_dir + '/setup.bash';
+    let setup = install_dir + `/setup.${config['shell']}`;
     if (fs.existsSync(setup)) {
       return setup;
     }
     const devel_dir = await this.getDevelDir();
-    return devel_dir + '/setup.bash';
+    return devel_dir + `/setup.${config['shell']}`;
   }
 
   private startWatchingCatkinPackageBuildDir(file: string) {
@@ -532,8 +533,8 @@ export class CatkinWorkspace {
   }
 
   public async makeCommand(payload: string) {
-    const setup_bash = await this.getSetupBash();
-    let command = `source ${setup_bash};`;
+    const setup_shell = await this.getSetupShell();
+    let command = `source ${setup_shell} > /dev/null 2>&1;`;
     command += `pushd . > /dev/null; cd "${vscode.workspace.rootPath}";`;
     command += `${payload}`;
     if (!payload.endsWith(";")) {

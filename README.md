@@ -94,7 +94,7 @@ in your workspace settings will list all `catkin_add_gtest` tests and all tests 
 
 Make sure that `CMAKE_EXPORT_COMPILE_COMMANDS` is set in your catkin projects, e.g. by configuring catkin with
 
-```bash
+```sh
 catkin config --cmake-args -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 ```
 

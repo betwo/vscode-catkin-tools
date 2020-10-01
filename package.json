@@ -37,6 +37,16 @@
 			{
 				"title": "catkin tools settings",
 				"properties": {
+					"catkin_tools.shell": {
+						"type": "string",
+						"enum": [
+							"bash",
+							"sh",
+							"zsh"
+						],
+						"default": "bash",
+						"description": "Shell to use for catkin commands. Also determines which `setup.<shell>` file is loaded."
+					},
 					"catkin_tools.cppStandard": {
 						"type": "string",
 						"default": "c++11",
