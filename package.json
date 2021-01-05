@@ -173,7 +173,7 @@
 	},
 	"devDependencies": {
 		"@types/mocha": "^2.2.42",
-		"@types/node": "^8.10.64",
+		"@types/node": "^8.10.66",
 		"lodash": "^4.17.20",
 		"terser": "^4.8.0",
 		"ts-loader": "^6.2.2",
@@ -188,7 +188,7 @@
 		"@types/signals": "^1.0.1",
 		"child_process": "^1.0.2",
 		"fast-glob": "^2.2.7",
-		"fast-xml-parser": "^3.17.4",
+		"fast-xml-parser": "^3.17.6",
 		"fs": "0.0.1-security",
 		"jsonfile": "^5.0.0",
 		"signals": "^1.0.0",
