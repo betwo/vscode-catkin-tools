@@ -21,9 +21,9 @@ import { runShellCommand, runCommand } from './catkin_command';
 import { CatkinTestInterface, CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
 import { CatkinTestParameters, CatkinTestRunResult, CatkinTestRunResultKind } from './catkin_test_parameters';
 import * as gtest_problem_matcher from './gtest_problem_matcher';
+import * as compiler_problem_matcher from './compiler_problem_matcher';
 import * as xml from 'fast-xml-parser';
 import * as treekill from 'tree-kill';
-import { isArray } from 'util';
 
 export const registerAdapter = (
     testExplorerExtension: vscode.Extension<TestHub>,
@@ -418,13 +418,13 @@ export class CatkinTestAdapter implements TestAdapter {
             command += `catkin build ${test.package.name} --no-notify --no-status;`;
         }
         command += `cd "${test.build_space}";`;
-        command += `make -j $(nproc); `;
+        command += `env GCC_COLORS= make -j $(nproc); `;
         command += `{ make -q install ; [ "$?" = "1" ] && make install; }; `;
 
         if (test.type !== 'suite') {
-            command += `make -j $(nproc) tests;`;
+            command += `env GCC_COLORS= make -j $(nproc) tests;`;
         } else {
-            command += `make -j $(nproc) ${test.build_target}`;
+            command += `env GCC_COLORS= make -j $(nproc) ${test.build_target}`;
         }
         return this.catkin_workspace.makeCommand(command);
     }
@@ -465,27 +465,20 @@ export class CatkinTestAdapter implements TestAdapter {
         return undefined;
     }
 
-    private async runCommands(commands: CatkinTestParameters,
+    private async runCommands(
+        catkin_pkg: CatkinPackage,
+        commands: CatkinTestParameters,
         progress: vscode.Progress<{ message?: string; increment?: number; }>,
         token: vscode.CancellationToken,
         cwd?: string): Promise<CatkinTestRunResult> {
         let result = new CatkinTestRunResult(CatkinTestRunResultKind.BuildFailed, "");
-        try {
-            this.output_channel.appendLine(`command: ${commands}`);
 
+        this.output_channel.appendLine(`command: ${commands}`);
+
+        try {
             let build_output = await this.runShellCommand(commands.setup_shell_code, progress, token, cwd);
             this.output_channel.appendLine(`${build_output.stdout}`);
             this.output_channel.appendLine(`${build_output.stderr}`);
-
-            result.state = CatkinTestRunResultKind.TestFailed;
-
-            if (commands.exe !== undefined) {
-                let test_output = await this.runExecutableCommand([commands.exe, commands.args], progress, token, cwd);
-                this.output_channel.appendLine(`${test_output.stdout}`);
-                this.output_channel.appendLine(`${test_output.stderr}`);
-            }
-
-            result.state = CatkinTestRunResultKind.TestSucceeded;
 
         } catch (error_output) {
             this.output_channel.appendLine("ERROR: stdout:");
@@ -493,7 +486,34 @@ export class CatkinTestAdapter implements TestAdapter {
             this.output_channel.appendLine("stderr:");
             this.output_channel.appendLine(`${error_output.stderr}`);
 
+            compiler_problem_matcher.analyze(catkin_pkg, error_output.stderr, this.diagnostics);
+
+            result.state = CatkinTestRunResultKind.BuildFailed;
             result.message += error_output.stdout + '\n' + error_output.stderr + '\n';
+
+            return result;
+        }
+
+        if (commands.exe !== undefined) {
+            try {
+                let test_output = await this.runExecutableCommand([commands.exe, commands.args], progress, token, cwd);
+                this.output_channel.appendLine(`${test_output.stdout}`);
+                this.output_channel.appendLine(`${test_output.stderr}`);
+                result.state = CatkinTestRunResultKind.TestSucceeded;
+
+            } catch (error_output) {
+                this.output_channel.appendLine("ERROR: stdout:");
+                this.output_channel.appendLine(`${error_output.stdout}`);
+                this.output_channel.appendLine("stderr:");
+                this.output_channel.appendLine(`${error_output.stderr}`);
+
+                result.state = CatkinTestRunResultKind.TestFailed;
+                result.message += error_output.stdout + '\n' + error_output.stderr + '\n';
+
+                return result;
+            }
+        } else {
+            result.state = CatkinTestRunResultKind.TestSucceeded;
         }
 
         return result;
@@ -650,7 +670,7 @@ export class CatkinTestAdapter implements TestAdapter {
         }
 
         // run the test
-        let test_result: CatkinTestRunResult = await this.runCommands(commands, progress, token, '/tmp');
+        let test_result: CatkinTestRunResult = await this.runCommands(test.package, commands, progress, token, '/tmp');
 
         if (test.type === 'gtest') {
             return await this.analyzeGtestResult(test, output_file, test_result.message);
@@ -1116,7 +1136,7 @@ export class CatkinTestAdapter implements TestAdapter {
         }
     }
 
-    private async getCatkinEnvironment(): Promise<[string, string][]>{
+    private async getCatkinEnvironment(): Promise<[string, string][]> {
         let environment = [];
         let env_command = await this.catkin_workspace.makeCommand(`env`);
         try {
