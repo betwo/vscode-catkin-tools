@@ -1041,7 +1041,9 @@ export class CatkinTestAdapter implements TestAdapter {
     }
 
     private isSuiteEquivalent(a: CatkinTestSuite, b: CatkinTestSuite): boolean {
-        if (a.executables === null || b.executables === null) {
+        if (a.executables === null && b.executables === null) {
+            return true;
+        } else if (a.executables === null || b.executables === null) {
             return false;
         }
         if (a.executables.length !== b.executables.length) {
