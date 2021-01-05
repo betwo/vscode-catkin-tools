@@ -362,7 +362,7 @@ export class CatkinWorkspace {
                 let package_xml = await this.locatePackageXML(filename);
                 let catkin_package = await this.loadPackage(package_xml.fsPath);
                 if (catkin_package && catkin_package.has_tests) {
-                  let [suite, _] = await this.test_adapter.loadPackageTests(catkin_package, true);
+                  let suite = await this.test_adapter.updatePackageTests(catkin_package, true);
                   this.test_adapter.updateSuiteSet();
                   console.log(`New package ${catkin_package.name} found and ${suite.executables === null ? "unknown" : suite.executables.length} tests added`);
                 } else {

@@ -17,11 +17,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CatkinPackage, TestType } from './catkin_package';
 import { CatkinWorkspace } from './catkin_workspace';
-import { runShellCommand } from './catkin_command';
+import { runShellCommand, runCommand } from './catkin_command';
 import { CatkinTestInterface, CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
+import { CatkinTestParameters, CatkinTestRunResult, CatkinTestRunResultKind } from './catkin_test_parameters';
 import * as gtest_problem_matcher from './gtest_problem_matcher';
 import * as xml from 'fast-xml-parser';
 import * as treekill from 'tree-kill';
+import { isArray } from 'util';
 
 export const registerAdapter = (
     testExplorerExtension: vscode.Extension<TestHub>,
@@ -147,7 +149,7 @@ export class CatkinTestAdapter implements TestAdapter {
                         });
                     }
 
-                    await this.loadPackageTests(catkin_package, true, build_dir, devel_dir);
+                    await this.updatePackageTests(catkin_package, true, build_dir, devel_dir);
                 }
                 this.updateSuiteSet();
 
@@ -218,6 +220,32 @@ export class CatkinTestAdapter implements TestAdapter {
         return tests;
     }
 
+    public async updatePackageTests(catkin_package: CatkinPackage,
+        outline_only: boolean = false,
+        build_dir?: String, devel_dir?: String): Promise<CatkinTestSuite> {
+        let [suite, _] = await this.loadPackageTests(catkin_package, outline_only, build_dir);
+        this.updatePackageTestsWith(suite);
+        return suite;
+    }
+    public async updatePackageTestsWith(suite: CatkinTestSuite) {
+        if (suite.executables !== null) {
+            for (let executable of suite.executables) {
+                console.log(`add executable ${executable.info.id}`);
+                console.log(executable);
+                this.executables.set(executable.info.id, executable);
+                for (let fixture of executable.fixtures) {
+                    console.log(`add test fixture ${fixture.info.id}`);
+                    this.testfixtures.set(fixture.info.id, fixture);
+                    for (let testcase of fixture.cases) {
+                        this.testcases.set(testcase.info.id, testcase);
+                    }
+                }
+            }
+        }
+
+        this.suites.set(suite.info.id, suite);
+    }
+
     public async loadPackageTests(catkin_package: CatkinPackage,
         outline_only: boolean = false,
         build_dir?: String, devel_dir?: String):
@@ -239,23 +267,8 @@ export class CatkinTestAdapter implements TestAdapter {
             let suite = await catkin_package.loadTests(build_dir, devel_dir, outline_only);
             console.log(suite.info);
 
-            if (suite.executables !== null) {
-                for (let executable of suite.executables) {
-                    console.log(`add executable ${executable.info.id}`);
-                    console.log(executable);
-                    this.executables.set(executable.info.id, executable);
-                    for (let fixture of executable.fixtures) {
-                        console.log(`add test fixture ${fixture.info.id}`);
-                        this.testfixtures.set(fixture.info.id, fixture);
-                        for (let testcase of fixture.cases) {
-                            this.testcases.set(testcase.info.id, testcase);
-                        }
-                    }
-                }
-            }
             console.log(`setting suite ${suite.info.id}`);
             let old_suite = this.suites.get(suite.info.id);
-            this.suites.set(suite.info.id, suite);
 
             return [suite, old_suite];
         } catch (error) {
@@ -408,7 +421,7 @@ export class CatkinTestAdapter implements TestAdapter {
         command += `make -j $(nproc); `;
         command += `{ make -q install ; [ "$?" = "1" ] && make install; }; `;
 
-        if (test.type === 'suite') {
+        if (test.type !== 'suite') {
             command += `make -j $(nproc) tests;`;
         } else {
             command += `make -j $(nproc) ${test.build_target}`;
@@ -416,7 +429,122 @@ export class CatkinTestAdapter implements TestAdapter {
         return this.catkin_workspace.makeCommand(command);
     }
 
-    private async runCommand(command: string,
+    private async prepareGTestOutputFile(test: CatkinTestInterface, commands: CatkinTestParameters) {
+        let output_file = await this.extractGTestOutputFile(test, commands);
+
+        if (output_file === undefined) {
+            console.log(`Command does not set gtest_output ${commands}`);
+            if (test.type === 'gtest') {
+                output_file = `/tmp/gtest_output_${test.info.id}.xml`;
+                commands.args.push(`--gtest_output=xml:${output_file}`);
+            } else {
+                throw Error(`Cannot parse ${commands} for output file`);
+            }
+        }
+
+        if (fs.existsSync(output_file)) {
+            fs.unlinkSync(output_file);
+        }
+
+        return output_file;
+    }
+
+    private async extractGTestOutputFile(test: CatkinTestInterface, commands: CatkinTestParameters) {
+        for (let args of commands.args) {
+            let gtest_xml = /--gtest_output=xml:([^'"`\s]+)/.exec(`${args}`);
+            if (gtest_xml !== undefined && gtest_xml !== null) {
+                let gtest_xml_path = gtest_xml[1];
+                if (gtest_xml_path.endsWith('.xml')) {
+                    return gtest_xml_path;
+                } else {
+                    return path.join(gtest_xml_path, `${test.build_target}.xml`);
+                }
+            }
+        }
+
+        return undefined;
+    }
+
+    private async runCommands(commands: CatkinTestParameters,
+        progress: vscode.Progress<{ message?: string; increment?: number; }>,
+        token: vscode.CancellationToken,
+        cwd?: string): Promise<CatkinTestRunResult> {
+        let result = new CatkinTestRunResult(CatkinTestRunResultKind.BuildFailed, "");
+        try {
+            this.output_channel.appendLine(`command: ${commands}`);
+
+            let build_output = await this.runShellCommand(commands.setup_shell_code, progress, token, cwd);
+            this.output_channel.appendLine(`${build_output.stdout}`);
+            this.output_channel.appendLine(`${build_output.stderr}`);
+
+            result.state = CatkinTestRunResultKind.TestFailed;
+
+            if (commands.exe !== undefined) {
+                let test_output = await this.runExecutableCommand([commands.exe, commands.args], progress, token, cwd);
+                this.output_channel.appendLine(`${test_output.stdout}`);
+                this.output_channel.appendLine(`${test_output.stderr}`);
+            }
+
+            result.state = CatkinTestRunResultKind.TestSucceeded;
+
+        } catch (error_output) {
+            this.output_channel.appendLine("ERROR: stdout:");
+            this.output_channel.appendLine(`${error_output.stdout}`);
+            this.output_channel.appendLine("stderr:");
+            this.output_channel.appendLine(`${error_output.stderr}`);
+
+            result.message += error_output.stdout + '\n' + error_output.stderr + '\n';
+        }
+
+        return result;
+    }
+
+    private async runExecutableCommand([exe, args]: [fs.PathLike, string[]],
+        progress: vscode.Progress<{ message?: string; increment?: number; }>,
+        token: vscode.CancellationToken,
+        cwd?: string) {
+
+        let environment = await this.getCatkinEnvironment();
+
+        let output_promise = runCommand(`${exe}`, args, environment, cwd, (process) => {
+            this.active_process = process;
+
+            if (token !== undefined) {
+                token.onCancellationRequested(() => {
+                    treekill(this.active_process.pid);
+                });
+            }
+
+            if (progress !== undefined) {
+                let buffer = '';
+                let last_update = 0;
+                this.active_process.stdout.on('data', (data) => {
+                    buffer += data.toString().replace(/\r/gi, '');
+
+                    // split the data into lines
+                    let lines = buffer.split('\n');
+                    // assume that the last line is incomplete, add it back to the buffer
+                    buffer = lines[lines.length - 1];
+
+                    // log the complete lines
+                    for (let lineno = 0; lineno < lines.length - 1; ++lineno) {
+                        console.log(lines[lineno]);
+                    }
+                    // if enough time has passed (1 second), update the progress
+                    let now = Date.now();
+                    if (now - last_update > 250) {
+                        progress.report({ message: lines[lines.length - 2], increment: 0 });
+                        last_update = now;
+                    }
+                });
+            }
+        });
+        const output = await output_promise;
+        this.active_process = undefined;
+        return output;
+    }
+
+    private async runShellCommand(command: string,
         progress: vscode.Progress<{ message?: string; increment?: number; }>,
         token: vscode.CancellationToken,
         cwd?: string) {
@@ -465,24 +593,26 @@ export class CatkinTestAdapter implements TestAdapter {
 
         this.output_channel.appendLine(`running test command for ${id}`);
 
-        let command: string;
+        let commands: CatkinTestParameters;
         let test: CatkinTestInterface;
 
         if (id.startsWith("fixture_unknown_")) {
             // Run an unknown executable's tests
             let exe = this.getExecutableForTestFixture(id);
             this.output_channel.appendLine(`Id ${id} maps to executable ${exe.executable} in package ${exe.package.name}`);
-            command = await this.makeBuildTestCommand(exe);
-            command += `${exe.executable} || true`;
+            commands = {
+                setup_shell_code: await this.makeBuildTestCommand(exe),
+                exe: exe.executable
+            };
             test = exe;
 
         } else if (id.startsWith('test_')) {
             // single test case
             let testcase = this.testcases.get(id);
             this.output_channel.appendLine(`Id ${id} maps to test in package ${testcase.package.name}`);
-            command = await this.makeBuildTestCommand(testcase);
+            commands = new CatkinTestParameters(await this.makeBuildTestCommand(testcase), testcase.executable);
             if (testcase.filter !== undefined) {
-                command += `${testcase.executable} --gtest_filter=${testcase.filter} || true`;
+                commands.args = [`--gtest_filter=${testcase.filter}`];
             }
             test = testcase;
 
@@ -490,9 +620,9 @@ export class CatkinTestAdapter implements TestAdapter {
             // test fixture
             let testfixture = this.testfixtures.get(id);
             this.output_channel.appendLine(`Id ${id} maps to test fixture in package ${testfixture.package.name}`);
-            command = await this.makeBuildTestCommand(testfixture);
+            commands = new CatkinTestParameters(await this.makeBuildTestCommand(testfixture), testfixture.executable);
             if (testfixture.filter !== undefined) {
-                command += `${testfixture.executable} --gtest_filter=${testfixture.filter} || true`;
+                commands.args = [`--gtest_filter=${testfixture.filter}`];
             }
             test = testfixture;
 
@@ -500,15 +630,14 @@ export class CatkinTestAdapter implements TestAdapter {
             // full unit test run
             let exe = this.executables.get(id);
             this.output_channel.appendLine(`Id ${id} maps to executable ${exe.executable} in package ${exe.package.name}`);
-            command = await this.makeBuildTestCommand(exe);
-            command += `${exe.executable} || true`;
+            commands = new CatkinTestParameters(await this.makeBuildTestCommand(exe), exe.executable);
             test = exe;
 
         } else if (id.startsWith('package_')) {
             // full package test run
             let suite: CatkinTestSuite = this.suites.get(id);
             this.output_channel.appendLine(`Id ${id} maps to package ${suite.package.name}`);
-            command = await this.makeBuildTestCommand(suite);
+            commands = new CatkinTestParameters(await this.makeBuildTestCommand(suite), undefined);
             test = suite;
 
         } else {
@@ -517,67 +646,37 @@ export class CatkinTestAdapter implements TestAdapter {
 
         let output_file: string;
         if (test.type === 'gtest') {
-            let gtest_xml = /--gtest_output=xml:([^'"`\s]+)/.exec(command);
-            if (gtest_xml === undefined || gtest_xml === null) {
-                console.log(`Command does not set gtest_output ${command}`);
-                if (test.type === 'gtest') {
-                    output_file = "/tmp/gtest_output.xml";
-                    if (command.endsWith("|| true")) {
-                        command = command.slice(0, command.length - 7) + ` --gtest_output=xml:${output_file} || true`;
-                    } else {
-                        command += ` --gtest_output=xml:${output_file}`;
-                    }
-                } else {
-                    this.sendErrorForTest(test, `Cannot parse ${command}`);
-                    return new TestRunResult();
-                }
-            } else {
-                let gtest_xml_path = gtest_xml[1];
-                if (gtest_xml_path.endsWith('.xml')) {
-                    output_file = gtest_xml_path;
-                } else {
-                    output_file = path.join(gtest_xml_path, `${test.build_target}.xml`);
-                }
-            }
-
-            if (fs.existsSync(output_file)) {
-                fs.unlinkSync(output_file);
-            }
+            output_file = await this.prepareGTestOutputFile(test, commands);
         }
 
         // run the test
-        let test_result_message: string;
-        let success = false;
-        try {
-            this.output_channel.appendLine(`command: ${command}`);
-            let output = await this.runCommand(command, progress, token, '/tmp');
-            this.output_channel.appendLine(`${output.stdout}`);
-            this.output_channel.appendLine(`${output.stderr}`);
-            test_result_message = output.stdout + '\n' + output.stderr;
-            success = true;
-
-        } catch (error_output) {
-            this.output_channel.appendLine("ERROR: stdout:");
-            this.output_channel.appendLine(`${error_output.stdout}`);
-            this.output_channel.appendLine("stderr:");
-            this.output_channel.appendLine(`${error_output.stderr}`);
-
-            test_result_message = error_output.stdout + '\n' + error_output.stderr;
-        }
+        let test_result: CatkinTestRunResult = await this.runCommands(commands, progress, token, '/tmp');
 
         if (test.type === 'gtest') {
-            return await this.analyzeGtestResult(test, output_file, test_result_message);
+            return await this.analyzeGtestResult(test, output_file, test_result.message);
 
         } else if (test.type === 'suite') {
             let suite: CatkinTestSuite = this.suites.get(id);
             if (suite.executables === null) {
-                console.log("Requested to run an empty suite, building and then retrying");
-                return <TestRunResult>{
-                    reload_packages: [<TestRunReloadRequest>{
-                        test: suite
-                    }],
-                    repeat_ids: []
-                };
+                if (test_result.state === CatkinTestRunResultKind.BuildFailed) {
+                    let result: TestEvent = {
+                        type: 'test',
+                        test: test.info.id,
+                        state: test_result.toTestExplorerTestState(),
+                        message: test_result.message
+                    };
+                    this.testStatesEmitter.fire(result);
+
+                } else {
+                    console.log("Requested to run an empty suite, building and then retrying");
+                    return <TestRunResult>{
+                        reload_packages: [<TestRunReloadRequest>{
+                            test: suite
+                        }],
+                        repeat_ids: []
+                    };
+
+                }
             } else {
                 // run the individual executables of the suite
                 return <TestRunResult>{
@@ -596,8 +695,8 @@ export class CatkinTestAdapter implements TestAdapter {
                         let result: TestSuiteEvent = {
                             type: 'suite',
                             suite: test.info.id,
-                            state: success ? 'completed' : 'errored',
-                            message: test_result_message
+                            state: test_result.toTestExplorerSuiteState(),
+                            message: test_result.message
                         };
                         this.testStatesEmitter.fire(result);
                     });
@@ -607,8 +706,8 @@ export class CatkinTestAdapter implements TestAdapter {
                         let result: TestSuiteEvent = {
                             type: 'suite',
                             suite: test.info.id,
-                            state: success ? 'completed' : 'errored',
-                            message: test_result_message
+                            state: test_result.toTestExplorerSuiteState(),
+                            message: test_result.message
                         };
                         this.testStatesEmitter.fire(result);
                     });
@@ -619,8 +718,8 @@ export class CatkinTestAdapter implements TestAdapter {
                         let result: TestEvent = {
                             type: 'test',
                             test: test.info.id,
-                            state: success ? 'passed' : 'failed',
-                            message: test_result_message
+                            state: test_result.toTestExplorerTestState(),
+                            message: test_result.message
                         };
                         this.testStatesEmitter.fire(result);
                     } else {
@@ -629,8 +728,8 @@ export class CatkinTestAdapter implements TestAdapter {
                             let result: TestEvent = {
                                 type: 'test',
                                 test: test.info.id,
-                                state: success ? 'passed' : 'failed',
-                                message: test_result_message
+                                state: test_result.toTestExplorerTestState(),
+                                message: test_result.message
                             };
                             this.testStatesEmitter.fire(result);
                         });
@@ -648,8 +747,9 @@ export class CatkinTestAdapter implements TestAdapter {
                     };
                 }
             }
-            return new TestRunResult();
         }
+
+        return new TestRunResult();
     }
 
     private async determineTestType(test: CatkinTestInterface): Promise<TestType> {
@@ -774,24 +874,9 @@ export class CatkinTestAdapter implements TestAdapter {
         if (!this.isSuiteEquivalent(old_suite, pkg_suite)) {
             // update the list of tests
             this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
-            this.suites.set(pkg_suite.info.id, pkg_suite);
+            this.updatePackageTestsWith(pkg_suite);
             this.updateSuiteSet();
             this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
-
-            if (pkg_suite.executables === null) {
-                if (old_suite.executables === null) {
-                    // if the old suite was not yet loaded, then this must be an empty suite
-                    pkg_suite.executables = [];
-                    old_suite.executables = [];
-
-                } else if (old_suite.executables.length === 0) {
-                    // this package is really empty, don't reload again
-                    pkg_suite.executables = [];
-                    return undefined;
-                }
-            }
-
-            old_suite = pkg_suite;
 
             return pkg_suite;
         }
@@ -890,7 +975,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
         gtest_problem_matcher.analyze(dom, this.diagnostics);
 
-        if (test.filter === undefined || test.filter.endsWith('\\*')) {
+        if (test.filter === undefined || test.filter.endsWith('*')) {
             // this is the whole test executable
             let node_suites = dom['testsuites'];
             if (node_suites.attr['@_failures'] > 0 || node_suites.attr['@_errors'] > 0) {
@@ -903,7 +988,7 @@ export class CatkinTestAdapter implements TestAdapter {
         } else {
             // this is one single test case
             let node_suites = this.wrapArray(dom['testsuites']['testsuite']);
-            let test_fixture = test.filter === undefined ? '\\*' : test.filter.substr(0, test.filter.lastIndexOf('.'));
+            let test_fixture = test.filter === undefined ? '*' : test.filter.substr(0, test.filter.lastIndexOf('.'));
             let test_case_id = test.filter === undefined ? null : test.filter.substr(test.filter.lastIndexOf('.') + 1);
             for (let node of node_suites) {
                 if (node.attr['@_name'] === test_fixture) {
@@ -1007,23 +1092,7 @@ export class CatkinTestAdapter implements TestAdapter {
                 parts.shift();
                 let args: string[] = parts;
 
-                let env_command = await this.catkin_workspace.makeCommand(`env`);
-                let environment = [];
-                try {
-                    let env_output = await runShellCommand(env_command);
-                    environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
-                        let [name, value] = env_entry.split("=");
-                        return {
-                            name: name,
-                            value: value
-                        };
-                    });
-                } catch (error) {
-                    console.error(error.stderr);
-                    throw Error(`Cannot determine environment: ${error.stderr}`);
-                }
-
-                console.log(environment);
+                let environment = await this.getCatkinEnvironment();
 
                 let config: vscode.DebugConfiguration = {
                     type: 'cppdbg',
@@ -1045,6 +1114,27 @@ export class CatkinTestAdapter implements TestAdapter {
                 await vscode.debug.startDebugging(undefined, config);
             }
         }
+    }
+
+    private async getCatkinEnvironment(): Promise<[string, string][]>{
+        let environment = [];
+        let env_command = await this.catkin_workspace.makeCommand(`env`);
+        try {
+            let env_output = await runShellCommand(env_command);
+            environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
+                let [name, value] = env_entry.split("=");
+                return {
+                    name: name,
+                    value: value
+                };
+            });
+        } catch (error) {
+            console.error(error.stderr);
+            throw Error(`Cannot determine environment: ${error.stderr}`);
+        }
+
+        console.log(environment);
+        return environment;
     }
 
     public cancel(): void {

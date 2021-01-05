@@ -2,7 +2,7 @@
 import { TestSuiteInfo, TestInfo } from 'vscode-test-adapter-api';
 import * as fs from 'fs';
 
-import { CatkinPackage, TestType } from './catkin_package';
+import { BuildTarget, CatkinPackage, TestType } from './catkin_package';
 
 export class CatkinTestInterface {
     public package: CatkinPackage;
@@ -35,4 +35,6 @@ export class CatkinTestExecutable extends CatkinTestInterface {
 export class CatkinTestSuite extends CatkinTestInterface {
     public executables: CatkinTestExecutable[];
     public info: TestSuiteInfo | TestInfo;
+
+    public test_build_targets: BuildTarget[];
 }

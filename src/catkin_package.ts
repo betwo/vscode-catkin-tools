@@ -25,7 +25,6 @@ export class CatkinPackage {
   public package_xml: any;
 
   public has_tests: boolean;
-  public test_build_targets: BuildTarget[] = [];
 
   public path: string;
   public relative_path: fs.PathLike;
@@ -113,10 +112,10 @@ export class CatkinPackage {
     //                                `---------------`
 
     // find gtest build targets
-    this.test_build_targets = [];
+    let test_build_targets = [];
     if (!outline_only) {
       try {
-        let output = await runCommand('ctest', ['-N', '-V'], build_space);
+        let output = await runCommand('ctest', ['-N', '-V'], [], build_space);
         console.log(output.stdout);
         let current_executable: string = undefined;
         let current_test_type: TestType = undefined;
@@ -157,7 +156,7 @@ export class CatkinPackage {
               exec_path: current_executable,
               type: current_test_type
             };
-            this.test_build_targets.push(target);
+            test_build_targets.push(target);
           } else {
             if (line.indexOf('catkin_generated') > 0) {
               continue;
@@ -190,7 +189,7 @@ export class CatkinPackage {
                     // assume that the executable has the same name as the cmake target
                     exe = target;
                   }
-                  this.test_build_targets.push({
+                  test_build_targets.push({
                     cmake_target: exe,
                     exec_path: cmd,
                     type: current_test_type
@@ -216,15 +215,16 @@ export class CatkinPackage {
       global_build_dir: build_dir,
       global_devel_dir: devel_dir,
       filter: undefined,
+      test_build_targets: test_build_targets,
       info: {
-        type: this.test_build_targets.length === 0 ? 'test' : 'suite',
+        type: test_build_targets.length === 0 ? 'test' : 'suite',
         id: `package_${this.name}`,
         debuggable: false,
         label: this.name,
         // file: this.cmakelists_path,
         children: [],
-        description: this.test_build_targets.length === 0 ? "(unloaded)" : "",
-        tooltip: this.test_build_targets.length === 0 ?
+        description: test_build_targets.length === 0 ? "(unloaded)" : "",
+        tooltip: test_build_targets.length === 0 ?
           `Unloaded package test for ${this.name}. Run to load the test.` :
           `Package test for ${this.name}.`,
       },
@@ -232,7 +232,7 @@ export class CatkinPackage {
     };
 
     // generate a list of all tests in this target
-    for (let build_target of this.test_build_targets) {
+    for (let build_target of test_build_targets) {
       // create the executable
       let test_exec: CatkinTestExecutable = {
         type: build_target.type,
@@ -242,7 +242,7 @@ export class CatkinPackage {
         global_build_dir: build_dir,
         global_devel_dir: devel_dir,
         executable: build_target.exec_path,
-        filter: build_target.type === 'generic' ? undefined : "\\*",
+        filter: build_target.type === 'generic' ? undefined : "*",
         info: {
           type: 'suite',
           id: `exec_${build_target.cmake_target}`,
@@ -271,7 +271,7 @@ export class CatkinPackage {
                 global_build_dir: build_dir,
                 global_devel_dir: devel_dir,
                 executable: build_target.exec_path,
-                filter: build_target.type === 'generic' ? undefined : `${current_fixture_label}.\\*`,
+                filter: build_target.type === 'generic' ? undefined : `${current_fixture_label}.*`,
                 info: {
                   type: 'suite',
                   id: `fixture_${build_target.cmake_target}_${current_fixture_label}`,
@@ -333,7 +333,7 @@ export class CatkinPackage {
           global_devel_dir: devel_dir,
           executable: build_target.exec_path,
           cases: [],
-          filter: build_target.type === 'generic' ? undefined : `\\*`,
+          filter: build_target.type === 'generic' ? undefined : `*`,
           info: {
             type: 'suite',
             id: `fixture_unknown_${build_target.cmake_target}`,

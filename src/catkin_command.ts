@@ -13,7 +13,7 @@ export class ShellOutput {
 
 export function runCatkinCommand(args: string[], cwd?: string): Thenable<ShellOutput> {
     try {
-        return runCommand("catkin", args, cwd);
+        return runCommand("catkin", args, [], cwd);
     } catch (error) {
         vscode.window.showErrorMessage(`Command ${error.command} failed: ${error.error.message}`);
         throw error;
@@ -49,11 +49,22 @@ export function runShellCommand(command: string, cwd?: string, callback?: (proce
     });
 }
 
-export function runCommand(command: string, args: string[], cwd?: string, callback?: (process: child_process.ChildProcess) => any): Thenable<ShellOutput> {
+export function runCommand(
+    command: string,
+    args: string[],
+    environment: [string, string][],
+    cwd?: string,
+    callback?: (process: child_process.ChildProcess) => any)
+    : Thenable<ShellOutput> {
     let ws = cwd === undefined ? vscode.workspace.rootPath : cwd;
+    let environment_kv = {};
+    for(let v of environment) {
+        environment_kv[v['name']] = v['value'];
+    }
     let options: child_process.ExecOptions = {
         cwd: ws,
-        maxBuffer: 1024 * 1024
+        maxBuffer: 1024 * 1024,
+        env: environment.length === 0 ? process.env : environment_kv
     };
     return new Promise<ShellOutput>((resolve, reject) => {
         let full_command = `${command} ${args.join(" ")}`;
