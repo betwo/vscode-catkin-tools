@@ -6,16 +6,14 @@ import * as glob from 'fast-glob';
 import * as jsonfile from 'jsonfile';
 import { Signal } from 'signals';
 import * as vscode from 'vscode';
-import { SourceFileConfiguration } from 'vscode-cpptools';
+import { CustomConfigurationProvider, SourceFileConfiguration } from 'vscode-cpptools';
 import { CatkinPackage } from './catkin_package';
-import { runCatkinCommand, ShellOutput } from './catkin_command';
+import { runCatkinCommand, runCatkinCommandSync, ShellOutput } from './catkin_command';
 import { CatkinTestAdapter } from './catkin_test_adapter';
-import { status_bar_profile, status_bar_profile_prefix, reloadCompileCommand } from './catkin_tools';
+import { status_bar_profile, status_bar_profile_prefix, reloadAllWorkspaces } from './catkin_tools';
 import { config } from 'process';
 
 export class CatkinWorkspace {
-  public workspace: vscode.WorkspaceFolder;
-
   public compile_commands: Map<string, JSON> = new Map<string, JSON>();
   public file_to_command: Map<string, JSON> = new Map<string, JSON>();
   public file_to_compile_commands: Map<string, string> =
@@ -43,12 +41,11 @@ export class CatkinWorkspace {
 
   public test_adapter: CatkinTestAdapter = null;
 
-  private output_channel: vscode.OutputChannel;
+  public onWorkspaceInitialized = new vscode.EventEmitter<boolean>();
 
   constructor(
-    workspace: vscode.WorkspaceFolder, outputChannel: vscode.OutputChannel) {
-    this.workspace = workspace;
-    this.output_channel = outputChannel;
+    public associated_workspace_for_tasks: vscode.WorkspaceFolder,
+    public output_channel: vscode.OutputChannel) {
   }
 
   dispose() { }
@@ -60,9 +57,13 @@ export class CatkinWorkspace {
   public async reload(): Promise<CatkinWorkspace> {
     return vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
-      title: "Loading catkin workspace",
+      title: `Loading catkin workspace '${this.getName()}'`,
       cancellable: false
     }, async (progress, token) => {
+      this.loadCatkinConfig();
+
+      this.output_channel.appendLine(`Reload ${this.getName()}`);
+
       progress.report({ increment: 0, message: "Clearing caches" });
 
       for (var key in this.watchers.keys()) {
@@ -79,7 +80,12 @@ export class CatkinWorkspace {
 
       this.build_commands_changed.dispatch();
 
-      await this.loadAndWatchCompileCommands();
+      try {
+        await this.loadAndWatchCompileCommands();
+      } catch (error) {
+        vscode.window.showErrorMessage(`cannot load workspace folder: ${error.command} failed with ${error.error.message}`);
+        return;
+      }
 
       progress.report({ increment: 1, message: "Searching packages" });
       const packages = await vscode.workspace.findFiles("**/package.xml");
@@ -102,24 +108,36 @@ export class CatkinWorkspace {
             message: `Parsing ${path.basename(path.dirname(package_xml.path))}`
           });
         }
-        await this.loadPackage(package_xml.fsPath);
+        try {
+          console.log(`Loading package ${package_xml.fsPath}`);
+          await this.loadPackage(package_xml.fsPath);
+          console.log(`/ Loading package ${package_xml.fsPath}`);
+
+        } catch (error) {
+          vscode.window.showErrorMessage(`Cannot load package: ${package_xml.fsPath} failed with ${error}`);
+        }
       }
+
       this.is_initialized = true;
       progress.report({ increment: 100, message: "Finalizing" });
-      if (!token.isCancellationRequested) {
-        vscode.commands.executeCommand('test-explorer.reload');
-      }
+
+      this.output_channel.appendLine(`Done loading folder ${this.getName()} / ${this.getRootPath()}`);
+
+      this.onWorkspaceInitialized.fire(true);
+
       return this;
     });
   }
 
   public async loadPackage(package_xml: fs.PathLike) {
     try {
+      console.log(`Loading package from xml ${package_xml}`);
       let catkin_package = await CatkinPackage.loadFromXML(package_xml, this);
+      console.log(`/ Loading package from xml ${package_xml}`);
       this.packages.push(catkin_package);
       return catkin_package;
     } catch (err) {
-      console.log(`Error parsing package ${package_xml}: ${err}`);
+      console.error(`Error parsing package ${package_xml}: ${err}`);
       return null;
     }
   }
@@ -389,7 +407,8 @@ export class CatkinWorkspace {
 
     if (!db_found && !this.ignore_missing_db) {
       let ask_trigger_build = !db_found;
-      if (this.catkin_config["Additional CMake Args"].indexOf("CMAKE_EXPORT_COMPILE_COMMANDS") < 0) {
+      let args = await this.getConfigEntry("Additional CMake Args");
+      if (args.indexOf("CMAKE_EXPORT_COMPILE_COMMANDS") < 0) {
         const ignore = {
           title: "Ignore this"
         };
@@ -417,12 +436,19 @@ export class CatkinWorkspace {
         const build = {
           title: "Build workspace"
         };
-        let build_task = await vscode.tasks.fetchTasks({
+        let build_tasks = await vscode.tasks.fetchTasks({
           type: "catkin_build"
         });
+        let build_task: vscode.Task;
         let items = [ignore];
-        if (build_task !== undefined && build_task.length > 0) {
-          items.push(build);
+        if (build_tasks !== undefined && build_tasks.length > 0) {
+          for (let task of build_tasks) {
+            if (task.name === "build" && task.scope === this.associated_workspace_for_tasks) {
+              build_task = task;
+              items.push(build);
+              break;
+            }
+          }
         }
         let result = await vscode.window.showWarningMessage(
           `No compile_commands.json files found in ${this.build_dir}.\n` +
@@ -432,7 +458,7 @@ export class CatkinWorkspace {
         if (result === ignore) {
           this.ignore_missing_db = true;
         } else if (result === build) {
-          vscode.tasks.executeTask(build_task[0]);
+          vscode.tasks.executeTask(build_task);
         }
       }
       return;
@@ -440,8 +466,24 @@ export class CatkinWorkspace {
 
   }
 
-  public async getProfile(): Promise<[string, string[]]> {
-    let profile_base_path = path.join(vscode.workspace.rootPath, ".catkin_tools/profiles");
+  public getConfigEntry(key: string): string {
+    if (this.catkin_config.size === 0) {
+      this.loadCatkinConfig();
+    }
+    return this.catkin_config.get(key);
+  }
+
+  public getRootPath(): fs.PathLike {
+    return this.getConfigEntry('Workspace');
+  }
+
+  public getName(): string {
+    let root_path = this.getRootPath();
+    return path.basename(root_path.toString());
+  }
+
+  public getProfile(): [string, string[]] {
+    let profile_base_path = path.join(this.getRootPath().toString(), ".catkin_tools/profiles");
 
     let profiles_path = path.join(profile_base_path, "profiles.yaml");
     if (!fs.existsSync(profiles_path)) {
@@ -450,7 +492,7 @@ export class CatkinWorkspace {
       return ['default', []];
     }
 
-    const configs = await glob.async([profile_base_path + '/**/config.yaml']);
+    const configs = glob.sync([profile_base_path + '/**/config.yaml']);
     const profiles = configs.map((yaml) => path.basename(path.dirname(yaml.toString())));
 
     let content = fs.readFileSync(profiles_path).toString();
@@ -465,13 +507,14 @@ export class CatkinWorkspace {
   }
 
   public async switchProfile(profile) {
-    await runCatkinCommand(['profile', 'set', profile]);
+    runCatkinCommand(['profile', 'set', profile], this.getRootPath());
     this.checkProfile();
   }
 
 
-  public async checkProfile() {
-    let [profile, _] = await this.getProfile();
+  public checkProfile() {
+    let [profile, _] = this.getProfile();
+    let workers = [];
     if (this.catkin_profile !== profile) {
       this.updateProfile(profile);
     }
@@ -487,35 +530,34 @@ export class CatkinWorkspace {
 
     status_bar_profile.text = status_bar_profile_prefix + profile;
 
-    await this.loadCatkinConfig();
-    reloadCompileCommand();
+    await this.reload();
   }
 
-  private async loadCatkinConfig(): Promise<void> {
-    const output = await runCatkinCommand(['config']);
+  private loadCatkinConfig() {
+    const output = runCatkinCommandSync(['config'], this.associated_workspace_for_tasks.uri.fsPath);
 
     this.catkin_config.clear();
     for (const line of output.stdout.split("\n")) {
       if (line.indexOf(":") > 0) {
         const [key, val] = line.split(":").map(s => s.trim());
         console.log(key, val);
-        this.catkin_config[key] = val;
+        this.catkin_config.set(key, val);
       }
     }
   }
 
-  public async getSrcDir(): Promise<string> {
-    await this.checkProfile();
+  public getSrcDir(): string {
+    this.checkProfile();
     if (this.catkin_src_dir === null) {
-      const output: ShellOutput = await runCatkinCommand(['locate', '-s']);
+      const output: ShellOutput = runCatkinCommandSync(['locate', '-s'], this.getRootPath());
       this.catkin_src_dir = output.stdout.split('\n')[0];
     }
     return this.catkin_src_dir;
   }
-  public async getBuildDir(): Promise<string> {
-    await this.checkProfile();
+  public getBuildDir(): string {
+    this.checkProfile();
     if (this.catkin_build_dir === null) {
-      const output: ShellOutput = await runCatkinCommand(['locate', '-b']);
+      const output: ShellOutput = runCatkinCommandSync(['locate', '-b'], this.getRootPath());
       this.catkin_build_dir = output.stdout.split('\n')[0];
       if (this.catkin_build_dir.endsWith("/")) {
         this.catkin_build_dir = this.catkin_build_dir.slice(0, -1);
@@ -523,10 +565,10 @@ export class CatkinWorkspace {
     }
     return this.catkin_build_dir;
   }
-  public async getDevelDir(): Promise<string> {
-    await this.checkProfile();
+  public getDevelDir(): string {
+    this.checkProfile();
     if (this.catkin_devel_dir === null) {
-      const output: ShellOutput = await runCatkinCommand(['locate', '-d']);
+      const output: ShellOutput = runCatkinCommandSync(['locate', '-d'], this.getRootPath());
       this.catkin_devel_dir = output.stdout.split('\n')[0];
       if (this.catkin_devel_dir.endsWith("/")) {
         this.catkin_devel_dir = this.catkin_devel_dir.slice(0, -1);
@@ -534,10 +576,10 @@ export class CatkinWorkspace {
     }
     return this.catkin_devel_dir;
   }
-  public async getInstallDir(): Promise<string> {
-    await this.checkProfile();
+  public getInstallDir(): string {
+    this.checkProfile();
     if (this.catkin_install_dir === null) {
-      const output: ShellOutput = await runCatkinCommand(['locate', '-i']);
+      const output: ShellOutput = runCatkinCommandSync(['locate', '-i'], this.getRootPath());
       this.catkin_install_dir = output.stdout.split('\n')[0];
       if (this.catkin_install_dir.endsWith("/")) {
         this.catkin_install_dir = this.catkin_install_dir.slice(0, -1);
@@ -546,14 +588,14 @@ export class CatkinWorkspace {
     return this.catkin_install_dir;
   }
 
-  public async getSetupShell(): Promise<string> {
+  public getSetupShell(): string {
     const config = vscode.workspace.getConfiguration('catkin_tools');
-    const install_dir = await this.getInstallDir();
+    const install_dir = this.getInstallDir();
     let setup = install_dir + `/setup.${config['shell']}`;
     if (fs.existsSync(setup)) {
       return setup;
     }
-    const devel_dir = await this.getDevelDir();
+    const devel_dir = this.getDevelDir();
     return devel_dir + `/setup.${config['shell']}`;
   }
 
@@ -593,15 +635,15 @@ export class CatkinWorkspace {
   }
 
   private async enableCompileCommandsGeneration() {
-    const cmake_opts = this.catkin_config["Additional CMake Args"];
-    await runCatkinCommand(['config', '--cmake-args', `${cmake_opts} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`]);
+    const cmake_opts = await this.getConfigEntry("Additional CMake Args");
+    runCatkinCommand(['config', '--cmake-args', `${cmake_opts} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`], this.getRootPath());
     this.loadCatkinConfig();
   }
 
   public async makeCommand(payload: string) {
     const setup_shell = await this.getSetupShell();
     let command = `source ${setup_shell} > /dev/null 2>&1;`;
-    command += `pushd . > /dev/null; cd "${vscode.workspace.rootPath}";`;
+    command += `pushd . > /dev/null; cd "${this.getRootPath()}";`;
     command += `${payload}`;
     if (!payload.endsWith(";")) {
       command += "; ";

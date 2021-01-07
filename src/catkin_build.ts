@@ -8,13 +8,7 @@ interface CatkinTaskDefinition extends vscode.TaskDefinition {
 }
 
 
-export async function getCatkinBuildTask(): Promise<vscode.Task[]> {
-  let workspaceRoot = vscode.workspace.rootPath;
-  let emptyTasks: vscode.Task[] = [];
-  if (!workspaceRoot) {
-    return emptyTasks;
-  }
-
+export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder): Promise<vscode.Task[]> {
   // command to find the directory containing '.catkin_tools'
   let find_basedir = 'basedir=$(pwd) && while ! [[ -d "${basedir}/.catkin_tools" ]] && [[ "${basedir}" != "/" ]]; do basedir=$(dirname $basedir); done';
   // command to push the current directory without printing
@@ -48,7 +42,7 @@ export async function getCatkinBuildTask(): Promise<vscode.Task[]> {
     let taskName = 'build';
     let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
     let task = new vscode.Task(
-      kind, taskName, 'catkin_build',
+      kind, workspace_root, taskName, 'catkin_build',
       new vscode.ShellExecution(source_workspace + ' && catkin build'),
       ['$catkin-gcc', '$catkin-cmake']);
     result.push(task);
@@ -57,7 +51,7 @@ export async function getCatkinBuildTask(): Promise<vscode.Task[]> {
     let taskName = 'build current package';
     let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
     let task = new vscode.Task(
-      kind, taskName, 'catkin_build',
+      kind, workspace_root, taskName, 'catkin_build',
       new vscode.ShellExecution(source_current_package + ' && catkin build --this -v --no-deps'),
       ['$catkin-gcc', '$catkin-cmake']);
     result.push(task);
@@ -66,7 +60,7 @@ export async function getCatkinBuildTask(): Promise<vscode.Task[]> {
     let taskName = 'run current package tests';
     let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
     let task = new vscode.Task(
-      kind, taskName, 'catkin_build',
+      kind, workspace_root, taskName, 'catkin_build',
       new vscode.ShellExecution(source_current_package + ' && ' +
         'env CTEST_OUTPUT_ON_FAILURE=1 catkin build --this -v --no-deps --catkin-make-args run_tests'),
       ['$catkin-gcc', '$catkin-cmake', '$catkin-gtest', '$catkin-gtest-failed']);

@@ -1,12 +1,12 @@
 
 import * as vscode from 'vscode';
-import { CppToolsApi, getCppToolsApi, Version } from 'vscode-cpptools';
 
 import { CatkinWorkspace } from './catkin_workspace';
-import { CatkinToolsProvider } from './cpp_configuration_provider';
+import { runCatkinCommand } from './catkin_command';
+import { CatkinToolsProvider } from './catkin_tools_provider';
 import { CatkinPackageCompleterXml } from './package_xml_tools';
 
-let catkin_workspace: CatkinWorkspace = null;
+let catkin_workspaces = new Map<vscode.WorkspaceFolder, CatkinWorkspace>();
 let provider: CatkinToolsProvider = null;
 
 export let status_bar_status =
@@ -30,7 +30,7 @@ status_bar_status.show();
 // Public functions
 
 export async function initialize(
-  context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel): Promise<CatkinWorkspace> {
+  context: vscode.ExtensionContext, root: vscode.WorkspaceFolder, outputChannel: vscode.OutputChannel): Promise<CatkinWorkspace> {
   let config = vscode.workspace.getConfiguration('clang');
   if (config['completion'] !== undefined && config['completion']['enable']) {
     let ack: string = 'Ok';
@@ -40,48 +40,58 @@ export async function initialize(
     vscode.window.showInformationMessage(msg, ack);
   }
 
-  return registerProviders(context, outputChannel);
-}
-
-export async function registerProviders(
-  context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel): Promise<CatkinWorkspace> {
-  catkin_workspace =
-    new CatkinWorkspace(vscode.workspace.workspaceFolders[0], outputChannel);
-  let api: CppToolsApi = await getCppToolsApi(Version.v2);
-  if (api) {
-    if (api.notifyReady) {
-      provider = new CatkinToolsProvider(catkin_workspace, api);
-      // Inform cpptools that a custom config provider will be able to service
-      // the current workspace.
-
-      api.registerCustomConfigurationProvider(provider);
-      api.notifyReady(provider);
-      provider.startListening();
-
-    } else {
-      vscode.window.showInformationMessage(
-        'Catkin tools only supports C/C++ API 2.0 or later.');
-    }
-  }
+  let catkin_workspace = new CatkinWorkspace(root, outputChannel);
   const package_xml_provider = vscode.languages.registerCompletionItemProvider(
     { pattern: '**/package.xml' },
     new CatkinPackageCompleterXml(catkin_workspace));
-
   context.subscriptions.push(package_xml_provider);
+  catkin_workspace.checkProfile();
   return catkin_workspace;
 }
 
-export function reloadCompileCommand() {
+export async function reloadAllWorkspaces() {
   status_bar_status.text = status_bar_prefix + 'reloading';
 
-  provider.loadDataBases();
-
-  status_bar_status.text = status_bar_prefix + 'reload complete';
+  const success = await provider.reloadAllWorkspaces();
+  if (success) {
+    status_bar_status.text = status_bar_prefix + 'reload complete';
+  } else {
+    status_bar_status.text = status_bar_prefix + 'reload failed';
+  }
 }
 
+export async function isCatkinWorkspace(folder: vscode.WorkspaceFolder) {
+  try {
+    await runCatkinCommand(["locate", "-s"], folder.uri.fsPath);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+export async function selectWorkspace(): Promise<CatkinWorkspace> {
+  const workspace_list = [];
+  for (const [_, workspace] of catkin_workspaces) {
+    workspace_list.push(<vscode.QuickPickItem>{
+      label: workspace.getName(),
+      description: workspace.getRootPath()
+    });
+  }
+  return await vscode.window.showQuickPick(workspace_list);
+}
 
 export async function switchProfile() {
-  const [active_profile, profiles] = await provider.workspace.getProfile();
+  let workspace: CatkinWorkspace;
+  if (vscode.window.activeTextEditor) {
+    let vscode_workspace = vscode.workspace.getWorkspaceFolder(vscode.window.activeTextEditor.document.uri);
+    workspace = catkin_workspaces.get(vscode_workspace);
+  }
+
+  if (workspace === undefined) {
+    workspace = await selectWorkspace();
+  }
+
+  const [active_profile, profiles] = await workspace.getProfile();
 
   const profile_list = [];
   for (const profile of profiles) {
@@ -94,6 +104,6 @@ export async function switchProfile() {
   const selection = await vscode.window.showQuickPick(profile_list);
 
   if (selection !== undefined) {
-    provider.workspace.switchProfile(selection.label);
+    workspace.switchProfile(selection.label);
   }
 }

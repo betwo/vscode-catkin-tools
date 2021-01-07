@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as child_process from 'child_process';
+import * as fs from 'fs';
 
 export class ShellOutput {
     constructor(
@@ -11,19 +12,27 @@ export class ShellOutput {
     }
 }
 
-export function runCatkinCommand(args: string[], cwd?: string): Thenable<ShellOutput> {
+export async function runCatkinCommand(args: string[], cwd: fs.PathLike): Promise<ShellOutput> {
     try {
-        return runCommand("catkin", args, [], cwd);
+        return await runCommand("catkin", args, [], cwd);
     } catch (error) {
-        vscode.window.showErrorMessage(`Command ${error.command} failed: ${error.error.message}`);
+        console.error(error);
         throw error;
     }
 }
 
-export function runShellCommand(command: string, cwd?: string, callback?: (process: child_process.ChildProcess) => any): Thenable<ShellOutput> {
-    let ws = cwd === undefined ? vscode.workspace.rootPath : cwd;
+export function runCatkinCommandSync(args: string[], cwd: fs.PathLike): ShellOutput {
+    try {
+        return runCommandSync("catkin", args, [], cwd);
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+}
+
+export function runShellCommand(command: string, cwd: fs.PathLike, callback?: (process: child_process.ChildProcess) => any): Thenable<ShellOutput> {
     let options: child_process.ExecOptions = {
-        cwd: ws,
+        cwd: cwd.toString(),
         maxBuffer: 1024 * 1024
     };
     const config = vscode.workspace.getConfiguration('catkin_tools');
@@ -53,22 +62,21 @@ export function runCommand(
     command: string,
     args: string[],
     environment: [string, string][],
-    cwd?: string,
+    cwd: fs.PathLike,
     callback?: (process: child_process.ChildProcess) => any)
     : Thenable<ShellOutput> {
-    let ws = cwd === undefined ? vscode.workspace.rootPath : cwd;
     let environment_kv = {};
-    for(let v of environment) {
+    for (let v of environment) {
         environment_kv[v['name']] = v['value'];
     }
     let options: child_process.ExecOptions = {
-        cwd: ws,
+        cwd: cwd.toString(),
         maxBuffer: 1024 * 1024,
         env: environment.length === 0 ? process.env : environment_kv
     };
     return new Promise<ShellOutput>((resolve, reject) => {
         let full_command = `${command} ${args.join(" ")}`;
-        console.log(`Running command ${full_command}`);
+        console.log(`Running async command ${full_command}`);
         let process = child_process.execFile(command, args, options, (error, stdout, stderr) => {
             const result = new ShellOutput(stdout, stderr, full_command);
             if (error) {
@@ -82,4 +90,32 @@ export function runCommand(
             callback(process);
         }
     });
+}
+
+
+export function runCommandSync(
+    command: string,
+    args: string[],
+    environment: [string, string][],
+    cwd: fs.PathLike,
+    callback?: (process: child_process.ChildProcess) => any)
+    : ShellOutput {
+    let environment_kv = {};
+    for (let v of environment) {
+        environment_kv[v['name']] = v['value'];
+    }
+    let options: child_process.ExecOptions = {
+        cwd: cwd.toString(),
+        maxBuffer: 1024 * 1024,
+        env: environment.length === 0 ? process.env : environment_kv
+    };
+    let full_command = `${command} ${args.join(" ")}`;
+    console.log(`Running sync command ${full_command}`);
+    let result = child_process.spawnSync(command, args, options);
+    return {
+        stdout: result.stdout.toString(),
+        stderr: result.stderr.toString(),
+        command: full_command,
+        error: result.error,
+    };
 }

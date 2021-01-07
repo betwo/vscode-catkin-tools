@@ -12,7 +12,6 @@ import {
     TestSuiteInfo,
     TestInfo
 } from 'vscode-test-adapter-api';
-import { TestAdapterRegistrar } from 'vscode-test-adapter-util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { CatkinPackage, TestType } from './catkin_package';
@@ -25,36 +24,8 @@ import * as compiler_problem_matcher from './compiler_problem_matcher';
 import * as xml from 'fast-xml-parser';
 import * as treekill from 'tree-kill';
 
-export const registerAdapter = (
-    testExplorerExtension: vscode.Extension<TestHub>,
-    context: vscode.ExtensionContext,
-    adapterFactory: (workspaceFolder: vscode.WorkspaceFolder) => CatkinTestAdapter) => {
-    const testHub = testExplorerExtension.exports;
-    context.subscriptions.push(new TestAdapterRegistrar(testHub, adapterFactory));
-    // vscode.commands.executeCommand('test-explorer.reload');
-};
-
 type TestRunEvent = TestRunStartedEvent | TestRunFinishedEvent | TestSuiteEvent | TestEvent;
 type TestLoadEvent = TestLoadStartedEvent | TestLoadFinishedEvent;
-
-export function registerCatkinTest(context: vscode.ExtensionContext,
-    catkin_workspace: CatkinWorkspace,
-    testExplorerExtension,
-    outputChannel) {
-
-    const testsEmitter = new vscode.EventEmitter<TestLoadEvent>();
-    const testStatesEmitter = new vscode.EventEmitter<TestRunEvent>();
-    const autorunEmitter = new vscode.EventEmitter<void>();
-    const adapterFactory = workspaceFolder => new CatkinTestAdapter(
-        workspaceFolder.uri.fsPath,
-        catkin_workspace,
-        outputChannel,
-        testsEmitter,
-        testStatesEmitter,
-        autorunEmitter
-    );
-    registerAdapter(testExplorerExtension, context, adapterFactory);
-}
 
 class TestRunReloadRequest {
     test: CatkinTestSuite;
@@ -87,16 +58,17 @@ export class CatkinTestAdapter implements TestAdapter {
 
     private diagnostics: vscode.DiagnosticCollection;
 
+    private testsEmitter = new vscode.EventEmitter<TestLoadEvent>();
+    private testStatesEmitter = new vscode.EventEmitter<TestRunEvent>();
+    private autorunEmitter = new vscode.EventEmitter<void>();
+
     constructor(
         public readonly workspaceRootDirectoryPath: string,
         public readonly catkin_workspace: CatkinWorkspace,
-        private readonly output_channel: vscode.OutputChannel,
-        private readonly testsEmitter: vscode.EventEmitter<TestLoadEvent>,
-        private readonly testStatesEmitter: vscode.EventEmitter<TestRunEvent>,
-        private readonly autorunEmitter: vscode.EventEmitter<void>
+        private readonly output_channel: vscode.OutputChannel
     ) {
         this.catkin_workspace.test_adapter = this;
-        this.output_channel.appendLine('Initializing catkin_tools test adapter');
+        this.output_channel.appendLine(`Initializing catkin_tools test adapter for workspace ${workspaceRootDirectoryPath}`);
         this.diagnostics = vscode.languages.createDiagnosticCollection(`catkin_tools`);
     }
 
@@ -106,6 +78,7 @@ export class CatkinTestAdapter implements TestAdapter {
 
     public async load(): Promise<void> {
         if (!this.catkin_workspace.isInitialized()) {
+            this.output_channel.appendLine('Cannot load catkin tools tests, workspace is not initialized');
             return;
         }
 
@@ -167,7 +140,7 @@ export class CatkinTestAdapter implements TestAdapter {
     }
     public async updateSuiteSet() {
         let test_tree = <TestSuiteInfo>{
-            id: "all_tests", label: "catkin_tools", type: 'suite', children: []
+            id: "all_tests", label: this.catkin_workspace.getName(), type: 'suite', children: []
         };
         const src_dir = await this.catkin_workspace.getSrcDir();
         for (const [key, value] of this.suites) {
@@ -470,7 +443,7 @@ export class CatkinTestAdapter implements TestAdapter {
         commands: CatkinTestParameters,
         progress: vscode.Progress<{ message?: string; increment?: number; }>,
         token: vscode.CancellationToken,
-        cwd?: string): Promise<CatkinTestRunResult> {
+        cwd: fs.PathLike): Promise<CatkinTestRunResult> {
         let result = new CatkinTestRunResult(CatkinTestRunResultKind.BuildFailed, "");
 
         this.output_channel.appendLine(`command: ${commands}`);
@@ -522,7 +495,7 @@ export class CatkinTestAdapter implements TestAdapter {
     private async runExecutableCommand([exe, args]: [fs.PathLike, string[]],
         progress: vscode.Progress<{ message?: string; increment?: number; }>,
         token: vscode.CancellationToken,
-        cwd?: string) {
+        cwd: fs.PathLike) {
 
         let environment = await this.getCatkinEnvironment();
 
@@ -567,7 +540,7 @@ export class CatkinTestAdapter implements TestAdapter {
     private async runShellCommand(command: string,
         progress: vscode.Progress<{ message?: string; increment?: number; }>,
         token: vscode.CancellationToken,
-        cwd?: string) {
+        cwd: fs.PathLike) {
 
         let output_promise = runShellCommand(command, cwd, (process) => {
             this.active_process = process;
@@ -1098,7 +1071,7 @@ export class CatkinTestAdapter implements TestAdapter {
             // build the teset
             let command = await this.makeBuildTestCommand(test);
             try {
-                await runShellCommand(command);
+                runShellCommand(command, await this.catkin_workspace.getRootPath());
             } catch (error) {
                 console.error(error.stderr);
                 throw Error(`Cannot rebuild test executable: ${error.stderr}`);
@@ -1142,7 +1115,7 @@ export class CatkinTestAdapter implements TestAdapter {
         let environment = [];
         let env_command = await this.catkin_workspace.makeCommand(`env`);
         try {
-            let env_output = await runShellCommand(env_command);
+            let env_output = await runShellCommand(env_command, this.catkin_workspace.getRootPath());
             environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
                 let [name, value] = env_entry.split("=");
                 return {

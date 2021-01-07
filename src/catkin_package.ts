@@ -42,20 +42,30 @@ export class CatkinPackage {
     this.name = this.package_xml['package']['name'];
 
     let src_path = path.dirname(package_xml_path.toString());
-    this.relative_path = src_path.replace(vscode.workspace.rootPath + '/', "");
     this.cmakelists_path = path.join(src_path, "CMakeLists.txt");
 
     this.has_tests = false;
   }
 
   public static async loadFromXML(package_xml_path: fs.PathLike, workspace: CatkinWorkspace) {
+    console.log(`Parsing xml ${package_xml_path}`);
     let instance = new CatkinPackage(package_xml_path, workspace);
     await instance.parseCmakeListsForTests();
+    console.log(`/ Parsing xml ${package_xml_path}`);
     return instance;
   }
 
+  public getRelativePath(): fs.PathLike {
+    if (this.relative_path === undefined) {
+      let src_path = path.dirname(this.package_xml_path.toString());
+      let prefix = this.workspace.getRootPath();
+      this.relative_path = src_path.replace(prefix + '/', "");
+    }
+    return this.relative_path;
+  }
+
   public async getWorkspacePath(src_dir: string = undefined): Promise<string[]> {
-    let parts = this.relative_path.toString().split(path.sep);
+    let parts = this.getRelativePath().toString().split(path.sep);
     const src = src_dir !== undefined ? src_dir : await this.workspace.getSrcDir();
     if (parts[0] === path.basename(src)) {
       return parts.slice(1);
@@ -63,7 +73,7 @@ export class CatkinPackage {
     return parts;
   }
 
-  public static async getNameFromPackageXML(package_xml_path: fs.PathLike) {
+  public static async getNameFromPackageXML(package_xml_path: fs.PathLike): Promise<string> {
     try {
       let package_xml = xml.parse(fs.readFileSync(package_xml_path).toString());
       return package_xml['package']['name'];
@@ -81,7 +91,7 @@ export class CatkinPackage {
 
     this.has_tests = false;
     let cmake_files = await glob.async(
-      [`${vscode.workspace.rootPath}/${this.relative_path}/**/CMakeLists.txt`]
+      [`${this.workspace.getRootPath()}/${this.getRelativePath()}/**/CMakeLists.txt`]
     );
     for (let cmake_file of cmake_files) {
       let data = fs.readFileSync(cmake_file.toString());

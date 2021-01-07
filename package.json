@@ -18,6 +18,7 @@
 	],
 	"activationEvents": [
 		"workspaceContains:.catkin_tools",
+		"onCommand:extension.b2.catkin_tools.reload_workspaces",
 		"onCommand:extension.b2.catkin_tools.reload_compile_commands"
 	],
 	"main": "./dist/extension",
@@ -75,8 +76,12 @@
 		],
 		"commands": [
 			{
+				"command": "extension.b2.catkin_tools.reload_workspaces",
+				"title": "Reload all opened workspaces"
+			},
+			{
 				"command": "extension.b2.catkin_tools.reload_compile_commands",
-				"title": "Reload compile_commands.json files"
+				"title": "(deprecated) alias for 'reload_workspaces'"
 			},
 			{
 				"command": "extension.b2.catkin_tools.switch_profile",
