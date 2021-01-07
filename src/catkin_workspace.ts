@@ -153,6 +153,82 @@ export class CatkinWorkspace {
     return null;
   }
 
+  public async iteratePossibleSourceFiles(file: vscode.Uri, filter: (uri: vscode.Uri) => boolean): Promise<boolean> {
+    let checked_pkgs = [];
+    const owner_package = this.getPackageContaining(file);
+    if (owner_package !== undefined) {
+      console.log(`Package ${owner_package.getRelativePath()} owns file ${file.toString()}.`);
+      const stop = await owner_package.iteratePossibleSourceFiles(file, filter);
+      if (stop) {
+        return true;
+      }
+      checked_pkgs.push(owner_package.getName());
+      console.log(`Package ${owner_package.getRelativePath()} does not use file ${file.toString()}.`);
+
+      const dependent_packages = await this.getDependentPackages(owner_package);
+
+      const found_dependent_package = await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: `Searching dependent packages for usages of file ${file.toString()}.`,
+        cancellable: false
+      }, async (progress, token) => {
+        progress.report({ increment: 1, message: "Searching packages" });
+        console.log(`Searching dependent packages for usages of file ${file.toString()}.`);
+        for (const dependent_package of dependent_packages) {
+          if (checked_pkgs.findIndex(e => e === dependent_package.getName()) < 0) {
+            const stop = await dependent_package.iteratePossibleSourceFiles(file, filter);
+            if (stop) {
+              return true;
+            }
+            checked_pkgs.push(dependent_package.getName());
+          }
+        }
+
+        console.log(`No usage of ${file.toString()} found.`);
+        return false;
+      });
+
+      if (found_dependent_package) {
+        return true;
+      }
+    }
+
+    return vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: `Searching workspace for usages of file ${file.toString()}.`,
+      cancellable: false
+    }, async (progress, token) => {
+      progress.report({ increment: 1, message: "Searching packages" });
+      console.log(`Searching whole workspace for usages of file ${file.toString()}.`);
+
+      for (const remaining_package of this.packages) {
+        if (checked_pkgs.findIndex(e => e === remaining_package.getName()) < 0) {
+          const stop = await remaining_package.iteratePossibleSourceFiles(file, filter);
+          if (stop) {
+            return true;
+          }
+          checked_pkgs.push(remaining_package.getName());
+        }
+      }
+
+      console.log(`No usage of ${file.toString()} found.`);
+      return false;
+    });
+  }
+
+  public async getDependentPackages(catkin_package: CatkinPackage): Promise<CatkinPackage[]> {
+    const output = await runCatkinCommand([
+      "list",
+      "--rdepends-on", catkin_package.getName(),
+      "--unformatted", "--quiet"
+    ], this.getRootPath());
+    let result = [];
+    for (const line of output.stdout.split("\n")) {
+      result.push(this.getPackage(line));
+    }
+    return result;
+  }
+
   public getSourceFileConfiguration(commands): SourceFileConfiguration {
     let args = commands.command.split(' ');
 
@@ -243,6 +319,24 @@ export class CatkinWorkspace {
       }
     }
     return false;
+  }
+
+  private getPackage(name: string): CatkinPackage {
+    for (let pkg of this.packages) {
+      if (pkg.name === name) {
+        return pkg;
+      }
+    }
+    return undefined;
+  }
+
+  private getPackageContaining(file: vscode.Uri): CatkinPackage {
+    for (let pkg of this.packages) {
+      if (pkg.containsFile(file)) {
+        return pkg;
+      }
+    }
+    return undefined;
   }
 
   private parseCompilerDefaults(compiler: string, args: string[]) {

@@ -18,7 +18,6 @@ export class BuildTarget {
 }
 
 export class CatkinPackage {
-
   public build_space?: fs.PathLike;
 
   public name: string;
@@ -28,6 +27,7 @@ export class CatkinPackage {
 
   public path: string;
   public relative_path: fs.PathLike;
+  public absolute_path: fs.PathLike;
   public cmakelists_path: string;
 
   private constructor(
@@ -54,6 +54,19 @@ export class CatkinPackage {
     console.log(`/ Parsing xml ${package_xml_path}`);
     return instance;
   }
+
+  public getName(): string {
+    return this.name;
+  }
+
+  public getAbsolutePath(): fs.PathLike {
+    if (this.absolute_path === undefined) {
+      let src_path = path.dirname(this.package_xml_path.toString());
+      this.absolute_path = src_path;
+    }
+    return this.absolute_path;
+  }
+
 
   public getRelativePath(): fs.PathLike {
     if (this.relative_path === undefined) {
@@ -82,16 +95,50 @@ export class CatkinPackage {
     }
   }
 
+  public containsFile(file: vscode.Uri) {
+    if (file.fsPath.toString().startsWith((this.getAbsolutePath() + "/").toString())) {
+      return true;
+    }
+    return false;
+  }
+
+  public async iteratePossibleSourceFiles(header_file: vscode.Uri, filter: (uri: vscode.Uri) => boolean): Promise<boolean> {
+    const include_prefix = "/include/";
+    const include_start_pos = header_file.fsPath.lastIndexOf(include_prefix);
+    if (include_start_pos < 0) {
+      console.error(`Could not find include folder in ${header_file.fsPath.toString()}`);
+      return false;
+    }
+    const include_relpath = header_file.fsPath.substr(include_start_pos + include_prefix.length);
+    let sources = glob.sync(
+      [`${this.getAbsolutePath()}/**/*.(c|cc|cpp|cxx)`]
+    );
+    for (let source of sources) {
+      const code = fs.readFileSync(source.toString()).toString().split("\n");
+      for (let line of code) {
+        if (line.indexOf("#") >= 0 && line.indexOf("include") > 0) {
+          if (line.indexOf(include_relpath) > 0) {
+            if (filter(vscode.Uri.file(source.toString()))) {
+              console.log(source);
+              console.log(line);
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+
   private async parseCmakeListsForTests() {
     let config = vscode.workspace.getConfiguration('catkin_tools');
     let test_regexes = [];
     for (let expr of config['gtestMacroRegex']) {
-      test_regexes.push(new RegExp(`.*(${expr})`));
+      test_regexes.push(new RegExp(`.* (${expr})`));
     }
 
     this.has_tests = false;
     let cmake_files = await glob.async(
-      [`${this.workspace.getRootPath()}/${this.getRelativePath()}/**/CMakeLists.txt`]
+      [`${this.getAbsolutePath()}/**/CMakeLists.txt`]
     );
     for (let cmake_file of cmake_files) {
       let data = fs.readFileSync(cmake_file.toString());
@@ -109,7 +156,7 @@ export class CatkinPackage {
 
   public async loadTests(build_dir: String, devel_dir: String, outline_only: boolean):
     Promise<CatkinTestSuite> {
-    let build_space = `${build_dir}/${this.name}`;
+    let build_space = `${build_dir} /${this.name}`;
 
     if (!this.has_tests) {
       throw Error("No tests in package");

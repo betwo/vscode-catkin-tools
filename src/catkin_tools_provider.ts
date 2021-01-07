@@ -81,9 +81,27 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
         });
         status_bar_status.text = status_bar_prefix + ' (' +
           catkin_workspace.file_to_compile_commands.get(file.fsPath) + ')';
+
+      } else {
+        const found = await catkin_workspace.iteratePossibleSourceFiles(file, (possible_source_file) => {
+          let commands = catkin_workspace.file_to_command.get(possible_source_file.fsPath.toString());
+          if (commands !== undefined) {
+            ret.push({
+              uri: file,
+              configuration: catkin_workspace.getSourceFileConfiguration(commands)
+            });
+            status_bar_status.text = status_bar_prefix + ' (header resolution via ' +
+              catkin_workspace.file_to_compile_commands.get(possible_source_file.fsPath) + ')';
+            return true;
+          } else {
+            return false;
+          }
+        });
+        if(!found) {
+          status_bar_status.text = status_bar_prefix + ' (no configuration found...)';
+        }
       }
     }
-    console.log(ret);
     return ret;
   }
   public async canProvideBrowseConfiguration(token?: vscode.CancellationToken):
