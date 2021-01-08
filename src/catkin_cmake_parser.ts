@@ -177,8 +177,13 @@ async function queryCMakeFileApiCodeModel(catkin_package: CatkinPackage): Promis
     const query_file = path.join(query_dir, "query.json");
     await fs.promises.writeFile(query_file, query_txt);
 
-    const output = await runShellCommand("cmake .", build_space);
-    console.log(output.stdout);
+    try {
+        const output = await runShellCommand("cmake .", build_space);
+        console.log(output.stdout);
+    } catch (error) {
+        console.error(error);
+        return undefined;
+    }
 
     const reply_dir = path.join(api_dir, "reply");
     const files = await fs.promises.readdir(reply_dir);
@@ -284,10 +289,10 @@ function findFirstLine(source_code: string[], key: string): number {
 }
 
 function isGtestTarget(target: any) {
-    if (target.dependencies !== undefined) {
+    if (target.dependencies !== undefined && target.type === "EXECUTABLE") {
         for (const dependency of target.dependencies) {
             console.log(dependency.id);
-            if (dependency.id.startsWith('gtest::')) {
+            if (dependency.id.indexOf('gtest') >= 0 || dependency.id.indexOf('gmock') >= 0) {
                 return true;
             }
         }

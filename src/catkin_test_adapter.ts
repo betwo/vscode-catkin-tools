@@ -403,17 +403,7 @@ export class CatkinTestAdapter implements TestAdapter {
     }
 
     private async prepareGTestOutputFile(test: CatkinTestInterface, commands: CatkinTestParameters) {
-        let output_file = await this.extractGTestOutputFile(test, commands);
-
-        if (output_file === undefined) {
-            console.log(`Command does not set gtest_output ${commands}`);
-            if (test.type === 'gtest') {
-                output_file = `/tmp/gtest_output_${test.info.id}.xml`;
-                commands.args.push(`--gtest_output=xml:${output_file}`);
-            } else {
-                throw Error(`Cannot parse ${commands} for output file`);
-            }
-        }
+        let output_file = await this.overwriteGTestOutputFile(test, commands);
 
         if (fs.existsSync(output_file)) {
             fs.unlinkSync(output_file);
@@ -422,20 +412,19 @@ export class CatkinTestAdapter implements TestAdapter {
         return output_file;
     }
 
-    private async extractGTestOutputFile(test: CatkinTestInterface, commands: CatkinTestParameters) {
-        for (let args of commands.args) {
-            let gtest_xml = /--gtest_output=xml:([^'"`\s]+)/.exec(`${args}`);
-            if (gtest_xml !== undefined && gtest_xml !== null) {
-                let gtest_xml_path = gtest_xml[1];
-                if (gtest_xml_path.endsWith('.xml')) {
-                    return gtest_xml_path;
-                } else {
-                    return path.join(gtest_xml_path, `${test.build_target}.xml`);
-                }
-            }
-        }
+    private async overwriteGTestOutputFile(test: CatkinTestInterface, commands: CatkinTestParameters) {
+        if (test.type === 'gtest') {
+            const gtest_xml = /.*--gtest_output=.*/;
+            commands.args = commands.args.filter((value, index) => {
+                return value.match(gtest_xml) === null;
+            });
 
-        return undefined;
+            const output_file = `/tmp/gtest_output_${test.info.id}.xml`;
+            commands.args.push(`--gtest_output=xml:${output_file}`);
+            return output_file;
+        } else {
+            throw Error(`Cannot parse ${commands} for output file`);
+        }
     }
 
     private async runCommands(
@@ -593,10 +582,7 @@ export class CatkinTestAdapter implements TestAdapter {
             // Run an unknown executable's tests
             let exe = this.getExecutableForTestFixture(id);
             this.output_channel.appendLine(`Id ${id} maps to executable ${exe.executable} in package ${exe.package.name}`);
-            commands = {
-                setup_shell_code: await this.makeBuildTestCommand(exe),
-                exe: exe.executable
-            };
+            commands = new CatkinTestParameters(await this.makeBuildTestCommand(exe), exe.executable);
             test = exe;
 
         } else if (id.startsWith('test_')) {
