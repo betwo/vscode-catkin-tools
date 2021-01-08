@@ -8,6 +8,7 @@ import * as path from 'path';
 import { runShellCommand, runCommand } from './catkin_command';
 import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
 import { CatkinWorkspace } from './catkin_workspace';
+import { GTestSuite, parsePackageForTests, skimCmakeListsForTests } from './catkin_cmake_parser';
 
 export type TestType = "unknown" | "gtest" | "generic" | "suite";
 
@@ -48,10 +49,8 @@ export class CatkinPackage {
   }
 
   public static async loadFromXML(package_xml_path: fs.PathLike, workspace: CatkinWorkspace) {
-    console.log(`Parsing xml ${package_xml_path}`);
     let instance = new CatkinPackage(package_xml_path, workspace);
-    await instance.parseCmakeListsForTests();
-    console.log(`/ Parsing xml ${package_xml_path}`);
+    instance.has_tests = await skimCmakeListsForTests(instance);
     return instance;
   }
 
@@ -129,34 +128,10 @@ export class CatkinPackage {
     }
   }
 
-  private async parseCmakeListsForTests() {
-    let config = vscode.workspace.getConfiguration('catkin_tools');
-    let test_regexes = [];
-    for (let expr of config['gtestMacroRegex']) {
-      test_regexes.push(new RegExp(`.* (${expr})`));
-    }
-
-    this.has_tests = false;
-    let cmake_files = await glob.async(
-      [`${this.getAbsolutePath()}/**/CMakeLists.txt`]
-    );
-    for (let cmake_file of cmake_files) {
-      let data = fs.readFileSync(cmake_file.toString());
-      let cmake = data.toString();
-      for (let test_regex of test_regexes) {
-        for (let row of cmake.split('\n')) {
-          let tests = row.match(test_regex);
-          if (tests) {
-            this.has_tests = true;
-          }
-        }
-      }
-    }
-  }
 
   public async loadTests(build_dir: String, devel_dir: String, outline_only: boolean):
     Promise<CatkinTestSuite> {
-    let build_space = `${build_dir} /${this.name}`;
+    this.build_space = `${build_dir}/${this.name}`;
 
     if (!this.has_tests) {
       throw Error("No tests in package");
@@ -172,7 +147,7 @@ export class CatkinPackage {
     let test_build_targets = [];
     if (!outline_only) {
       try {
-        let output = await runCommand('ctest', ['-N', '-V'], [], build_space);
+        let output = await runCommand('ctest', ['-N', '-V'], [], this.build_space);
         console.log(output.stdout);
         let current_executable: string = undefined;
         let current_test_type: TestType = undefined;
@@ -267,7 +242,7 @@ export class CatkinPackage {
     let pkg_suite: CatkinTestSuite = {
       type: 'suite',
       package: this,
-      build_space: build_space,
+      build_space: this.build_space,
       build_target: 'run_tests',
       global_build_dir: build_dir,
       global_devel_dir: devel_dir,
@@ -278,7 +253,7 @@ export class CatkinPackage {
         id: `package_${this.name}`,
         debuggable: false,
         label: this.name,
-        // file: this.cmakelists_path,
+        file: this.cmakelists_path,
         children: [],
         description: test_build_targets.length === 0 ? "(unloaded)" : "",
         tooltip: test_build_targets.length === 0 ?
@@ -288,13 +263,36 @@ export class CatkinPackage {
       executables: null
     };
 
+    let gtest_build_targets: GTestSuite;
+    if (!outline_only) {
+      try {
+        gtest_build_targets = await parsePackageForTests(this);
+      } catch (err) {
+        console.log(`Cannot determine gtest details: ${err}`);
+      }
+    }
+    if (gtest_build_targets === undefined) {
+      // default to an empty suite
+      gtest_build_targets = new GTestSuite([]);
+    }
+
     // generate a list of all tests in this target
     for (let build_target of test_build_targets) {
+      let matching_source_file: string;
+      let matching_line: number;
+      if (!outline_only) {
+        let gtest_build_target = gtest_build_targets.getBuildTarget(build_target.cmake_target);
+        if (gtest_build_target !== undefined) {
+          matching_source_file = path.join(this.getAbsolutePath().toString(), gtest_build_target.package_relative_file_path.toString());
+          matching_line = gtest_build_target.line;
+        }
+      }
+
       // create the executable
       let test_exec: CatkinTestExecutable = {
         type: build_target.type,
         package: this,
-        build_space: build_space,
+        build_space: this.build_space,
         build_target: build_target.cmake_target,
         global_build_dir: build_dir,
         global_devel_dir: devel_dir,
@@ -306,6 +304,8 @@ export class CatkinPackage {
           label: build_target.cmake_target,
           children: [],
           tooltip: `Executable test ${build_target.cmake_target}.`,
+          file: matching_source_file,
+          line: matching_line
         },
         fixtures: []
       };
@@ -314,16 +314,23 @@ export class CatkinPackage {
         try {
           // try to extract test names, if the target is compiled
           let cmd = await this.workspace.makeCommand(`${build_target.exec_path} --gtest_list_tests`);
-          let output = await runShellCommand(cmd, build_space);
+          let output = await runShellCommand(cmd, this.build_space);
           let current_fixture_label: string = null;
           for (let line of output.stdout.split('\n')) {
             let fixture_match = line.match(/^([^\s]+)\.\s*$/);
             if (fixture_match) {
               current_fixture_label = fixture_match[1];
+              let matching_source_file: string;
+              let matching_line: number;
+              let [existing_fixture, source_file, _] = gtest_build_targets.getFixture(current_fixture_label);
+              if (existing_fixture !== undefined) {
+                matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
+                matching_line = existing_fixture.line;
+              }
               test_exec.fixtures.push({
                 type: 'gtest',
                 package: this,
-                build_space: build_space,
+                build_space: this.build_space,
                 build_target: build_target.cmake_target,
                 global_build_dir: build_dir,
                 global_devel_dir: devel_dir,
@@ -335,6 +342,8 @@ export class CatkinPackage {
                   label: current_fixture_label,
                   children: [],
                   tooltip: `Test fixture ${build_target.cmake_target}::${current_fixture_label}.`,
+                  file: matching_source_file,
+                  line: matching_line
                 },
                 cases: []
               });
@@ -349,9 +358,17 @@ export class CatkinPackage {
                 test_label = parts[0].trim();
                 test_description = parts[1].trim();
               }
+
+              let matching_source_file: string;
+              let matching_line: number;
+              let [existing_test_case, _, source_file, __] = gtest_build_targets.getTestCase(current_fixture_label, test_label);
+              if (existing_test_case !== undefined) {
+                matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
+                matching_line = existing_test_case.line;
+              }
               let test_case: CatkinTestCase = {
                 package: this,
-                build_space: build_space,
+                build_space: this.build_space,
                 build_target: build_target.cmake_target,
                 global_build_dir: build_dir,
                 global_devel_dir: devel_dir,
@@ -364,6 +381,8 @@ export class CatkinPackage {
                   description: test_description,
                   label: `${current_fixture_label}::${test_label}`,
                   tooltip: `Test case ${build_target.cmake_target}::${current_fixture_label}::${test_label}.`,
+                  file: matching_source_file,
+                  line: matching_line
                 }
               };
               let fixture = test_exec.fixtures[test_exec.fixtures.length - 1];
@@ -384,7 +403,7 @@ export class CatkinPackage {
         let test_case: CatkinTestFixture = {
           type: build_target.type,
           package: this,
-          build_space: build_space,
+          build_space: this.build_space,
           build_target: build_target.cmake_target,
           global_build_dir: build_dir,
           global_devel_dir: devel_dir,
