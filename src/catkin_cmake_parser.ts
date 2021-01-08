@@ -243,7 +243,8 @@ async function analyzeGtestSource(source_file: fs.PathLike): Promise<GTestTestFi
     const gtest_regex = new RegExp(/\s*TEST(_[PF])?\(([^,]+), ([^,]+)\)\s*/);
 
     let line_number = 0;
-    for (const raw_line of data.toString().split("\n")) {
+    const source_code = data.toString().split("\n");
+    for (const raw_line of source_code) {
         const line = raw_line.trimLeft();
         if (line.startsWith("TEST")) {
             console.log(line);
@@ -254,7 +255,8 @@ async function analyzeGtestSource(source_file: fs.PathLike): Promise<GTestTestFi
 
                 let fixture = test_fixtures.get(test_fixture_name);
                 if (fixture === undefined) {
-                    fixture = new GTestTestFixture(test_fixture_name, line_number);
+                    const fixture_line_number = findFirstLine(source_code, test_fixture_name);
+                    fixture = new GTestTestFixture(test_fixture_name, fixture_line_number !== undefined ? fixture_line_number : line_number);
                     test_fixtures.set(test_fixture_name, fixture);
                 }
 
@@ -264,6 +266,21 @@ async function analyzeGtestSource(source_file: fs.PathLike): Promise<GTestTestFi
         line_number += 1;
     }
     return Array.from(test_fixtures.values());
+}
+
+function findFirstLine(source_code: string[], key: string): number {
+    const regex = new RegExp(`(^|.*\\s)(${key})([\\s;:{].*|$)`);
+    let line_number = 0;
+    for (const line of source_code) {
+        if (line.indexOf(key) >= 0) {
+            const match = line.match(regex);
+            if (match !== null) {
+                return line_number;
+            }
+        }
+        line_number += 1;
+    }
+    return undefined;
 }
 
 function isGtestTarget(target: any) {
