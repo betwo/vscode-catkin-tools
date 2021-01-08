@@ -330,7 +330,7 @@ export class CatkinWorkspace {
     return undefined;
   }
 
-  private getPackageContaining(file: vscode.Uri): CatkinPackage {
+  public getPackageContaining(file: vscode.Uri): CatkinPackage {
     for (let pkg of this.packages) {
       if (pkg.containsFile(file)) {
         return pkg;

@@ -229,10 +229,10 @@ export class CatkinTestAdapter implements TestAdapter {
         }
 
         if (build_dir === undefined) {
-            build_dir = await this.catkin_workspace.getBuildDir();
+            build_dir = this.catkin_workspace.getBuildDir();
         }
         if (devel_dir === undefined) {
-            devel_dir = await this.catkin_workspace.getDevelDir();
+            devel_dir = this.catkin_workspace.getDevelDir();
         }
 
         try {
@@ -289,7 +289,7 @@ export class CatkinTestAdapter implements TestAdapter {
         if (result.reload_packages.length > 0) {
             for (let request of result.reload_packages) {
                 console.log(`Requested to reload ${request.test.info.id}`);
-                let change_suite = await this.reloadPackageIfChanged(request.test);
+                let change_suite = await this.reloadPackageIfChanged(request.test.package);
                 if (change_suite !== undefined) {
                     console.log(`Changed suite: ${change_suite.info.id}`);
                     result.repeat_ids.push(change_suite.info.id);
@@ -859,11 +859,11 @@ export class CatkinTestAdapter implements TestAdapter {
         return result;
     }
 
-    private async reloadPackageIfChanged(test: CatkinTestInterface): Promise<CatkinTestSuite | undefined> {
+    public async reloadPackageIfChanged(catkin_package: CatkinPackage): Promise<CatkinTestSuite | undefined> {
         // check if a test suite was changed
         // this can happen, if a test executable was not compiled before the run,
         // or if the user changes the test itself between runs
-        let [pkg_suite, old_suite] = await this.loadPackageTests(test.package, false, test.global_build_dir, test.global_devel_dir);
+        let [pkg_suite, old_suite] = await this.loadPackageTests(catkin_package, false);
         if (!this.isSuiteEquivalent(old_suite, pkg_suite)) {
             // update the list of tests
             this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });

@@ -25,6 +25,7 @@ export class CatkinPackage {
   public package_xml: any;
 
   public has_tests: boolean;
+  public tests_loaded: boolean;
 
   public path: string;
   public relative_path: fs.PathLike;
@@ -46,6 +47,7 @@ export class CatkinPackage {
     this.cmakelists_path = path.join(src_path, "CMakeLists.txt");
 
     this.has_tests = false;
+    this.tests_loaded = false;
   }
 
   public static async loadFromXML(package_xml_path: fs.PathLike, workspace: CatkinWorkspace) {
@@ -431,6 +433,11 @@ export class CatkinPackage {
         pkg_suite.info.children.push(test_exec.info);
       }
     }
+
+    if(!outline_only) {
+      this.tests_loaded = true;
+    }
+
     return pkg_suite;
   }
 }

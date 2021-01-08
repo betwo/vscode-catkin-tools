@@ -71,6 +71,30 @@ export async function activate(context: vscode.ExtensionContext) {
     workers.push(registerWorkspace(context, root));
   }
   await Promise.all(workers);
+
+  checkActiveEditor(vscode.window.activeTextEditor);
+  vscode.window.onDidChangeActiveTextEditor((editor) => {
+    checkActiveEditor(editor);
+  });
+}
+
+async function checkActiveEditor(editor: vscode.TextEditor) {
+  if (editor !== undefined) {
+    if (editor.document !== undefined) {
+      const workspace_folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
+      if (workspace_folder !== undefined) {
+        const catkin_workspace = catkin_tools_provider.getWorkspace(workspace_folder);
+        if (catkin_workspace !== undefined) {
+          const catkin_package = catkin_workspace.getPackageContaining(editor.document.uri);
+          if (catkin_package !== undefined) {
+            if (catkin_package.has_tests && !catkin_package.tests_loaded) {
+              await catkin_workspace.test_adapter.reloadPackageIfChanged(catkin_package);
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.WorkspaceFolder) {
@@ -102,6 +126,8 @@ async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.
           );
           test_explorer_api.exports.registerTestAdapter(workspace.test_adapter);
         }
+
+        checkActiveEditor(vscode.window.activeTextEditor);
       });
     } else {
       outputChannel.appendLine(`Reusing workspace ${workspace.getRootPath()} for folder ${root.uri.fsPath}`);
