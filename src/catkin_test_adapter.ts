@@ -950,7 +950,7 @@ export class CatkinTestAdapter implements TestAdapter {
         }
     }
 
-    private wrapArray<T>(value: T): T[] {
+    private wrapArray<T>(value: T | T[]): T[] {
         if (!Array.isArray(value)) {
             return [value];
         } else {
