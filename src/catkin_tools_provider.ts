@@ -8,7 +8,7 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
   name: string = 'catkin_tools';
   extensionId: string = 'b2.catkin_tools';
   private disposables: vscode.Disposable[] = [];
-  private workspaces = new Map<vscode.WorkspaceFolder, CatkinWorkspace>();
+  public workspaces = new Map<vscode.WorkspaceFolder, CatkinWorkspace>();
 
   constructor(public cppToolsApi: CppToolsApi) {
   }

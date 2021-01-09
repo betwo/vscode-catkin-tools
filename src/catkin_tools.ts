@@ -3,11 +3,10 @@ import * as vscode from 'vscode';
 
 import { CatkinWorkspace } from './catkin_workspace';
 import { runCatkinCommand } from './catkin_command';
-import { CatkinToolsProvider } from './catkin_tools_provider';
 import { CatkinPackageCompleterXml } from './package_xml_tools';
+import { CatkinToolsProvider } from './catkin_tools_provider';
 
-let catkin_workspaces = new Map<vscode.WorkspaceFolder, CatkinWorkspace>();
-let provider: CatkinToolsProvider = null;
+let provider: CatkinToolsProvider = undefined;
 
 export let status_bar_status =
   vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
@@ -28,6 +27,13 @@ status_bar_status.tooltip = 'Reload the compile_commands.json data bases';
 status_bar_status.show();
 
 // Public functions
+
+export function setProvider(p: CatkinToolsProvider) {
+  provider = p;
+}
+export function getProvider(): CatkinToolsProvider {
+  return provider;
+}
 
 export async function initialize(
   context: vscode.ExtensionContext, root: vscode.WorkspaceFolder, outputChannel: vscode.OutputChannel): Promise<CatkinWorkspace> {
@@ -52,8 +58,13 @@ export async function initialize(
 export async function reloadAllWorkspaces() {
   status_bar_status.text = status_bar_prefix + 'reloading';
 
-  const success = await provider.reloadAllWorkspaces();
-  if (success) {
+  let workers = [];
+  for (const [_, workspace] of provider.workspaces) {
+    workers.push(workspace.reload());
+  }
+  let reloaded_spaces: CatkinWorkspace[] = await Promise.all(workers);
+
+  if (reloaded_spaces.every(entry => entry !== undefined)) {
     status_bar_status.text = status_bar_prefix + 'reload complete';
   } else {
     status_bar_status.text = status_bar_prefix + 'reload failed';
@@ -71,7 +82,7 @@ export async function isCatkinWorkspace(folder: vscode.WorkspaceFolder) {
 
 export async function selectWorkspace(): Promise<CatkinWorkspace> {
   const workspace_list = [];
-  for (const [_, workspace] of catkin_workspaces) {
+  for (const [_, workspace] of provider.workspaces) {
     workspace_list.push(<vscode.QuickPickItem>{
       label: workspace.getName(),
       description: workspace.getRootPath()
@@ -84,7 +95,7 @@ export async function switchProfile() {
   let workspace: CatkinWorkspace;
   if (vscode.window.activeTextEditor) {
     let vscode_workspace = vscode.workspace.getWorkspaceFolder(vscode.window.activeTextEditor.document.uri);
-    workspace = catkin_workspaces.get(vscode_workspace);
+    workspace = provider.getWorkspace(vscode_workspace);
   }
 
   if (workspace === undefined) {

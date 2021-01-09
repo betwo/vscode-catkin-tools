@@ -14,22 +14,21 @@ let outputChannel: vscode.OutputChannel = null;
 
 let test_explorer_api: vscode.Extension<vscode_test.TestHub>;
 let cpp_tools_api: CppToolsApi;
-let catkin_tools_provider: CatkinToolsProvider;
 
 export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("catkin_tools");
 
   context.subscriptions.push(vscode.commands.registerCommand(
-    'extension.b2.catkin_tools.reload_compile_commands', () => {
-      catkin_tools.reloadAllWorkspaces();
+    'extension.b2.catkin_tools.reload_compile_commands', async () => {
+      return catkin_tools.reloadAllWorkspaces();
     }));
   context.subscriptions.push(vscode.commands.registerCommand(
-    'extension.b2.catkin_tools.reload_workspaces', () => {
-      catkin_tools.reloadAllWorkspaces();
+    'extension.b2.catkin_tools.reload_workspaces', async () => {
+      return catkin_tools.reloadAllWorkspaces();
     }));
   context.subscriptions.push(vscode.commands.registerCommand(
-    'extension.b2.catkin_tools.switch_profile', () => {
-      catkin_tools.switchProfile();
+    'extension.b2.catkin_tools.switch_profile', async () => {
+      return catkin_tools.switchProfile();
     }));
 
   taskProvider = vscode.tasks.registerTaskProvider('catkin_build', {
@@ -83,7 +82,7 @@ async function checkActiveEditor(editor: vscode.TextEditor) {
     if (editor.document !== undefined) {
       const workspace_folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
       if (workspace_folder !== undefined) {
-        const catkin_workspace = catkin_tools_provider.getWorkspace(workspace_folder);
+        const catkin_workspace = catkin_tools.getProvider().getWorkspace(workspace_folder);
         if (catkin_workspace !== undefined) {
           const catkin_package = catkin_workspace.getPackageContaining(editor.document.uri);
           if (catkin_package !== undefined) {
@@ -99,14 +98,14 @@ async function checkActiveEditor(editor: vscode.TextEditor) {
 
 async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.WorkspaceFolder) {
   if (await catkin_tools.isCatkinWorkspace(root)) {
-    if (catkin_tools_provider === undefined) {
+    if (catkin_tools.getProvider() === undefined) {
       // Inform cpptools that a custom config provider will be able to service
       // the current workspace.
-      catkin_tools_provider = new CatkinToolsProvider(cpp_tools_api);
-      cpp_tools_api.registerCustomConfigurationProvider(catkin_tools_provider);
+      catkin_tools.setProvider(new CatkinToolsProvider(cpp_tools_api));
+      cpp_tools_api.registerCustomConfigurationProvider(catkin_tools.getProvider());
     }
 
-    let workspace: CatkinWorkspace = catkin_tools_provider.getWorkspace(root);
+    let workspace: CatkinWorkspace = catkin_tools.getProvider().getWorkspace(root);
     // first try to get a cached instance of the workspace.
     // this might be triggered if the same workspace is opened in different folders
     if (workspace === undefined) {
@@ -114,9 +113,9 @@ async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.
       outputChannel.appendLine(`Adding new workspace ${root.uri.fsPath}`);
 
       workspace.onWorkspaceInitialized.event(async (initialized) => {
-        if (catkin_tools_provider) {
-          catkin_tools_provider.addWorkspace(root, workspace);
-          cpp_tools_api.notifyReady(catkin_tools_provider);
+        if (catkin_tools.getProvider()) {
+          catkin_tools.getProvider().addWorkspace(root, workspace);
+          cpp_tools_api.notifyReady(catkin_tools.getProvider());
         }
         if (test_explorer_api) {
           workspace.test_adapter = new CatkinTestAdapter(
@@ -138,13 +137,13 @@ async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.
 }
 
 async function unregisterWorkspace(context: vscode.ExtensionContext, root: vscode.WorkspaceFolder) {
-  let workspace = catkin_tools_provider.getWorkspace(root);
+  let workspace = catkin_tools.getProvider().getWorkspace(root);
   if (workspace !== undefined) {
     if (test_explorer_api) {
       test_explorer_api.exports.unregisterTestAdapter(workspace.test_adapter);
     }
-    if (catkin_tools_provider) {
-      catkin_tools_provider.removeWorkspace(root);
+    if (catkin_tools.getProvider()) {
+      catkin_tools.getProvider().removeWorkspace(root);
     }
 
     workspace.dispose();
