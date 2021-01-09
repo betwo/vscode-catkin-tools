@@ -6,12 +6,11 @@ import * as glob from 'fast-glob';
 import * as jsonfile from 'jsonfile';
 import { Signal } from 'signals';
 import * as vscode from 'vscode';
-import { CustomConfigurationProvider, SourceFileConfiguration } from 'vscode-cpptools';
+import { SourceFileConfiguration } from 'vscode-cpptools';
 import { CatkinPackage } from './catkin_package';
-import { runCatkinCommand, runCatkinCommandSync, ShellOutput } from './catkin_command';
+import { runCatkinCommand, ShellOutput } from './catkin_command';
 import { CatkinTestAdapter } from './catkin_test_adapter';
 import { status_bar_profile, status_bar_profile_prefix, reloadAllWorkspaces } from './catkin_tools';
-import { config } from 'process';
 
 export class CatkinWorkspace {
   public compile_commands: Map<string, JSON> = new Map<string, JSON>();
@@ -57,12 +56,12 @@ export class CatkinWorkspace {
   public async reload(): Promise<CatkinWorkspace> {
     return vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
-      title: `Loading catkin workspace '${this.getName()}'`,
+      title: `Loading catkin workspace '${await this.getName()}'`,
       cancellable: false
     }, async (progress, token) => {
       this.loadCatkinConfig();
 
-      this.output_channel.appendLine(`Reload ${this.getName()}`);
+      this.output_channel.appendLine(`Reload ${await this.getName()}`);
 
       progress.report({ increment: 0, message: "Clearing caches" });
 
@@ -121,7 +120,7 @@ export class CatkinWorkspace {
       this.is_initialized = true;
       progress.report({ increment: 100, message: "Finalizing" });
 
-      this.output_channel.appendLine(`Done loading folder ${this.getName()} / ${this.getRootPath()}`);
+      this.output_channel.appendLine(`Done loading folder ${await this.getName()} / ${await this.getRootPath()}`);
 
       this.onWorkspaceInitialized.fire(true);
 
@@ -169,13 +168,13 @@ export class CatkinWorkspace {
     let checked_pkgs = [];
     const owner_package = this.getPackageContaining(file);
     if (owner_package !== undefined) {
-      console.log(`Package ${owner_package.getRelativePath()} owns file ${file.toString()}.`);
+      console.log(`Package ${await owner_package.getRelativePath()} owns file ${file.toString()}.`);
       const stop = await owner_package.iteratePossibleSourceFiles(file, async_filter);
       if (stop) {
         return true;
       }
       checked_pkgs.push(owner_package.getName());
-      console.log(`Package ${owner_package.getRelativePath()} does not use file ${file.toString()}.`);
+      console.log(`Package ${await owner_package.getRelativePath()} does not use file ${file.toString()}.`);
 
       const found_match = await this.iterateDependentPackages(owner_package, async (dependent_package: CatkinPackage) => {
         if (checked_pkgs.findIndex(e => e === dependent_package.getName()) < 0) {
@@ -555,24 +554,25 @@ export class CatkinWorkspace {
 
   }
 
-  public getConfigEntry(key: string): string {
+  public async getConfigEntry(key: string): Promise<string> {
     if (this.catkin_config.size === 0) {
-      this.loadCatkinConfig();
+      await this.loadCatkinConfig();
     }
     return this.catkin_config.get(key);
   }
 
-  public getRootPath(): fs.PathLike {
+  public async getRootPath(): Promise<fs.PathLike> {
     return this.getConfigEntry('Workspace');
   }
 
-  public getName(): string {
-    let root_path = this.getRootPath();
+  public async getName(): Promise<string> {
+    let root_path = await this.getRootPath();
     return path.basename(root_path.toString());
   }
 
   public async getProfile(): Promise<[string, string[]]> {
-    let profile_base_path = path.join(this.getRootPath().toString(), ".catkin_tools/profiles");
+    const root_path = await this.getRootPath();
+    let profile_base_path = path.join(root_path.toString(), ".catkin_tools/profiles");
 
     let profiles_path = path.join(profile_base_path, "profiles.yaml");
     if (!fs.existsSync(profiles_path)) {
@@ -597,7 +597,8 @@ export class CatkinWorkspace {
   }
 
   public async switchProfile(profile) {
-    runCatkinCommand(['profile', 'set', profile], this.getRootPath());
+    const root_path = await this.getRootPath();
+    runCatkinCommand(['profile', 'set', profile], root_path);
     await this.checkProfile();
   }
 
@@ -622,8 +623,8 @@ export class CatkinWorkspace {
     await this.reload();
   }
 
-  private loadCatkinConfig() {
-    const output = runCatkinCommandSync(['config'], this.associated_workspace_for_tasks.uri.fsPath);
+  private async loadCatkinConfig() {
+    const output = await runCatkinCommand(['config'], this.associated_workspace_for_tasks.uri.fsPath);
 
     this.catkin_config.clear();
     for (const line of output.stdout.split("\n")) {
@@ -638,7 +639,7 @@ export class CatkinWorkspace {
   public async getSrcDir(): Promise<string> {
     await this.checkProfile();
     if (this.catkin_src_dir === null) {
-      const output: ShellOutput = runCatkinCommandSync(['locate', '-s'], this.getRootPath());
+      const output: ShellOutput = await runCatkinCommand(['locate', '-s'], await this.getRootPath());
       this.catkin_src_dir = output.stdout.split('\n')[0];
     }
     return this.catkin_src_dir;
@@ -646,7 +647,7 @@ export class CatkinWorkspace {
   public async getBuildDir(): Promise<string> {
     await this.checkProfile();
     if (this.catkin_build_dir === null) {
-      const output: ShellOutput = runCatkinCommandSync(['locate', '-b'], this.getRootPath());
+      const output: ShellOutput = await runCatkinCommand(['locate', '-b'], await this.getRootPath());
       this.catkin_build_dir = output.stdout.split('\n')[0];
       if (this.catkin_build_dir.endsWith("/")) {
         this.catkin_build_dir = this.catkin_build_dir.slice(0, -1);
@@ -657,7 +658,7 @@ export class CatkinWorkspace {
   public async getDevelDir(): Promise<string> {
     await this.checkProfile();
     if (this.catkin_devel_dir === null) {
-      const output: ShellOutput = runCatkinCommandSync(['locate', '-d'], this.getRootPath());
+      const output: ShellOutput = await runCatkinCommand(['locate', '-d'], await this.getRootPath());
       this.catkin_devel_dir = output.stdout.split('\n')[0];
       if (this.catkin_devel_dir.endsWith("/")) {
         this.catkin_devel_dir = this.catkin_devel_dir.slice(0, -1);
@@ -668,7 +669,7 @@ export class CatkinWorkspace {
   public async getInstallDir(): Promise<string> {
     await this.checkProfile();
     if (this.catkin_install_dir === null) {
-      const output: ShellOutput = runCatkinCommandSync(['locate', '-i'], this.getRootPath());
+      const output: ShellOutput = await runCatkinCommand(['locate', '-i'], await this.getRootPath());
       this.catkin_install_dir = output.stdout.split('\n')[0];
       if (this.catkin_install_dir.endsWith("/")) {
         this.catkin_install_dir = this.catkin_install_dir.slice(0, -1);
@@ -725,14 +726,14 @@ export class CatkinWorkspace {
 
   private async enableCompileCommandsGeneration() {
     const cmake_opts = await this.getConfigEntry("Additional CMake Args");
-    runCatkinCommand(['config', '--cmake-args', `${cmake_opts} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`], this.getRootPath());
+    runCatkinCommand(['config', '--cmake-args', `${cmake_opts} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`], await this.getRootPath());
     this.loadCatkinConfig();
   }
 
   public async makeCommand(payload: string) {
     const setup_shell = await this.getSetupShell();
     let command = `source ${setup_shell} > /dev/null 2>&1;`;
-    command += `pushd . > /dev/null; cd "${this.getRootPath()}";`;
+    command += `pushd . > /dev/null; cd "${await this.getRootPath()}";`;
     command += `${payload}`;
     if (!payload.endsWith(";")) {
       command += "; ";

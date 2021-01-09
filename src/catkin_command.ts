@@ -21,15 +21,6 @@ export async function runCatkinCommand(args: string[], cwd: fs.PathLike): Promis
     }
 }
 
-export function runCatkinCommandSync(args: string[], cwd: fs.PathLike): ShellOutput {
-    try {
-        return runCommandSync("catkin", args, [], cwd);
-    } catch (error) {
-        console.error(error);
-        throw error;
-    }
-}
-
 export function runShellCommand(command: string, cwd: fs.PathLike, callback?: (process: child_process.ChildProcess) => any): Thenable<ShellOutput> {
     let options: child_process.ExecOptions = {
         cwd: cwd.toString(),
@@ -90,32 +81,4 @@ export function runCommand(
             callback(process);
         }
     });
-}
-
-
-export function runCommandSync(
-    command: string,
-    args: string[],
-    environment: [string, string][],
-    cwd: fs.PathLike,
-    callback?: (process: child_process.ChildProcess) => any)
-    : ShellOutput {
-    let environment_kv = {};
-    for (let v of environment) {
-        environment_kv[v['name']] = v['value'];
-    }
-    let options: child_process.ExecOptions = {
-        cwd: cwd.toString(),
-        maxBuffer: 1024 * 1024,
-        env: environment.length === 0 ? process.env : environment_kv
-    };
-    let full_command = `${command} ${args.join(" ")}`;
-    console.log(`Running sync command ${full_command}`);
-    let result = child_process.spawnSync(command, args, options);
-    return {
-        stdout: result.stdout.toString(),
-        stderr: result.stderr.toString(),
-        command: full_command,
-        error: result.error,
-    };
 }

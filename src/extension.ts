@@ -112,7 +112,7 @@ async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.
       workspace = await catkin_tools.initialize(context, root, outputChannel);
       outputChannel.appendLine(`Adding new workspace ${root.uri.fsPath}`);
 
-      workspace.onWorkspaceInitialized.event(async (initialized) => {
+      workspace.onWorkspaceInitialized.event((initialized) => {
         if (catkin_tools.getProvider()) {
           catkin_tools.getProvider().addWorkspace(root, workspace);
           cpp_tools_api.notifyReady(catkin_tools.getProvider());
@@ -128,8 +128,10 @@ async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.
 
         checkActiveEditor(vscode.window.activeTextEditor);
       });
+      await workspace.checkProfile();
+
     } else {
-      outputChannel.appendLine(`Reusing workspace ${workspace.getRootPath()} for folder ${root.uri.fsPath}`);
+      outputChannel.appendLine(`Reusing workspace ${await workspace.getRootPath()} for folder ${root.uri.fsPath}`);
     }
   } else {
     outputChannel.appendLine(`Folder ${root.uri.fsPath} is not a catkin workspace.`);

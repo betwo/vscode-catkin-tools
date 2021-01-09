@@ -39,7 +39,13 @@ export class CatkinPackage {
     public package_xml_path: fs.PathLike,
     public workspace: CatkinWorkspace) {
 
-    this.package_xml = xml.parse(fs.readFileSync(package_xml_path).toString(),
+    this.has_tests = false;
+    this.tests_loaded = false;
+  }
+
+  private async loadPackageXml() {
+    const raw_content = await fs.promises.readFile(this.package_xml_path);
+    this.package_xml = xml.parse(raw_content.toString(),
       {
         parseAttributeValue: true,
         ignoreAttributes: false
@@ -47,7 +53,7 @@ export class CatkinPackage {
     );
     if (this.package_xml === undefined || this.package_xml === "" ||
       !('package' in this.package_xml)) {
-      throw Error(`Invalid package xml file: ${package_xml_path}`);
+      throw Error(`Invalid package xml file: ${this.package_xml_path}`);
     }
     const pkg = this.package_xml.package;
     let dependencies = new Set<string>();
@@ -83,16 +89,16 @@ export class CatkinPackage {
     this.dependencies = Array.from(dependencies);
     this.dependees = [];
 
-    let src_path = path.dirname(package_xml_path.toString());
+    let src_path = path.dirname(this.package_xml_path.toString());
 
     this.cmakelists_path = path.join(src_path, "CMakeLists.txt");
 
-    this.has_tests = false;
-    this.tests_loaded = false;
+    return true;
   }
 
   public static async loadFromXML(package_xml_path: fs.PathLike, workspace: CatkinWorkspace) {
     let instance = new CatkinPackage(package_xml_path, workspace);
+    let package_xml_loaded = await instance.loadPackageXml();
     instance.has_tests = await skimCmakeListsForTests(instance);
     return instance;
   }
@@ -110,17 +116,18 @@ export class CatkinPackage {
   }
 
 
-  public getRelativePath(): fs.PathLike {
+  public async getRelativePath(): Promise<fs.PathLike> {
     if (this.relative_path === undefined) {
       let src_path = path.dirname(this.package_xml_path.toString());
-      let prefix = this.workspace.getRootPath();
+      let prefix = await this.workspace.getRootPath();
       this.relative_path = src_path.replace(prefix + '/', "");
     }
     return this.relative_path;
   }
 
   public async getWorkspacePath(src_dir: string = undefined): Promise<string[]> {
-    let parts = this.getRelativePath().toString().split(path.sep);
+    const relative_path = await this.getRelativePath();
+    let parts = relative_path.toString().split(path.sep);
     const src = src_dir !== undefined ? src_dir : await this.workspace.getSrcDir();
     if (parts[0] === path.basename(src)) {
       return parts.slice(1);
@@ -153,7 +160,7 @@ export class CatkinPackage {
       return false;
     }
     const include_relpath = header_file.fsPath.substr(include_start_pos + include_prefix.length);
-    let sources = glob.sync(
+    let sources = await glob.async(
       [`${this.getAbsolutePath()}/**/*.(c|cc|cpp|cxx)`]
     );
     for (let source of sources) {

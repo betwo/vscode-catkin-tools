@@ -89,7 +89,7 @@ export class CatkinTestAdapter implements TestAdapter {
         let build_dir_request = this.catkin_workspace.getBuildDir();
         let devel_dir_request = this.catkin_workspace.getDevelDir();
 
-        return await  vscode.window.withProgress({
+        return await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Loading catkin test suites",
             cancellable: false
@@ -141,7 +141,10 @@ export class CatkinTestAdapter implements TestAdapter {
     }
     public async updateSuiteSet() {
         let test_tree = <TestSuiteInfo>{
-            id: "all_tests", label: this.catkin_workspace.getName(), type: 'suite', children: []
+            id: "all_tests",
+            label: await this.catkin_workspace.getName(),
+            type: 'suite',
+            children: []
         };
         const src_dir = await this.catkin_workspace.getSrcDir();
         for (const [key, value] of this.suites) {
@@ -994,6 +997,9 @@ export class CatkinTestAdapter implements TestAdapter {
     }
 
     private isSuiteEquivalent(a: CatkinTestSuite, b: CatkinTestSuite): boolean {
+        if (a === undefined || b === undefined) {
+            return false;
+        }
         if (a.executables === null && b.executables === null) {
             return true;
         } else if (a.executables === null || b.executables === null) {
@@ -1095,7 +1101,7 @@ export class CatkinTestAdapter implements TestAdapter {
         let environment = [];
         let env_command = await this.catkin_workspace.makeCommand(`env`);
         try {
-            let env_output = await runShellCommand(env_command, this.catkin_workspace.getRootPath());
+            let env_output = await runShellCommand(env_command, await this.catkin_workspace.getRootPath());
             environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
                 let [name, value] = env_entry.split("=");
                 return {

@@ -133,7 +133,7 @@ export async function skimCmakeListsForTests(catkin_package: CatkinPackage): Pro
     );
     for (let cmake_file of cmake_files) {
         let target_iterator = iterateTestTargets(cmake_file.toString());
-        let target = target_iterator.next();
+        let target = await target_iterator.next();
         while (!target.done) {
             target_iterator.return();
             return true;
@@ -147,14 +147,14 @@ export async function parsePackageForTests(catkin_package: CatkinPackage): Promi
     return await queryCMakeFileApiCodeModel(catkin_package);
 }
 
-function* iterateTestTargets(cmake_file: fs.PathLike) {
+async function* iterateTestTargets(cmake_file: fs.PathLike) {
     let config = vscode.workspace.getConfiguration('catkin_tools');
     let test_regexes: RegExp[] = [];
     for (let expr of config['gtestMacroRegex']) {
         test_regexes.push(new RegExp(`.*(${expr})`));
     }
 
-    let data = fs.readFileSync(cmake_file.toString());
+    let data = await fs.promises.readFile(cmake_file.toString());
     let cmake = data.toString();
     for (let test_regex of test_regexes) {
         for (let row of cmake.split('\n')) {

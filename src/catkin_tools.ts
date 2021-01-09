@@ -51,7 +51,6 @@ export async function initialize(
     { pattern: '**/package.xml' },
     new CatkinPackageCompleterXml(catkin_workspace));
   context.subscriptions.push(package_xml_provider);
-  catkin_workspace.checkProfile();
   return catkin_workspace;
 }
 
@@ -84,8 +83,8 @@ export async function selectWorkspace(): Promise<CatkinWorkspace> {
   const workspace_list = [];
   for (const [_, workspace] of provider.workspaces) {
     workspace_list.push(<vscode.QuickPickItem>{
-      label: workspace.getName(),
-      description: workspace.getRootPath()
+      label: await workspace.getName(),
+      description: await workspace.getRootPath()
     });
   }
   return await vscode.window.showQuickPick(workspace_list);
