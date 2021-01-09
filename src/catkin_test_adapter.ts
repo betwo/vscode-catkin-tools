@@ -19,6 +19,7 @@ import { CatkinWorkspace } from './catkin_workspace';
 import { runShellCommand, runCommand } from './catkin_command';
 import { CatkinTestInterface, CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
 import { CatkinTestParameters, CatkinTestRunResult, CatkinTestRunResultKind } from './catkin_test_parameters';
+import { wrapArray } from './utils';
 import * as gtest_problem_matcher from './gtest_problem_matcher';
 import * as compiler_problem_matcher from './compiler_problem_matcher';
 import * as xml from 'fast-xml-parser';
@@ -88,7 +89,7 @@ export class CatkinTestAdapter implements TestAdapter {
         let build_dir_request = this.catkin_workspace.getBuildDir();
         let devel_dir_request = this.catkin_workspace.getDevelDir();
 
-        return vscode.window.withProgress({
+        return await  vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Loading catkin test suites",
             cancellable: false
@@ -96,7 +97,7 @@ export class CatkinTestAdapter implements TestAdapter {
             progress.report({ increment: 0, message: "Searching tests" });
             try {
                 let packages_with_tests = 0;
-                for (let catkin_package of this.catkin_workspace.packages) {
+                for (let [_, catkin_package] of this.catkin_workspace.packages) {
                     if (catkin_package.has_tests) {
                         packages_with_tests++;
                     }
@@ -107,7 +108,7 @@ export class CatkinTestAdapter implements TestAdapter {
                 let build_dir = await build_dir_request;
                 let devel_dir = await devel_dir_request;
 
-                for (let catkin_package of this.catkin_workspace.packages) {
+                for (let [_, catkin_package] of this.catkin_workspace.packages) {
                     if (!catkin_package.has_tests) {
                         continue;
                     }
@@ -229,10 +230,10 @@ export class CatkinTestAdapter implements TestAdapter {
         }
 
         if (build_dir === undefined) {
-            build_dir = this.catkin_workspace.getBuildDir();
+            build_dir = await this.catkin_workspace.getBuildDir();
         }
         if (devel_dir === undefined) {
-            devel_dir = this.catkin_workspace.getDevelDir();
+            devel_dir = await this.catkin_workspace.getDevelDir();
         }
 
         try {
@@ -795,7 +796,8 @@ export class CatkinTestAdapter implements TestAdapter {
                 ignoreAttributes: false,
                 attrNodeName: "attr"
             };
-            dom = xml.parse(fs.readFileSync(output_file).toString(), options);
+            const content_raw = await fs.promises.readFile(output_file);
+            dom = xml.parse(content_raw.toString(), options);
 
             // send the result for all matching ids
             tests.forEach((test) => {
@@ -936,14 +938,6 @@ export class CatkinTestAdapter implements TestAdapter {
         }
     }
 
-    private wrapArray<T>(value: T | T[]): T[] {
-        if (!Array.isArray(value)) {
-            return [value];
-        } else {
-            return value;
-        }
-    }
-
     private sendGtestResultForTest(test: CatkinTestInterface, dom, message: string) {
         let result: TestEvent = {
             type: 'test',
@@ -966,13 +960,13 @@ export class CatkinTestAdapter implements TestAdapter {
 
         } else {
             // this is one single test case
-            let node_suites = this.wrapArray(dom['testsuites']['testsuite']);
+            let node_suites = wrapArray(dom['testsuites']['testsuite']);
             let test_fixture = test.filter === undefined ? '*' : test.filter.substr(0, test.filter.lastIndexOf('.'));
             let test_case_id = test.filter === undefined ? null : test.filter.substr(test.filter.lastIndexOf('.') + 1);
             for (let node of node_suites) {
                 if (node.attr['@_name'] === test_fixture) {
                     if (test_case_id !== null) {
-                        let testcases = this.wrapArray(node['testcase']);
+                        let testcases = wrapArray(node['testcase']);
                         for (let test_case of testcases) {
                             if (test_case.attr['@_name'] === test_case_id) {
                                 let failure = test_case['failure'];

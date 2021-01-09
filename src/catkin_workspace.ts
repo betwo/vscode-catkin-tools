@@ -28,7 +28,7 @@ export class CatkinWorkspace {
   private is_initialized = false;
 
   private catkin_profile: string = null;
-  private catkin_config: Map<string, string> = new Map<string, string>();
+  private catkin_config = new Map<string, string>();
   private catkin_src_dir: string = null;
   private catkin_build_dir: string = null;
   private catkin_devel_dir: string = null;
@@ -37,7 +37,7 @@ export class CatkinWorkspace {
   public build_commands_changed: Signal = new Signal();
   public system_paths_changed: Signal = new Signal();
 
-  public packages: CatkinPackage[] = [];
+  public packages = new Map<string, CatkinPackage>();
 
   public test_adapter: CatkinTestAdapter = null;
 
@@ -76,7 +76,7 @@ export class CatkinWorkspace {
       this.system_include_browse_paths = [];
       this.default_system_include_paths = [];
 
-      this.packages = [];
+      this.packages.clear();
 
       this.build_commands_changed.dispatch();
 
@@ -109,14 +109,14 @@ export class CatkinWorkspace {
           });
         }
         try {
-          console.log(`Loading package ${package_xml.fsPath}`);
           await this.loadPackage(package_xml.fsPath);
-          console.log(`/ Loading package ${package_xml.fsPath}`);
 
         } catch (error) {
           vscode.window.showErrorMessage(`Cannot load package: ${package_xml.fsPath} failed with ${error}`);
         }
       }
+      progress.report({ increment: 1, message: "Building depency graph" });
+      await this.buildDependencyGraph();
 
       this.is_initialized = true;
       progress.report({ increment: 100, message: "Finalizing" });
@@ -131,10 +131,8 @@ export class CatkinWorkspace {
 
   public async loadPackage(package_xml: fs.PathLike) {
     try {
-      console.log(`Loading package from xml ${package_xml}`);
       let catkin_package = await CatkinPackage.loadFromXML(package_xml, this);
-      console.log(`/ Loading package from xml ${package_xml}`);
-      this.packages.push(catkin_package);
+      this.packages.set(catkin_package.getName(), catkin_package);
       return catkin_package;
     } catch (err) {
       console.error(`Error parsing package ${package_xml}: ${err}`);
@@ -153,80 +151,84 @@ export class CatkinWorkspace {
     return null;
   }
 
-  public async iteratePossibleSourceFiles(file: vscode.Uri, filter: (uri: vscode.Uri) => boolean): Promise<boolean> {
+  public async buildDependencyGraph() {
+    for (const [_, catkin_package] of this.packages) {
+      for (const depency of catkin_package.dependencies) {
+        let pkg = this.getPackage(depency);
+        if (pkg !== undefined) {
+          pkg.dependees.push(catkin_package.getName());
+        }
+      }
+    }
+  }
+
+  public async iteratePossibleSourceFiles(
+    progress: vscode.Progress<{ message?: string; increment?: number }>,
+    file: vscode.Uri,
+    async_filter: (uri: vscode.Uri) => Promise<boolean>
+  ): Promise<boolean> {
     let checked_pkgs = [];
     const owner_package = this.getPackageContaining(file);
     if (owner_package !== undefined) {
       console.log(`Package ${owner_package.getRelativePath()} owns file ${file.toString()}.`);
-      const stop = await owner_package.iteratePossibleSourceFiles(file, filter);
+      const stop = await owner_package.iteratePossibleSourceFiles(file, async_filter);
       if (stop) {
         return true;
       }
       checked_pkgs.push(owner_package.getName());
       console.log(`Package ${owner_package.getRelativePath()} does not use file ${file.toString()}.`);
 
-      const dependent_packages = await this.getDependentPackages(owner_package);
-
-      const found_dependent_package = await vscode.window.withProgress({
-        location: vscode.ProgressLocation.Notification,
-        title: `Searching dependent packages for usages of file ${file.toString()}.`,
-        cancellable: false
-      }, async (progress, token) => {
-        progress.report({ increment: 1, message: "Searching packages" });
-        console.log(`Searching dependent packages for usages of file ${file.toString()}.`);
-        for (const dependent_package of dependent_packages) {
-          if (checked_pkgs.findIndex(e => e === dependent_package.getName()) < 0) {
-            const stop = await dependent_package.iteratePossibleSourceFiles(file, filter);
-            if (stop) {
-              return true;
-            }
-            checked_pkgs.push(dependent_package.getName());
+      const found_match = await this.iterateDependentPackages(progress, owner_package, async (dependent_package: CatkinPackage) => {
+        if (checked_pkgs.findIndex(e => e === dependent_package.getName()) < 0) {
+          const stop = await dependent_package.iteratePossibleSourceFiles(file, async_filter);
+          if (stop) {
+            return true;
           }
+          checked_pkgs.push(dependent_package.getName());
         }
 
         console.log(`No usage of ${file.toString()} found.`);
         return false;
       });
-
-      if (found_dependent_package) {
+      if(found_match) {
         return true;
       }
     }
+    console.log(`No dependee of ${file.fsPath.toString()} uses the file.`);
+    return false;
+  }
 
-    return vscode.window.withProgress({
-      location: vscode.ProgressLocation.Notification,
-      title: `Searching workspace for usages of file ${file.toString()}.`,
-      cancellable: false
-    }, async (progress, token) => {
-      progress.report({ increment: 1, message: "Searching packages" });
-      console.log(`Searching whole workspace for usages of file ${file.toString()}.`);
+  public async iterateDependentPackages(
+    progress: vscode.Progress<{ message?: string; increment?: number }>,
+    catkin_package: CatkinPackage,
+    async_filter: (catkin_package: CatkinPackage) => Promise<boolean>
+  ): Promise<boolean> {
+    let checked_pkgs = new Set<string>();
+    let unchecked_pkgs = [];
+    for (const dep_name of catkin_package.dependees) {
+      unchecked_pkgs.push(dep_name);
+    }
 
-      for (const remaining_package of this.packages) {
-        if (checked_pkgs.findIndex(e => e === remaining_package.getName()) < 0) {
-          const stop = await remaining_package.iteratePossibleSourceFiles(file, filter);
+    while (unchecked_pkgs.length > 0) {
+      let dep_name = unchecked_pkgs[0];
+      unchecked_pkgs = unchecked_pkgs.slice(1);
+      if (!checked_pkgs.has(dep_name)) {
+        // do the check
+        checked_pkgs.add(dep_name);
+        const dependency = this.getPackage(dep_name);
+        if (dependency !== undefined) {
+          console.log(`Checking ${dependency.name}`);
+          let stop = await async_filter(dependency);
           if (stop) {
             return true;
           }
-          checked_pkgs.push(remaining_package.getName());
+          for (const dep_name of dependency.dependees) {
+            unchecked_pkgs.push(dep_name);
+          }
         }
       }
-
-      console.log(`No usage of ${file.toString()} found.`);
-      return false;
-    });
-  }
-
-  public async getDependentPackages(catkin_package: CatkinPackage): Promise<CatkinPackage[]> {
-    const output = await runCatkinCommand([
-      "list",
-      "--rdepends-on", catkin_package.getName(),
-      "--unformatted", "--quiet"
-    ], this.getRootPath());
-    let result = [];
-    for (const line of output.stdout.split("\n")) {
-      result.push(this.getPackage(line));
     }
-    return result;
+    return false;
   }
 
   public getSourceFileConfiguration(commands): SourceFileConfiguration {
@@ -322,16 +324,11 @@ export class CatkinWorkspace {
   }
 
   private getPackage(name: string): CatkinPackage {
-    for (let pkg of this.packages) {
-      if (pkg.name === name) {
-        return pkg;
-      }
-    }
-    return undefined;
+    return this.packages.get(name);
   }
 
   public getPackageContaining(file: vscode.Uri): CatkinPackage {
-    for (let pkg of this.packages) {
+    for (let [_, pkg] of this.packages) {
       if (pkg.containsFile(file)) {
         return pkg;
       }
@@ -576,7 +573,7 @@ export class CatkinWorkspace {
     return path.basename(root_path.toString());
   }
 
-  public getProfile(): [string, string[]] {
+  public async getProfile(): Promise<[string, string[]]> {
     let profile_base_path = path.join(this.getRootPath().toString(), ".catkin_tools/profiles");
 
     let profiles_path = path.join(profile_base_path, "profiles.yaml");
@@ -586,10 +583,11 @@ export class CatkinWorkspace {
       return ['default', []];
     }
 
-    const configs = glob.sync([profile_base_path + '/**/config.yaml']);
+    const configs = await glob.async([profile_base_path + '/**/config.yaml']);
     const profiles = configs.map((yaml) => path.basename(path.dirname(yaml.toString())));
 
-    let content = fs.readFileSync(profiles_path).toString();
+    const content_raw = await fs.promises.readFile(profiles_path);
+    const content = content_raw.toString();
     for (let row of content.split('\n')) {
       let active = row.match(RegExp('active:\s*(.*)'));
       if (active) {
@@ -602,15 +600,14 @@ export class CatkinWorkspace {
 
   public async switchProfile(profile) {
     runCatkinCommand(['profile', 'set', profile], this.getRootPath());
-    this.checkProfile();
+    await this.checkProfile();
   }
 
 
-  public checkProfile() {
-    let [profile, _] = this.getProfile();
-    let workers = [];
+  public async checkProfile() {
+    let [profile, _] = await this.getProfile();
     if (this.catkin_profile !== profile) {
-      this.updateProfile(profile);
+      await this.updateProfile(profile);
     }
   }
 
@@ -640,16 +637,16 @@ export class CatkinWorkspace {
     }
   }
 
-  public getSrcDir(): string {
-    this.checkProfile();
+  public async getSrcDir(): Promise<string> {
+    await this.checkProfile();
     if (this.catkin_src_dir === null) {
       const output: ShellOutput = runCatkinCommandSync(['locate', '-s'], this.getRootPath());
       this.catkin_src_dir = output.stdout.split('\n')[0];
     }
     return this.catkin_src_dir;
   }
-  public getBuildDir(): string {
-    this.checkProfile();
+  public async getBuildDir(): Promise<string> {
+    await this.checkProfile();
     if (this.catkin_build_dir === null) {
       const output: ShellOutput = runCatkinCommandSync(['locate', '-b'], this.getRootPath());
       this.catkin_build_dir = output.stdout.split('\n')[0];
@@ -659,8 +656,8 @@ export class CatkinWorkspace {
     }
     return this.catkin_build_dir;
   }
-  public getDevelDir(): string {
-    this.checkProfile();
+  public async getDevelDir(): Promise<string> {
+    await this.checkProfile();
     if (this.catkin_devel_dir === null) {
       const output: ShellOutput = runCatkinCommandSync(['locate', '-d'], this.getRootPath());
       this.catkin_devel_dir = output.stdout.split('\n')[0];
@@ -670,8 +667,8 @@ export class CatkinWorkspace {
     }
     return this.catkin_devel_dir;
   }
-  public getInstallDir(): string {
-    this.checkProfile();
+  public async getInstallDir(): Promise<string> {
+    await this.checkProfile();
     if (this.catkin_install_dir === null) {
       const output: ShellOutput = runCatkinCommandSync(['locate', '-i'], this.getRootPath());
       this.catkin_install_dir = output.stdout.split('\n')[0];
@@ -682,14 +679,14 @@ export class CatkinWorkspace {
     return this.catkin_install_dir;
   }
 
-  public getSetupShell(): string {
+  public async getSetupShell(): Promise<string> {
     const config = vscode.workspace.getConfiguration('catkin_tools');
-    const install_dir = this.getInstallDir();
+    const install_dir = await this.getInstallDir();
     let setup = install_dir + `/setup.${config['shell']}`;
     if (fs.existsSync(setup)) {
       return setup;
     }
-    const devel_dir = this.getDevelDir();
+    const devel_dir = await this.getDevelDir();
     return devel_dir + `/setup.${config['shell']}`;
   }
 

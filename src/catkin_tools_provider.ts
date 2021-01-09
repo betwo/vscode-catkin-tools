@@ -83,23 +83,38 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
           catkin_workspace.file_to_compile_commands.get(file.fsPath) + ')';
 
       } else {
-        const found = await catkin_workspace.iteratePossibleSourceFiles(file, (possible_source_file) => {
-          let commands = catkin_workspace.file_to_command.get(possible_source_file.fsPath.toString());
-          if (commands !== undefined) {
-            ret.push({
-              uri: file,
-              configuration: catkin_workspace.getSourceFileConfiguration(commands)
+        status_bar_status.text = status_bar_prefix + ' (resolving header file...)';
+        await vscode.window.withProgress({
+          location: vscode.ProgressLocation.Notification,
+          title: `Searching workspace for usages of file ${file.fsPath.toString()}.`,
+          cancellable: false
+        }, async (progress, _) => {
+          try {
+            const found = await catkin_workspace.iteratePossibleSourceFiles(progress, file, async (possible_source_file) => {
+              if (token.isCancellationRequested) {
+                return true;
+              }
+              let commands = catkin_workspace.file_to_command.get(possible_source_file.fsPath.toString());
+              if (commands !== undefined) {
+                ret.push({
+                  uri: file,
+                  configuration: catkin_workspace.getSourceFileConfiguration(commands)
+                });
+                status_bar_status.text = status_bar_prefix + ' (header resolution via ' +
+                  catkin_workspace.file_to_compile_commands.get(possible_source_file.fsPath) + ')';
+                return true;
+              } else {
+                return false;
+              }
             });
-            status_bar_status.text = status_bar_prefix + ' (header resolution via ' +
-              catkin_workspace.file_to_compile_commands.get(possible_source_file.fsPath) + ')';
-            return true;
-          } else {
-            return false;
+            if (!found) {
+              status_bar_status.text = status_bar_prefix + ' (no usage of header file  found.';
+            }
+          } catch (error) {
+            console.log(error);
+            status_bar_status.text = status_bar_prefix + ' (error during configuration search...)';
           }
         });
-        if(!found) {
-          status_bar_status.text = status_bar_prefix + ' (no configuration found...)';
-        }
       }
     }
     return ret;

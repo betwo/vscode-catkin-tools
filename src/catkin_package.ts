@@ -9,6 +9,7 @@ import { runShellCommand, runCommand } from './catkin_command';
 import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
 import { CatkinWorkspace } from './catkin_workspace';
 import { GTestSuite, parsePackageForTests, skimCmakeListsForTests } from './catkin_cmake_parser';
+import { wrapArray } from './utils';
 
 export type TestType = "unknown" | "gtest" | "generic" | "suite";
 
@@ -22,6 +23,8 @@ export class CatkinPackage {
   public build_space?: fs.PathLike;
 
   public name: string;
+  public dependencies: string[];
+  public dependees: string[];
   public package_xml: any;
 
   public has_tests: boolean;
@@ -36,14 +39,52 @@ export class CatkinPackage {
     public package_xml_path: fs.PathLike,
     public workspace: CatkinWorkspace) {
 
-    this.package_xml = xml.parse(fs.readFileSync(package_xml_path).toString());
+    this.package_xml = xml.parse(fs.readFileSync(package_xml_path).toString(),
+      {
+        parseAttributeValue: true,
+        ignoreAttributes: false
+      }
+    );
     if (this.package_xml === undefined || this.package_xml === "" ||
       !('package' in this.package_xml)) {
       throw Error(`Invalid package xml file: ${package_xml_path}`);
     }
-    this.name = this.package_xml['package']['name'];
+    const pkg = this.package_xml.package;
+    let dependencies = new Set<string>();
+    this.name = pkg.name;
+    if (pkg['@_format'] === 2) {
+      if (pkg.depend !== undefined) {
+        for (const dep of wrapArray(pkg.depend)) {
+          dependencies.add(dep);
+        }
+      }
+      if (pkg.build_depend !== undefined) {
+        for (const dep of wrapArray(pkg.build_depend)) {
+          dependencies.add(dep);
+        }
+      }
+      if (pkg.exec_depend !== undefined) {
+        for (const dep of wrapArray(pkg.exec_depend)) {
+          dependencies.add(dep);
+        }
+      }
+    } else {
+      if (pkg.build_depend !== undefined) {
+        for (const dep of wrapArray(pkg.build_depend)) {
+          dependencies.add(dep);
+        }
+      }
+      if (pkg.run_depend !== undefined) {
+        for (const dep of wrapArray(pkg.run_depend)) {
+          dependencies.add(dep);
+        }
+      }
+    }
+    this.dependencies = Array.from(dependencies);
+    this.dependees = [];
 
     let src_path = path.dirname(package_xml_path.toString());
+
     this.cmakelists_path = path.join(src_path, "CMakeLists.txt");
 
     this.has_tests = false;
@@ -89,7 +130,8 @@ export class CatkinPackage {
 
   public static async getNameFromPackageXML(package_xml_path: fs.PathLike): Promise<string> {
     try {
-      let package_xml = xml.parse(fs.readFileSync(package_xml_path).toString());
+      const content_raw = await fs.promises.readFile(package_xml_path);
+      let package_xml = xml.parse(content_raw.toString());
       return package_xml['package']['name'];
     } catch (err) {
       return null;
@@ -103,7 +145,7 @@ export class CatkinPackage {
     return false;
   }
 
-  public async iteratePossibleSourceFiles(header_file: vscode.Uri, filter: (uri: vscode.Uri) => boolean): Promise<boolean> {
+  public async iteratePossibleSourceFiles(header_file: vscode.Uri, async_filter: (uri: vscode.Uri) => Promise<boolean>): Promise<boolean> {
     const include_prefix = "/include/";
     const include_start_pos = header_file.fsPath.lastIndexOf(include_prefix);
     if (include_start_pos < 0) {
@@ -115,11 +157,12 @@ export class CatkinPackage {
       [`${this.getAbsolutePath()}/**/*.(c|cc|cpp|cxx)`]
     );
     for (let source of sources) {
-      const code = fs.readFileSync(source.toString()).toString().split("\n");
+      const code_raw = await fs.promises.readFile(source.toString());
+      const code = code_raw.toString().split("\n");
       for (let line of code) {
         if (line.indexOf("#") >= 0 && line.indexOf("include") > 0) {
           if (line.indexOf(include_relpath) > 0) {
-            if (filter(vscode.Uri.file(source.toString()))) {
+            if (await async_filter(vscode.Uri.file(source.toString()))) {
               console.log(source);
               console.log(line);
               return true;
@@ -434,7 +477,7 @@ export class CatkinPackage {
       }
     }
 
-    if(!outline_only) {
+    if (!outline_only) {
       this.tests_loaded = true;
     }
 

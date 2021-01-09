@@ -14,7 +14,7 @@ export class CatkinPackageCompleterXml implements
     let ctx = lines[position.line].slice(0, position.character).trim();
     let snippets = [];
     if (ctx.match('<[^/]*depend>')) {
-      for (var pkg of this.workspace.packages) {
+      for (var [_, pkg] of this.workspace.packages) {
         let item = new vscode.CompletionItem(pkg.name);
         item.documentation = 'Add dependency: ' + pkg.name;
         item.command = {title: 'Close Tag', command: 'closeTag.closeHTMLTag'};
