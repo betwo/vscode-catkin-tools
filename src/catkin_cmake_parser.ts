@@ -144,7 +144,7 @@ export async function skimCmakeListsForTests(catkin_package: CatkinPackage): Pro
 
 export async function parsePackageForTests(catkin_package: CatkinPackage): Promise<GTestSuite> {
     console.log(catkin_package.cmakelists_path);
-    return await queryCMakeFileApiCodeModel(catkin_package);
+    return queryCMakeFileApiCodeModel(catkin_package);
 }
 
 async function* iterateTestTargets(cmake_file: fs.PathLike) {
@@ -171,13 +171,13 @@ async function queryCMakeFileApiCodeModel(catkin_package: CatkinPackage): Promis
     const build_space = catkin_package.build_space.toString();
     const api_dir = path.join(build_space, ".cmake", "api", "v1");
     const query_dir = path.join(api_dir, "query", "client-catkin-tools-vscode");
-    await fs.promises.mkdir(query_dir, { recursive: true });
-
-    const query_txt = `{ "requests": [{"kind": "codemodel", "version": 2 }] }`;
-    const query_file = path.join(query_dir, "query.json");
-    await fs.promises.writeFile(query_file, query_txt);
-
     try {
+        await fs.promises.mkdir(query_dir, { recursive: true });
+
+        const query_txt = `{ "requests": [{"kind": "codemodel", "version": 2 }] }`;
+        const query_file = path.join(query_dir, "query.json");
+        await fs.promises.writeFile(query_file, query_txt);
+
         const output = await runShellCommand("cmake .", build_space);
         console.log(output.stdout);
     } catch (error) {

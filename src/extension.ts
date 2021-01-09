@@ -7,6 +7,7 @@ import * as catkin_tools from './catkin_tools';
 import { CatkinToolsProvider } from './catkin_tools_provider';
 import { CatkinTestAdapter } from './catkin_test_adapter';
 import { CatkinWorkspace } from './catkin_workspace';
+import { CatkinPackage } from './catkin_package';
 
 
 let taskProvider: vscode.Disposable | undefined;
@@ -77,6 +78,7 @@ export async function activate(context: vscode.ExtensionContext) {
   });
 }
 
+let checkActiveEditorPending = new Map<string, CatkinPackage>();
 async function checkActiveEditor(editor: vscode.TextEditor) {
   if (editor !== undefined) {
     if (editor.document !== undefined) {
@@ -87,7 +89,11 @@ async function checkActiveEditor(editor: vscode.TextEditor) {
           const catkin_package = catkin_workspace.getPackageContaining(editor.document.uri);
           if (catkin_package !== undefined) {
             if (catkin_package.has_tests && !catkin_package.tests_loaded) {
-              await catkin_workspace.test_adapter.reloadPackageIfChanged(catkin_package);
+              if (checkActiveEditorPending.get(catkin_package.getName()) === undefined) {
+                checkActiveEditorPending.set(catkin_package.getName(), catkin_package);
+                await catkin_workspace.test_adapter.reloadPackageIfChanged(catkin_package);
+                checkActiveEditorPending.delete(catkin_package.getName());
+              }
             }
           }
         }
@@ -126,6 +132,9 @@ async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.
           test_explorer_api.exports.registerTestAdapter(workspace.test_adapter);
         }
 
+        checkActiveEditor(vscode.window.activeTextEditor);
+      });
+      workspace.onTestsSetChanged.event((changed) => {
         checkActiveEditor(vscode.window.activeTextEditor);
       });
       await workspace.checkProfile();

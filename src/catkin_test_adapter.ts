@@ -200,8 +200,15 @@ export class CatkinTestAdapter implements TestAdapter {
     public async updatePackageTests(catkin_package: CatkinPackage,
         outline_only: boolean = false,
         build_dir?: String, devel_dir?: String): Promise<CatkinTestSuite> {
+        if(outline_only && catkin_package.tests_loaded) {
+            // no need to reload here
+            return this.getTestSuiteForPackage(catkin_package);
+        }
         let [suite, _] = await this.loadPackageTests(catkin_package, outline_only, build_dir);
         this.updatePackageTestsWith(suite);
+
+        catkin_package.workspace.onTestsSetChanged.fire(true);
+
         return suite;
     }
     public async updatePackageTestsWith(suite: CatkinTestSuite) {
@@ -242,8 +249,6 @@ export class CatkinTestAdapter implements TestAdapter {
         try {
             console.log("loading tests for package");
             let suite = await catkin_package.loadTests(build_dir, devel_dir, outline_only);
-            console.log(suite.info);
-
             console.log(`setting suite ${suite.info.id}`);
             let old_suite = this.suites.get(suite.info.id);
 
@@ -872,6 +877,15 @@ export class CatkinTestAdapter implements TestAdapter {
         for (let [id, exe] of this.executables.entries()) {
             if (exe.executable.toString().indexOf(exe_path) >= 0) {
                 return exe;
+            }
+        }
+        return undefined;
+    }
+
+    private getTestSuiteForPackage(pkg: CatkinPackage): CatkinTestSuite {
+        for (let [suite_id, suite] of this.suites.entries()) {
+            if (suite.package === pkg) {
+                return suite;
             }
         }
         return undefined;

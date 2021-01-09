@@ -41,6 +41,7 @@ export class CatkinWorkspace {
   public test_adapter: CatkinTestAdapter = null;
 
   public onWorkspaceInitialized = new vscode.EventEmitter<boolean>();
+  public onTestsSetChanged = new vscode.EventEmitter<boolean>();
 
   constructor(
     public associated_workspace_for_tasks: vscode.WorkspaceFolder,
