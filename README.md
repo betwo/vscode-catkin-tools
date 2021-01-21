@@ -125,22 +125,22 @@ You can register catkin build as the default task in the following way.
 - Add the following to the `tasks` section of the file.
 
 ```json
-	{
-		"version":"2.0.0",
-		"tasks":[
-			{
-        		"type": "catkin_build",
-        		"task": "build",
-        		"problemMatcher": [
-            		"$catkin-gcc"
-        		],
-        		"group": {
-            		"kind": "build",
-            		"isDefault": true
-        		}
-    		}
-		]
-	}
+{
+	"version":"2.0.0",
+	"tasks":[
+		{
+       		"type": "catkin_build",
+       		"task": "build",
+       		"problemMatcher": [
+           		"$catkin-gcc"
+       		],
+       		"group": {
+           		"kind": "build",
+           		"isDefault": true
+       		}
+   		}
+	]
+}
 ```
 
 ## Building the workspace
