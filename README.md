@@ -47,17 +47,32 @@ your workspace's exclude list in your `settings.json` file:
 The folders for `devel`, `build` and `log` spaces can also be called differently, only the `src` space is required.
 This way, arbitrary catkin profiles are supported.
 
-### IntelliSense
-
+### CMAKE_EXPORT_COMPILE_COMMANDS
 Make sure that your catkin_tools workspace is set up to generate `compile_commands.json` files.
+This can be done by setting the `CMAKE_EXPORT_COMPILE_COMMANDS` flag to ON or 1 and re-building the workspace.  
+The `compile_commands.json` files are created for each package that is built inside the build folder.
+```sh
+catkin config --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+catkin build
+```
 
+If you have any other cmake arguments, please pass them along in the above command, for e.g. `-DCMAKE_BUILD_TYPE=Debug`.
+
+An alternate option is to directly modify the `cmake_args` section of the `.catkin_tools/profiles/<profile_name>/config.yaml` file.
+
+```yaml
+cmake_args:
+- -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+- -DCMAKE_BUILD_TYPE=Debug
+```
+
+### IntelliSense
 Make sure to
 
 * use this extension as the __configurationProvider__ for `ms-vscode.cpptools`,
 * use the default intellisense mode.
 
-For example:
-
+This can be done by adding the following lines to the `c_cpp_properties.json` file in the `.vscode` folder.
 ```json
 {
     "configurations": [
@@ -90,14 +105,6 @@ For example:
 
 in your workspace settings will list all `catkin_add_gtest` tests and all tests matching `my_.*test`, e.g. `my_test` and `my_google_test`.
 
-### CMAKE_EXPORT_COMPILE_COMMANDS
-
-Make sure that `CMAKE_EXPORT_COMPILE_COMMANDS` is set in your catkin projects, e.g. by configuring catkin with
-
-```sh
-catkin config --cmake-args -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-```
-
 ## C/C++ Clang Command Adapter compatibility
 
 Using this extension with _C/C++ Clang Command Adapter_ auto completion causes too many symbols to show up in IntelliSense auto completion.
@@ -113,18 +120,28 @@ in your workspace settings.
 
 ## Tasks
 
-You can register catkin build as the default task like this:
+You can register catkin build as the default task in the following way.
+- Create a file `tasks.json` in the `.vscode` folder, if it does not already exist.
+- Add the following to the `tasks` section of the file.
 
 ```json
-    {
-        "type": "catkin_build",
-        "task": "build",
-        "problemMatcher": [
-            "$catkin-gcc"
-        ],
-        "group": {
-            "kind": "build",
-            "isDefault": true
-        }
-    }
+{
+	"version":"2.0.0",
+	"tasks":[
+		{
+       		"type": "catkin_build",
+       		"task": "build",
+       		"problemMatcher": [
+           		"$catkin-gcc"
+       		],
+       		"group": {
+           		"kind": "build",
+           		"isDefault": true
+       		}
+   		}
+	]
+}
 ```
+
+## Building the workspace
+The workspace can be built by pressing CTRL + Shift + B. This will trigger `catkin build` in the workspace and build all the packages in the workspace.
