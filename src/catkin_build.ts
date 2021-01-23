@@ -45,6 +45,7 @@ export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder)
       kind, workspace_root, taskName, 'catkin_build',
       new vscode.ShellExecution(source_workspace + ' && catkin build'),
       ['$catkin-gcc', '$catkin-cmake']);
+    task.group = vscode.TaskGroup.Build;
     result.push(task);
   }
   {
@@ -54,6 +55,7 @@ export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder)
       kind, workspace_root, taskName, 'catkin_build',
       new vscode.ShellExecution(source_current_package + ' && catkin build --this -v --no-deps'),
       ['$catkin-gcc', '$catkin-cmake']);
+    task.group = vscode.TaskGroup.Build;
     result.push(task);
   }
   {
@@ -64,6 +66,7 @@ export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder)
       new vscode.ShellExecution(source_current_package + ' && ' +
         'env CTEST_OUTPUT_ON_FAILURE=1 catkin build --this -v --no-deps --catkin-make-args run_tests'),
       ['$catkin-gcc', '$catkin-cmake', '$catkin-gtest', '$catkin-gtest-failed']);
+    task.group = vscode.TaskGroup.Build;
     result.push(task);
   }
   return result;
