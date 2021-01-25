@@ -189,7 +189,7 @@ export class CatkinWorkspace {
         console.log(`No usage of ${file.toString()} found.`);
         return false;
       });
-      if(found_match) {
+      if (found_match) {
         return true;
       }
     }
@@ -571,7 +571,7 @@ export class CatkinWorkspace {
     return path.basename(root_path.toString());
   }
 
-  public async getProfile(): Promise<[string, string[]]> {
+  public async getActiveProfile(): Promise<string> {
     const root_path = await this.getRootPath();
     let profile_base_path = path.join(root_path.toString(), ".catkin_tools/profiles");
 
@@ -579,22 +579,34 @@ export class CatkinWorkspace {
     if (!fs.existsSync(profiles_path)) {
       // profiles.yaml is only generated when there is more than one profile available
       // if it does not exist, then the `default` profile is used
-      return ['default', []];
+      return 'default';
     }
-
-    const configs = await glob.async([profile_base_path + '/**/config.yaml']);
-    const profiles = configs.map((yaml) => path.basename(path.dirname(yaml.toString())));
 
     const content_raw = await fs.promises.readFile(profiles_path);
     const content = content_raw.toString();
     for (let row of content.split('\n')) {
       let active = row.match(RegExp('active:\s*(.*)'));
       if (active) {
-        return [active[1].trim(), profiles];
+        return active[1].trim();
       }
     }
+    return null;
+  }
 
-    return [null, []];
+
+  public async getProfiles(): Promise<string[]> {
+    const root_path = await this.getRootPath();
+    let profile_base_path = path.join(root_path.toString(), ".catkin_tools/profiles");
+
+    let profiles_path = path.join(profile_base_path, "profiles.yaml");
+    if (!fs.existsSync(profiles_path)) {
+      // profiles.yaml is only generated when there is more than one profile available
+      // if it does not exist, then the `default` profile is used
+      return [];
+    }
+
+    const configs = await glob.async([profile_base_path + '/**/config.yaml']);
+    return configs.map((yaml) => path.basename(path.dirname(yaml.toString())));
   }
 
   public async switchProfile(profile) {
@@ -605,7 +617,7 @@ export class CatkinWorkspace {
 
 
   public async checkProfile() {
-    let [profile, _] = await this.getProfile();
+    let profile = await this.getActiveProfile();
     if (this.catkin_profile !== profile) {
       await this.updateProfile(profile);
     }

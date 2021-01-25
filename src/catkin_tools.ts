@@ -101,7 +101,8 @@ export async function switchProfile() {
     workspace = await selectWorkspace();
   }
 
-  const [active_profile, profiles] = await workspace.getProfile();
+  const active_profile = await workspace.getActiveProfile();
+  const profiles = await workspace.getProfiles();
 
   const profile_list = [];
   for (const profile of profiles) {
