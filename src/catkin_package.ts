@@ -374,10 +374,20 @@ export class CatkinPackage {
           let cmd = await this.workspace.makeCommand(`${build_target.exec_path} --gtest_list_tests`);
           let output = await runShellCommand(cmd, this.build_space);
           let current_fixture_label: string = null;
+          let current_test_suite: string = null;
           for (let line of output.stdout.split('\n')) {
             let fixture_match = line.match(/^([^\s]+)\.\s*$/);
             if (fixture_match) {
               current_fixture_label = fixture_match[1];
+              if (current_fixture_label.indexOf('/') > 0) {
+                // This is an instanced test of the form  <module_name>/<test_name>
+                // For now we ignore the module name
+                // TODO: support multiple instance of a test module
+                current_test_suite = current_fixture_label.substr(current_fixture_label.indexOf('/') + 1);
+              } else {
+                current_test_suite = current_fixture_label;
+              }
+
               let matching_source_file: string;
               let matching_line: number;
               let [existing_fixture, source_file, _] = gtest_build_targets.getFixture(current_fixture_label);
@@ -409,17 +419,20 @@ export class CatkinPackage {
 
             } else if (current_fixture_label !== null && line.length > 0) {
               let test_label = line.substr(2);
+              let test_name = test_label;
               let test_description = undefined;
               if (test_label.indexOf("#") > 0) {
-                // This is an instanced test
+                // This is an instanced test of the form  <test_name>/<instance>#<parameters>
                 let parts = test_label.split("#");
                 test_label = parts[0].trim();
                 test_description = parts[1].trim();
+                const test_parts = parts[0].split('/');
+                test_name = test_parts[0].trim();
               }
 
               let matching_source_file: string;
               let matching_line: number;
-              let [existing_test_case, _, source_file, __] = gtest_build_targets.getTestCase(current_fixture_label, test_label);
+              let [existing_test_case, _, source_file, __] = gtest_build_targets.getTestCase(current_test_suite, test_name);
               if (existing_test_case !== undefined) {
                 matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
                 matching_line = existing_test_case.line;

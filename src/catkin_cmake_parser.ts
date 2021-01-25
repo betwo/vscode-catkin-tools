@@ -245,15 +245,26 @@ async function analyzeGtestSource(source_file: fs.PathLike): Promise<GTestTestFi
     let test_fixtures = new Map<string, GTestTestFixture>();
     let data = await fs.promises.readFile(source_file);
 
-    const gtest_regex = new RegExp(/\s*TEST(_[PF])?\(([^,]+), ([^,]+)\)\s*/);
+    const gtest_regex_start = new RegExp(/\s*TEST(_[PF])?\(/);
+    const gtest_regex = new RegExp(/\s*TEST(_[PF])?\(([^,]+)\s*,\s*([^,]+)\)\s*/);
 
     let line_number = 0;
     const source_code = data.toString().split("\n");
-    for (const raw_line of source_code) {
+    let current_line = "";
+    for (let raw_line_index = 0; raw_line_index < source_code.length; ++raw_line_index) {
+        const raw_line = source_code[raw_line_index];
         const line = raw_line.trimLeft();
-        if (line.startsWith("TEST")) {
+        let line_length = 1;
+        if (line.match(gtest_regex_start) !== null) {
+            current_line = line;
             console.log(line);
-            const gtest = line.match(gtest_regex);
+            while (current_line.indexOf('{') < 0 && raw_line_index < source_code.length) {
+                raw_line_index += 1;
+                line_length += 1;
+                const raw_line = source_code[raw_line_index];
+                current_line += raw_line.trimLeft();
+            }
+            const gtest = current_line.match(gtest_regex);
             if (gtest !== null) {
                 const test_fixture_name = gtest[2];
                 const test_case_name = gtest[3];
@@ -268,7 +279,7 @@ async function analyzeGtestSource(source_file: fs.PathLike): Promise<GTestTestFi
                 fixture.test_cases.push(new GTestTestCase(test_case_name, line_number));
             }
         }
-        line_number += 1;
+        line_number += line_length;
     }
     return Array.from(test_fixtures.values());
 }
