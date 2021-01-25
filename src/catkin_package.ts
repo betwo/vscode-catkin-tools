@@ -152,6 +152,12 @@ export class CatkinPackage {
     return false;
   }
 
+  public isBuilt(build_dir: string): boolean {
+    const build_space = path.join(build_dir, this.name);
+    const compile_commands = path.join(build_space, "compile_commands.json");
+    return fs.existsSync(compile_commands);
+  }
+
   public async iteratePossibleSourceFiles(header_file: vscode.Uri, async_filter: (uri: vscode.Uri) => Promise<boolean>): Promise<boolean> {
     const include_prefix = "/include/";
     const include_start_pos = header_file.fsPath.lastIndexOf(include_prefix);

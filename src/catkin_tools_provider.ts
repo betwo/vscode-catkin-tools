@@ -54,6 +54,13 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
       console.log(`Cannot provide compile flags for ${uri.fsPath}, not contained in any catkin workspace`);
       return false;
     }
+
+    let catkin_package = catkin_workspace.getPackageContaining(uri);
+    if (!catkin_package) {
+      console.log(`Cannot provide compile flags for ${uri.fsPath}, not contained in any catkin package`);
+      return false;
+    }
+
     console.log('Can provide compile flags for', uri.fsPath);
     return true;
   }
@@ -83,6 +90,16 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
           catkin_workspace.file_to_compile_commands.get(file.fsPath) + ')';
 
       } else {
+        let catkin_package = catkin_workspace.getPackageContaining(file);
+        if (!catkin_package) {
+          console.log(`Cannot provide compile flags for ${file.fsPath}, not contained in any catkin package`);
+          return ret;
+        }
+        if (!catkin_package.isBuilt(await catkin_workspace.getBuildDir())) {
+          console.log(`Cannot provide compile flags for ${file.fsPath}, catkin package ${catkin_package.getName()} is not built`);
+          return ret;
+        }
+
         status_bar_status.text = status_bar_prefix + ' (resolving header file...)';
         try {
           const found = await catkin_workspace.iteratePossibleSourceFiles(file, async (possible_source_file) => {
