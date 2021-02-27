@@ -177,7 +177,9 @@ export class CatkinWorkspace {
       checked_pkgs.push(owner_package.getName());
       console.log(`Package ${await owner_package.getRelativePath()} does not use file ${file.toString()}.`);
 
-      const found_match = await this.iterateDependentPackages(owner_package, async (dependent_package: CatkinPackage) => {
+      const config = vscode.workspace.getConfiguration('catkin_tools');
+      const resursive_search = config.get('recursiveHeaderParsingEnabled', false);
+      const found_match = await this.iterateDependentPackages(owner_package, resursive_search, async (dependent_package: CatkinPackage) => {
         if (checked_pkgs.findIndex(e => e === dependent_package.getName()) < 0) {
           const stop = await dependent_package.iteratePossibleSourceFiles(file, async_filter);
           if (stop) {
@@ -199,6 +201,7 @@ export class CatkinWorkspace {
 
   public async iterateDependentPackages(
     catkin_package: CatkinPackage,
+    resursive_search: boolean,
     async_filter: (catkin_package: CatkinPackage) => Promise<boolean>
   ): Promise<boolean> {
     let checked_pkgs = new Set<string>();
@@ -220,8 +223,10 @@ export class CatkinWorkspace {
           if (stop) {
             return true;
           }
-          for (const dep_name of dependency.dependees) {
-            unchecked_pkgs.push(dep_name);
+          if (resursive_search) {
+            for (const dep_name of dependency.dependees) {
+              unchecked_pkgs.push(dep_name);
+            }
           }
         }
       }
