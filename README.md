@@ -17,8 +17,8 @@ This extension makes it easier to work with [catkin-tools](https://github.com/ca
 
 ## Setup / Configuration
 
-This extension activates itself only if there is a top level `.catkin_tools` directory in your opened workspace.
-In a standard catkin layout, this means that the opened workspace should look like the following:
+This extension activates itself only if there is a top level `.catkin_tools` directory in any of your opened workspaces.
+In a standard catkin layout, this means that an opened workspace should look like the following:
 
 ```txt
 <workspace>/.catkin_tools

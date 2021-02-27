@@ -1,216 +1,223 @@
 {
-	"name": "b2-catkin-tools",
-	"displayName": "catkin-tools",
-	"publisher": "betwo",
-	"license": "MIT",
-	"description": "Support for catkin_tools workspaces",
-	"version": "1.19.0",
-	"icon": "assets/icon.png",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/betwo/vscode-catkin-tools"
-	},
-	"engines": {
-		"vscode": "^1.30.0"
-	},
-	"categories": [
-		"Other"
-	],
-	"activationEvents": [
-		"workspaceContains:.catkin_tools",
-		"onCommand:extension.b2.catkin_tools.reload_workspaces",
-		"onCommand:extension.b2.catkin_tools.reload_compile_commands"
-	],
-	"main": "./dist/extension",
-	"contributes": {
-		"taskDefinitions": [
-			{
-				"type": "catkin_build",
-				"properties": {
-					"task": {
-						"type": "string",
-						"description": "The catkin build task to run {build, build current package, run current package tests} "
-					}
-				}
-			}
-		],
-		"configuration": [
-			{
-				"title": "catkin tools settings",
-				"properties": {
-					"catkin_tools.shell": {
-						"type": "string",
-						"enum": [
-							"bash",
-							"sh",
-							"zsh"
-						],
-						"default": "bash",
-						"description": "Shell to use for catkin commands. Also determines which `setup.<shell>` file is loaded."
-					},
-					"catkin_tools.cppStandard": {
-						"type": "string",
-						"default": "c++11",
-						"description": "C++ standard to use  (see C_CPP extension)"
-					},
-					"catkin_tools.intelliSenseMode": {
-						"type": "string",
-						"default": "gcc-x64",
-						"description": "Compiler to emulate (see C_CPP extension)"
-					},
-					"catkin_tools.gtestMacroRegex": {
-						"type": "array",
-						"default": [
-							"^\\s*catkin_add_gtest",
-							"^\\s*[^\\s\\(]*add[^\\s\\(]*test"
-						],
-						"description": "Regular expression(s) to check a CMakeLists.txt file for (possible) GTest targets"
-					},
-					"catkin_tools.testParsingEnabled": {
-						"type": "boolean",
+  "name": "b2-catkin-tools",
+  "displayName": "catkin-tools",
+  "publisher": "betwo",
+  "license": "MIT",
+  "description": "Support for catkin_tools workspaces",
+  "version": "2.0.0",
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/betwo/vscode-catkin-tools"
+  },
+  "engines": {
+    "vscode": "^1.30.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "catkin-tools",
+    "catkin",
+    "ros",
+    "build",
+    "multi-root ready"
+  ],
+  "activationEvents": [
+    "workspaceContains:.catkin_tools",
+    "onCommand:extension.b2.catkin_tools.reload_workspaces",
+    "onCommand:extension.b2.catkin_tools.reload_compile_commands"
+  ],
+  "main": "./dist/extension",
+  "contributes": {
+    "taskDefinitions": [
+      {
+        "type": "catkin_build",
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The catkin build task to run {build, build current package, run current package tests} "
+          }
+        }
+      }
+    ],
+    "configuration": [
+      {
+        "title": "catkin tools settings",
+        "properties": {
+          "catkin_tools.shell": {
+            "type": "string",
+            "enum": [
+              "bash",
+              "sh",
+              "zsh"
+            ],
+            "default": "bash",
+            "description": "Shell to use for catkin commands. Also determines which `setup.<shell>` file is loaded."
+          },
+          "catkin_tools.cppStandard": {
+            "type": "string",
+            "default": "c++11",
+            "description": "C++ standard to use  (see C_CPP extension)"
+          },
+          "catkin_tools.intelliSenseMode": {
+            "type": "string",
+            "default": "gcc-x64",
+            "description": "Compiler to emulate (see C_CPP extension)"
+          },
+          "catkin_tools.gtestMacroRegex": {
+            "type": "array",
+            "default": [
+              "^\\s*catkin_add_gtest",
+              "^\\s*[^\\s\\(]*add[^\\s\\(]*test"
+            ],
+            "description": "Regular expression(s) to check a CMakeLists.txt file for (possible) GTest targets"
+          },
+          "catkin_tools.testParsingEnabled": {
+            "type": "boolean",
             "default": true,
-						"description": "If true, parse all catkin packages for unit tests and integrate into TestExplorer."
+            "description": "If true, parse all catkin packages for unit tests and integrate into TestExplorer."
           },
           "catkin_tools.recursiveHeaderParsingEnabled": {
             "type": "boolean",
             "default": false,
             "description": "If true, parse recursive package dependencies for header file resolution (experimental)."
-					}
-				}
-			}
-		],
-		"commands": [
-			{
-				"command": "extension.b2.catkin_tools.reload_workspaces",
-				"title": "Reload all opened workspaces"
-			},
-			{
-				"command": "extension.b2.catkin_tools.reload_compile_commands",
-				"title": "(deprecated) alias for 'reload_workspaces'"
-			},
-			{
-				"command": "extension.b2.catkin_tools.switch_profile",
-				"title": "Change active catkin_tools profile"
-			}
-		],
-		"problemMatchers": [
-			{
-				"name": "catkin-gcc",
-				"fileLocation": "absolute",
-				"owner": "catkin",
-				"pattern": {
-					"regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
-					"file": 1,
-					"line": 2,
-					"column": 3,
-					"severity": 4,
-					"message": 5
-				}
-			},
-			{
-				"name": "catkin-cmake",
-				"fileLocation": "absolute",
-				"owner": "catkin",
-				"pattern": [
-					{
-						"regexp": "^CMake\\s+(Warning|Error)\\s+at\\s+(\\S+):(\\d+)\\s*(.*):\\s*$",
-						"file": 2,
-						"line": 3,
-						"severity": 1
-					},
-					{
-						"regexp": "^(.*|\\s{2}.*|Call Stack.*)$",
-						"message": 1,
-						"loop": true
-					}
-				]
-			},
-			{
-				"name": "catkin-gtest-failed",
-				"fileLocation": "absolute",
-				"owner": "catkin",
-				"pattern": [
-					{
-						"regexp": "^(\\S+):(\\d+):\\s*(Failure\\s*)$",
-						"file": 1,
-						"line": 2,
-						"severity": 4,
-						"message": 3
-					},
-					{
-						"regexp": "^Failed$",
-						"message": 1
-					}
-				]
-			},
-			{
-				"name": "catkin-gtest",
-				"fileLocation": "absolute",
-				"owner": "catkin",
-				"pattern": [
-					{
-						"regexp": "^(\\S+):(\\d+):\\s*(Failure\\s*)$",
-						"file": 1,
-						"line": 2,
-						"severity": 4,
-						"message": 3
-					},
-					{
-						"regexp": "^(Failed|\\s*Value of\\s*:.*)$",
-						"message": 1
-					},
-					{
-						"regexp": "^(\\s*Actual\\s*:.*)$",
-						"message": 1
-					},
-					{
-						"regexp": "^(\\s*Expected\\s*:.*)$",
-						"message": 1
-					}
-				]
-			}
-		]
-	},
-	"scripts": {
-		"vscode:prepublish": "webpack --mode production",
-		"compile": "tsc -p ./",
-		"watch": "tsc -watch -p ./",
-		"postinstall": "node ./node_modules/vscode/bin/install",
-		"test": "npm run compile && node ./node_modules/vscode/bin/test",
-		"webpack": "webpack --mode development",
-		"webpack-dev": "webpack --mode development --watch",
-		"test-compile": "tsc -p ./"
-	},
-	"devDependencies": {
-		"@types/mocha": "^2.2.42",
-		"@types/node": "^8.10.66",
-		"lodash": "^4.17.20",
-		"terser": "^4.8.0",
-		"ts-loader": "^6.2.2",
-		"tslint": "^5.20.1",
-		"typescript": "^3.9.7",
-		"vscode": "^1.1.37",
-		"webpack": "^4.44.2",
-		"webpack-cli": "^3.3.12"
-	},
-	"dependencies": {
-		"@types/jsonfile": "^5.0.1",
-		"@types/signals": "^1.0.1",
-		"child_process": "^1.0.2",
-		"fast-glob": "^2.2.7",
-		"fast-xml-parser": "^3.17.6",
-		"fs": "0.0.1-security",
-		"jsonfile": "^5.0.0",
-		"signals": "^1.0.0",
-		"tree-kill": "^1.2.2",
-		"vscode-cpptools": "^2.1.2",
-		"vscode-jsonrpc": "^4.0.0",
-		"vscode-test-adapter-api": "^1.9.0",
-		"vscode-test-adapter-util": "^0.7.1"
-	},
-	"extensionDependencies": [
-		"ms-vscode.cpptools",
-		"compulim.compulim-vscode-closetag",
-		"hbenl.vscode-test-explorer"
-	]
+          }
+        }
+      }
+    ],
+    "commands": [
+      {
+        "command": "extension.b2.catkin_tools.reload_workspaces",
+        "title": "Reload all opened workspaces"
+      },
+      {
+        "command": "extension.b2.catkin_tools.reload_compile_commands",
+        "title": "(deprecated) alias for 'reload_workspaces'"
+      },
+      {
+        "command": "extension.b2.catkin_tools.switch_profile",
+        "title": "Change active catkin_tools profile"
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "catkin-gcc",
+        "fileLocation": "absolute",
+        "owner": "catkin",
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      },
+      {
+        "name": "catkin-cmake",
+        "fileLocation": "absolute",
+        "owner": "catkin",
+        "pattern": [
+          {
+            "regexp": "^CMake\\s+(Warning|Error)\\s+at\\s+(\\S+):(\\d+)\\s*(.*):\\s*$",
+            "file": 2,
+            "line": 3,
+            "severity": 1
+          },
+          {
+            "regexp": "^(.*|\\s{2}.*|Call Stack.*)$",
+            "message": 1,
+            "loop": true
+          }
+        ]
+      },
+      {
+        "name": "catkin-gtest-failed",
+        "fileLocation": "absolute",
+        "owner": "catkin",
+        "pattern": [
+          {
+            "regexp": "^(\\S+):(\\d+):\\s*(Failure\\s*)$",
+            "file": 1,
+            "line": 2,
+            "severity": 4,
+            "message": 3
+          },
+          {
+            "regexp": "^Failed$",
+            "message": 1
+          }
+        ]
+      },
+      {
+        "name": "catkin-gtest",
+        "fileLocation": "absolute",
+        "owner": "catkin",
+        "pattern": [
+          {
+            "regexp": "^(\\S+):(\\d+):\\s*(Failure\\s*)$",
+            "file": 1,
+            "line": 2,
+            "severity": 4,
+            "message": 3
+          },
+          {
+            "regexp": "^(Failed|\\s*Value of\\s*:.*)$",
+            "message": 1
+          },
+          {
+            "regexp": "^(\\s*Actual\\s*:.*)$",
+            "message": 1
+          },
+          {
+            "regexp": "^(\\s*Expected\\s*:.*)$",
+            "message": 1
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "webpack --mode production",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "test": "npm run compile && node ./node_modules/vscode/bin/test",
+    "webpack": "webpack --mode development",
+    "webpack-dev": "webpack --mode development --watch",
+    "test-compile": "tsc -p ./"
+  },
+  "devDependencies": {
+    "@types/mocha": "^2.2.42",
+    "@types/node": "^8.10.66",
+    "lodash": "^4.17.20",
+    "terser": "^4.8.0",
+    "ts-loader": "^6.2.2",
+    "tslint": "^5.20.1",
+    "typescript": "^3.9.7",
+    "vscode": "^1.1.37",
+    "webpack": "^4.44.2",
+    "webpack-cli": "^3.3.12"
+  },
+  "dependencies": {
+    "@types/jsonfile": "^5.0.1",
+    "@types/signals": "^1.0.1",
+    "child_process": "^1.0.2",
+    "fast-glob": "^2.2.7",
+    "fast-xml-parser": "^3.17.6",
+    "fs": "0.0.1-security",
+    "jsonfile": "^5.0.0",
+    "signals": "^1.0.0",
+    "tree-kill": "^1.2.2",
+    "vscode-cpptools": "^2.1.2",
+    "vscode-jsonrpc": "^4.0.0",
+    "vscode-test-adapter-api": "^1.9.0",
+    "vscode-test-adapter-util": "^0.7.1"
+  },
+  "extensionDependencies": [
+    "ms-vscode.cpptools",
+    "compulim.compulim-vscode-closetag",
+    "hbenl.vscode-test-explorer"
+  ]
 }

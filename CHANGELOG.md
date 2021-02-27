@@ -177,3 +177,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Changed subprocess calls to support echoing dotfile configurations
+
+
+## [2.0.0] - 2020-02-27
+### Added
+- Added support for multi-root workspaces
+- Add TestExplorer integration for test case source locations
+
+### Changed
+- Improved test parsing
+- Improved readme with setup instructions
