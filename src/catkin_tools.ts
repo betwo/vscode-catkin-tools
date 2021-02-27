@@ -81,6 +81,12 @@ export async function isCatkinWorkspace(folder: vscode.WorkspaceFolder) {
 
 export async function selectWorkspace(): Promise<CatkinWorkspace> {
   const workspace_list = [];
+
+  if (provider.workspaces.size === 0) {
+    vscode.window.showErrorMessage(`Could not find a catkin workspace, is your workspace still being indexed?`);
+    return undefined;
+  }
+
   for (const [_, workspace] of provider.workspaces) {
     workspace_list.push(<vscode.QuickPickItem>{
       label: await workspace.getName(),
@@ -99,8 +105,10 @@ export async function switchProfile() {
 
   if (workspace === undefined) {
     workspace = await selectWorkspace();
+    if (workspace === undefined) {
+      return;
+    }
   }
-
   const active_profile = await workspace.getActiveProfile();
   const profiles = await workspace.getProfiles();
 
@@ -112,9 +120,13 @@ export async function switchProfile() {
       picked: profile === active_profile
     });
   }
-  const selection = await vscode.window.showQuickPick(profile_list);
 
-  if (selection !== undefined) {
-    workspace.switchProfile(selection.label);
+  if (profile_list.length > 0) {
+    const selection = await vscode.window.showQuickPick(profile_list);
+    if (selection !== undefined) {
+      workspace.switchProfile(selection.label);
+    }
+  } else {
+    vscode.window.showErrorMessage(`Failed to list catkin profiles`);
   }
 }
