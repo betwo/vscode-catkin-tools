@@ -200,7 +200,7 @@ export class CatkinTestAdapter implements TestAdapter {
     public async updatePackageTests(catkin_package: CatkinPackage,
         outline_only: boolean = false,
         build_dir?: String, devel_dir?: String): Promise<CatkinTestSuite> {
-        if(outline_only && catkin_package.tests_loaded) {
+        if (outline_only && catkin_package.tests_loaded) {
             // no need to reload here
             return this.getTestSuiteForPackage(catkin_package);
         }
@@ -866,11 +866,14 @@ export class CatkinTestAdapter implements TestAdapter {
             this.updatePackageTestsWith(pkg_suite);
             this.updateSuiteSet();
             this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
-
             return pkg_suite;
-        }
 
-        return undefined;
+        } else {
+            this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
+            this.updateSuiteSet();
+            this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.catkin_tools_tests });
+            return undefined;
+        }
     }
 
     private getTestForExecutable(exe_path: string): CatkinTestExecutable {
@@ -1068,7 +1071,7 @@ export class CatkinTestAdapter implements TestAdapter {
                 test = this.testcases.get(test_id);
             }
 
-            // build the teset
+            // build the test
             let command = await this.makeBuildTestCommand(test);
             try {
                 runShellCommand(command, await this.catkin_workspace.getRootPath());
