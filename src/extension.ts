@@ -72,31 +72,48 @@ export async function activate(context: vscode.ExtensionContext) {
   }
   await Promise.all(workers);
 
-  checkActiveEditor(vscode.window.activeTextEditor);
-  vscode.window.onDidChangeActiveTextEditor((editor) => {
+  for (const editor of vscode.window.visibleTextEditors) {
+    await checkActiveEditor(editor);
+  }
+  vscode.window.onDidChangeActiveTextEditor((editor: vscode.TextEditor) => {
     checkActiveEditor(editor);
+  });
+
+  vscode.workspace.onDidSaveTextDocument((document: vscode.TextDocument) => {
+    scanUri(document.uri);
   });
 }
 
-let checkActiveEditorPending = new Map<string, CatkinPackage>();
 async function checkActiveEditor(editor: vscode.TextEditor) {
   if (editor !== undefined) {
     if (editor.document !== undefined) {
-      const workspace_folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
-      if (workspace_folder !== undefined) {
-        const catkin_workspace = catkin_tools.getProvider().getWorkspace(workspace_folder);
-        if (catkin_workspace !== undefined) {
-          const catkin_package = catkin_workspace.getPackageContaining(editor.document.uri);
-          if (catkin_package !== undefined) {
-            if (catkin_package.has_tests && !catkin_package.tests_loaded) {
-              if (checkActiveEditorPending.get(catkin_package.getName()) === undefined) {
-                checkActiveEditorPending.set(catkin_package.getName(), catkin_package);
-                await catkin_workspace.test_adapter.reloadPackageIfChanged(catkin_package);
-                checkActiveEditorPending.delete(catkin_package.getName());
-              }
-            }
-          }
-        }
+      scanUri(editor.document.uri);
+    }
+  }
+}
+
+
+async function scanUri(uri: vscode.Uri) {
+  const workspace_folder = vscode.workspace.getWorkspaceFolder(uri);
+  if (workspace_folder !== undefined) {
+    const catkin_workspace = catkin_tools.getProvider().getWorkspace(workspace_folder);
+    if (catkin_workspace !== undefined) {
+      scanPackageContaining(catkin_workspace, uri);
+    }
+  }
+}
+
+let packageScansPending = new Map<string, CatkinPackage>();
+async function scanPackageContaining(catkin_workspace: CatkinWorkspace, uri: vscode.Uri) {
+  const catkin_package = catkin_workspace.getPackageContaining(uri);
+  if (catkin_package !== undefined) {
+    if (catkin_package.has_tests) {
+      if (packageScansPending.get(catkin_package.getName()) === undefined) {
+        packageScansPending.set(catkin_package.getName(), catkin_package);
+        await catkin_workspace.test_adapter.reloadPackageIfChanged(catkin_package);
+        packageScansPending.delete(catkin_package.getName());
+      } else {
+        console.log(`already scanning package ${catkin_package.getName()}`);
       }
     }
   }
