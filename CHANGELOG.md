@@ -187,3 +187,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Improved test parsing
 - Improved readme with setup instructions
+## [2.1.0] - 2020-03-13
+### Added
+- Added option to write a merged compile_commands.json file when the database changes
