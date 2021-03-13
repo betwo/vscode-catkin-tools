@@ -21,7 +21,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(vscode.commands.registerCommand(
     'extension.b2.catkin_tools.reload_compile_commands', async () => {
-      return catkin_tools.reloadAllWorkspaces();
+      return catkin_tools.reloadCompileCommands();
     }));
   context.subscriptions.push(vscode.commands.registerCommand(
     'extension.b2.catkin_tools.reload_workspaces', async () => {

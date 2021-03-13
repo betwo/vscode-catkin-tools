@@ -22,7 +22,7 @@ status_bar_profile.show();
 
 export let status_bar_prefix = '';
 status_bar_status.text = status_bar_prefix + 'initialized';
-status_bar_status.command = 'extension.b2.catkin_tools.reload_compile_commands';
+status_bar_status.command = 'extension.b2.catkin_tools.reload_workspaces';
 status_bar_status.tooltip = 'Reload the compile_commands.json data bases';
 status_bar_status.show();
 
@@ -52,6 +52,21 @@ export async function initialize(
     new CatkinPackageCompleterXml(catkin_workspace));
   context.subscriptions.push(package_xml_provider);
   return catkin_workspace;
+}
+
+export async function reloadCompileCommands() {
+  status_bar_status.text = status_bar_prefix + 'merging';
+  const config = vscode.workspace.getConfiguration('catkin_tools');
+  const merged_compile_commands_json_path = config.get('mergedCompileCommandsJsonPath', "");
+
+  if (merged_compile_commands_json_path.length > 0) {
+    await provider.mergeCompileCommandsFiles();
+    status_bar_status.text = status_bar_prefix +
+      ` written to ${merged_compile_commands_json_path}`;
+  } else {
+    status_bar_status.text = status_bar_prefix +
+      ' (mergedCompileCommandsJsonPath not set)';
+  }
 }
 
 export async function reloadAllWorkspaces() {

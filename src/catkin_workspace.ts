@@ -458,6 +458,14 @@ export class CatkinWorkspace {
     return change;
   }
 
+  public collectCompileCommands() {
+    let result = [];
+    for (const entry of this.compile_commands) {
+      result = result.concat(entry[1]);
+    }
+    return result;
+  }
+
   private async loadAndWatchCompileCommands() {
     let build_dir = await this.getBuildDir();
     if (build_dir === null) {

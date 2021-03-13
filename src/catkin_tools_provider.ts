@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as jsonfile from 'jsonfile';
 import { CppToolsApi, CustomConfigurationProvider, SourceFileConfigurationItem, WorkspaceBrowseConfiguration } from 'vscode-cpptools';
 import { status_bar_status, status_bar_prefix } from './catkin_tools';
 import { CatkinWorkspace } from './catkin_workspace';
@@ -31,6 +32,7 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
 
     catkin_workspace.build_commands_changed.add(() => {
       this.cppToolsApi.didChangeCustomConfiguration(this);
+      this.mergeCompileCommandsFiles();
     });
     catkin_workspace.system_paths_changed.add(() => {
       this.cppToolsApi.didChangeCustomBrowseConfiguration(this);
@@ -39,6 +41,30 @@ export class CatkinToolsProvider implements CustomConfigurationProvider {
   }
   public removeWorkspace(workspace_folder: vscode.WorkspaceFolder) {
     this.workspaces.delete(workspace_folder);
+  }
+
+  public async mergeCompileCommandsFiles() {
+    const config = vscode.workspace.getConfiguration('catkin_tools');
+    const merged_compile_commands_json_path = config.get('mergedCompileCommandsJsonPath', "");
+    if (merged_compile_commands_json_path.length > 0) {
+      console.log(merged_compile_commands_json_path);
+      const opts = { spaces: 2, EOL: '\r\n' };
+      if (merged_compile_commands_json_path.indexOf('${workspaceFolder}') >= 0) {
+        // save per workspace
+        for (const folder of vscode.workspace.workspaceFolders) {
+          const output_path = merged_compile_commands_json_path.replace("${workspaceFolder}", folder.uri.fsPath);
+          const commands = this.getWorkspace(folder).collectCompileCommands();
+          await jsonfile.writeFile(output_path, commands, opts);
+        }
+      } else {
+        // merge into one
+        let commands = [];
+        for (const folder of vscode.workspace.workspaceFolders) {
+          commands = commands.concat(this.getWorkspace(folder).collectCompileCommands());
+        }
+        await jsonfile.writeFile(merged_compile_commands_json_path, commands, opts);
+      }
+    }
   }
 
   public async canProvideConfiguration(

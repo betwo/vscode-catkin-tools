@@ -65,6 +65,11 @@
             "default": "gcc-x64",
             "description": "Compiler to emulate (see C_CPP extension)"
           },
+          "catkin_tools.mergedCompileCommandsJsonPath": {
+            "type": "string",
+            "default": "",
+            "description": "If non empty, all compile_commands.json files are merged and written to this path.\n You can use ${workspaceFolder} here. The variable will be replaced with all folders added to this workspace."
+          },
           "catkin_tools.gtestMacroRegex": {
             "type": "array",
             "default": [
@@ -93,7 +98,7 @@
       },
       {
         "command": "extension.b2.catkin_tools.reload_compile_commands",
-        "title": "(deprecated) alias for 'reload_workspaces'"
+        "title": "Reload / Merge compile commands (see mergedCompileCommandsJsonPath)"
       },
       {
         "command": "extension.b2.catkin_tools.switch_profile",
