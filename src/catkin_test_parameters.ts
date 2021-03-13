@@ -52,7 +52,10 @@ export class CatkinTestParameters {
                         return;
                     }
                 }
-                throw Error(`The executable ${exe_string} could not be resolved to a binary`);
+
+                // Nothing found, assume no spaces in the path
+                this.exe = exe_string_parts[0];
+                this.args = this.args.concat(exe_string_parts.slice(1), this.args);
             }
         }
     }
