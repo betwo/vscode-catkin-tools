@@ -128,8 +128,9 @@ export async function skimCmakeListsForTests(catkin_package: CatkinPackage): Pro
         test_regexes.push(new RegExp(`.*(${expr})`));
     }
 
-    let cmake_files = await glob.async(
-        [`${catkin_package.getAbsolutePath()}/**/CMakeLists.txt`]
+    const cmake_lists_pattern = `${catkin_package.getAbsolutePath()}/**/CMakeLists.txt`;
+    const cmake_files = await glob.async(
+        [cmake_lists_pattern]
     );
     for (let cmake_file of cmake_files) {
         let target_iterator = iterateTestTargets(cmake_file.toString());

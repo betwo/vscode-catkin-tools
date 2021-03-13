@@ -88,14 +88,18 @@ export class CatkinWorkspace {
       }
 
       progress.report({ increment: 1, message: "Searching packages" });
-      const packages = await vscode.workspace.findFiles("**/package.xml");
+      const package_xml_pattern = `${await this.getSrcDir()}/**/package.xml`;
+      const package_xml_files = await glob.async(
+        [package_xml_pattern]
+      );
       let range_progress_packages_min = 1;
       let range_progress_packages_max = 99;
       let accumulated_progress = 0.0;
-      let progress_relative = (1.0 / packages.length) *
+      let progress_relative = (1.0 / package_xml_files.length) *
         (range_progress_packages_max - range_progress_packages_min);
 
-      for (let package_xml of packages) {
+      for (const package_xml_entry of package_xml_files) {
+        const package_xml = package_xml_entry.toString();
         if (token.isCancellationRequested) {
           break;
         }
@@ -105,14 +109,14 @@ export class CatkinWorkspace {
           accumulated_progress -= integer_progress;
           progress.report({
             increment: integer_progress,
-            message: `Parsing ${path.basename(path.dirname(package_xml.path))}`
+            message: `Parsing ${path.basename(path.dirname(package_xml))}`
           });
         }
         try {
-          await this.loadPackage(package_xml.fsPath);
+          await this.loadPackage(package_xml);
 
         } catch (error) {
-          vscode.window.showErrorMessage(`Cannot load package: ${package_xml.fsPath} failed with ${error}`);
+          vscode.window.showErrorMessage(`Cannot load package: ${package_xml} failed with ${error}`);
         }
       }
       progress.report({ increment: 1, message: "Building depency graph" });
@@ -141,9 +145,13 @@ export class CatkinWorkspace {
   }
 
   public async locatePackageXML(package_name: String) {
-    const packages = await vscode.workspace.findFiles("**/package.xml");
-    for (let package_xml of packages) {
-      let name = await CatkinPackage.getNameFromPackageXML(package_xml.fsPath);
+    const package_xml_pattern = `${await this.getSrcDir()}/**/package.xml`;
+    const package_xml_files = await glob.async(
+      [package_xml_pattern]
+    );
+    for (let package_xml_entry of package_xml_files) {
+      const package_xml = package_xml_entry.toString();
+      let name = await CatkinPackage.getNameFromPackageXML(package_xml);
       if (name === package_name) {
         return package_xml;
       }
@@ -470,9 +478,8 @@ export class CatkinWorkspace {
                 this.startWatchingCatkinPackageBuildDir(abs_file);
                 console.log(`New package ${filename}`);
 
-                this.test_adapter.signalReload();
                 let package_xml = await this.locatePackageXML(filename);
-                let catkin_package = await this.loadPackage(package_xml.fsPath);
+                let catkin_package = await this.loadPackage(package_xml);
                 if (catkin_package && catkin_package.has_tests) {
                   let suite = await this.test_adapter.updatePackageTests(catkin_package, true);
                   this.test_adapter.updateSuiteSet();
@@ -750,14 +757,14 @@ export class CatkinWorkspace {
 
   public async makeCommand(payload: string) {
     const setup_shell = await this.getSetupShell();
-    let command = `source ${setup_shell} > /dev/null 2>&1;`;
-    command += `pushd . > /dev/null; cd "${await this.getRootPath()}";`;
-    command += `${payload}`;
+    let command = `source ${setup_shell} > /dev/null 2 >& 1;`;
+    command += `pushd. > /dev/null; cd "${await this.getRootPath()}"; `;
+    command += `${payload} `;
     if (!payload.endsWith(";")) {
       command += "; ";
     }
     command += "EXIT_CODE=$?; ";
-    command += `popd > /dev/null; [ "$EXIT_CODE" = "0" ] || exit $EXIT_CODE;`;
+    command += `popd > /dev/null;["$EXIT_CODE" = "0"] || exit $EXIT_CODE;`;
     return command;
   }
 }
