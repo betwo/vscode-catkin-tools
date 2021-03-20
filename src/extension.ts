@@ -1,35 +1,28 @@
 import * as vscode from 'vscode';
-import * as vscode_test from 'vscode-test-adapter-api';
-import { CppToolsApi, getCppToolsApi, Version } from 'vscode-cpptools';
 
-import * as catkin_build from './catkin_build';
-import * as catkin_tools from './catkin_tools';
-import { CatkinToolsProvider } from './catkin_tools_provider';
-import { CatkinTestAdapter } from './catkin_test_adapter';
-import { CatkinWorkspace } from './catkin_workspace';
-import { CatkinPackage } from './catkin_package';
+import * as catkin_build from './catkin_tools/tasks/catkin_build';
+import * as workspace_manager from './workspace_manager';
+import { Workspace } from './common/workspace';
+import { Package } from './common/package';
 
 
 let taskProvider: vscode.Disposable | undefined;
 let outputChannel: vscode.OutputChannel = null;
-
-let test_explorer_api: vscode.Extension<vscode_test.TestHub>;
-let cpp_tools_api: CppToolsApi;
 
 export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel("catkin_tools");
 
   context.subscriptions.push(vscode.commands.registerCommand(
     'extension.b2.catkin_tools.reload_compile_commands', async () => {
-      return catkin_tools.reloadCompileCommands();
+      return workspace_manager.reloadCompileCommands();
     }));
   context.subscriptions.push(vscode.commands.registerCommand(
     'extension.b2.catkin_tools.reload_workspaces', async () => {
-      return catkin_tools.reloadAllWorkspaces();
+      return workspace_manager.reloadAllWorkspaces();
     }));
   context.subscriptions.push(vscode.commands.registerCommand(
     'extension.b2.catkin_tools.switch_profile', async () => {
-      return catkin_tools.switchProfile();
+      return workspace_manager.switchProfile();
     }));
 
   taskProvider = vscode.tasks.registerTaskProvider('catkin_build', {
@@ -46,15 +39,11 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  test_explorer_api = vscode.extensions.getExtension<vscode_test.TestHub>(vscode_test.testExplorerExtensionId);
-  cpp_tools_api = await getCppToolsApi(Version.v2);
-  if (cpp_tools_api) {
-    if (!cpp_tools_api.notifyReady) {
-      vscode.window.showInformationMessage(
-        'Catkin tools only supports C/C++ API 2.0 or later.');
-      return;
-    }
-  }
+  workspace_manager.onWorkspacesChanged.event(() => {
+    checkActiveEditor(vscode.window.activeTextEditor);
+  });
+
+  await workspace_manager.initialize();
 
   vscode.workspace.onDidChangeWorkspaceFolders(workspaces => {
     for (const workspace of workspaces.removed) {
@@ -96,86 +85,36 @@ async function checkActiveEditor(editor: vscode.TextEditor) {
 async function scanUri(uri: vscode.Uri) {
   const workspace_folder = vscode.workspace.getWorkspaceFolder(uri);
   if (workspace_folder !== undefined) {
-    const catkin_workspace = catkin_tools.getProvider().getWorkspace(workspace_folder);
-    if (catkin_workspace !== undefined) {
-      scanPackageContaining(catkin_workspace, uri);
+    const workspace = workspace_manager.getProvider().getWorkspace(workspace_folder);
+    if (workspace !== undefined) {
+      scanPackageContaining(workspace, uri);
     }
   }
 }
 
-let packageScansPending = new Map<string, CatkinPackage>();
-async function scanPackageContaining(catkin_workspace: CatkinWorkspace, uri: vscode.Uri) {
-  const catkin_package = catkin_workspace.getPackageContaining(uri);
-  if (catkin_package !== undefined) {
-    if (catkin_package.has_tests) {
-      if (packageScansPending.get(catkin_package.getName()) === undefined) {
-        packageScansPending.set(catkin_package.getName(), catkin_package);
-        await catkin_workspace.test_adapter.reloadPackageIfChanged(catkin_package);
-        packageScansPending.delete(catkin_package.getName());
+let packageScansPending = new Map<string, Package>();
+async function scanPackageContaining(workspace: Workspace, uri: vscode.Uri) {
+  const workspace_package = workspace.getPackageContaining(uri);
+  if (workspace_package !== undefined) {
+    if (workspace_package.has_tests) {
+      if (packageScansPending.get(workspace_package.getName()) === undefined) {
+        packageScansPending.set(workspace_package.getName(), workspace_package);
+        await workspace.test_adapter.reloadPackageIfChanged(workspace_package);
+        packageScansPending.delete(workspace_package.getName());
       } else {
-        console.log(`already scanning package ${catkin_package.getName()}`);
+        console.log(`already scanning package ${workspace_package.getName()}`);
       }
     }
   }
 }
 
 async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.WorkspaceFolder) {
-  if (await catkin_tools.isCatkinWorkspace(root)) {
-    if (catkin_tools.getProvider() === undefined) {
-      // Inform cpptools that a custom config provider will be able to service
-      // the current workspace.
-      catkin_tools.setProvider(new CatkinToolsProvider(cpp_tools_api));
-      cpp_tools_api.registerCustomConfigurationProvider(catkin_tools.getProvider());
-    }
+  workspace_manager.registerWorkspace(context, root, outputChannel);
 
-    let workspace: CatkinWorkspace = catkin_tools.getProvider().getWorkspace(root);
-    // first try to get a cached instance of the workspace.
-    // this might be triggered if the same workspace is opened in different folders
-    if (workspace === undefined) {
-      workspace = await catkin_tools.initialize(context, root, outputChannel);
-      outputChannel.appendLine(`Adding new workspace ${root.uri.fsPath}`);
-
-      workspace.onWorkspaceInitialized.event((initialized) => {
-        if (catkin_tools.getProvider()) {
-          catkin_tools.getProvider().addWorkspace(root, workspace);
-          cpp_tools_api.notifyReady(catkin_tools.getProvider());
-        }
-        if (test_explorer_api) {
-          workspace.test_adapter = new CatkinTestAdapter(
-            root.uri.fsPath,
-            workspace,
-            outputChannel
-          );
-          test_explorer_api.exports.registerTestAdapter(workspace.test_adapter);
-        }
-
-        checkActiveEditor(vscode.window.activeTextEditor);
-      });
-      workspace.onTestsSetChanged.event((changed) => {
-        checkActiveEditor(vscode.window.activeTextEditor);
-      });
-      await workspace.checkProfile();
-
-    } else {
-      outputChannel.appendLine(`Reusing workspace ${await workspace.getRootPath()} for folder ${root.uri.fsPath}`);
-    }
-  } else {
-    outputChannel.appendLine(`Folder ${root.uri.fsPath} is not a catkin workspace.`);
-  }
 }
 
 async function unregisterWorkspace(context: vscode.ExtensionContext, root: vscode.WorkspaceFolder) {
-  let workspace = catkin_tools.getProvider().getWorkspace(root);
-  if (workspace !== undefined) {
-    if (test_explorer_api) {
-      test_explorer_api.exports.unregisterTestAdapter(workspace.test_adapter);
-    }
-    if (catkin_tools.getProvider()) {
-      catkin_tools.getProvider().removeWorkspace(root);
-    }
-
-    workspace.dispose();
-  }
+  workspace_manager.unregisterWorkspace(context, root);
 }
 
 export function deactivate() {

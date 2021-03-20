@@ -1,18 +1,18 @@
 import * as fs from 'fs';
 
-export enum CatkinTestRunResultKind {
+export enum WorkspaceTestRunResultKind {
     BuildFailed,
     TestFailed,
     TestSucceeded
 }
-export class CatkinTestRunResult {
+export class WorkspaceTestRunResult {
     public constructor(
-        public state: CatkinTestRunResultKind,
+        public state: WorkspaceTestRunResultKind,
         public message: string) { }
 
     public toTestExplorerSuiteState() {
         switch (this.state) {
-            case CatkinTestRunResultKind.TestSucceeded:
+            case WorkspaceTestRunResultKind.TestSucceeded:
                 return 'completed';
             default:
                 return 'errored';
@@ -20,17 +20,17 @@ export class CatkinTestRunResult {
     }
     public toTestExplorerTestState() {
         switch (this.state) {
-            case CatkinTestRunResultKind.BuildFailed:
+            case WorkspaceTestRunResultKind.BuildFailed:
                 return 'errored';
-            case CatkinTestRunResultKind.TestFailed:
+            case WorkspaceTestRunResultKind.TestFailed:
                 return 'failed';
-            case CatkinTestRunResultKind.TestSucceeded:
+            case WorkspaceTestRunResultKind.TestSucceeded:
                 return 'passed';
         }
     }
 }
 
-export class CatkinTestParameters {
+export class WorkspaceTestParameters {
     public constructor(
         public setup_shell_code: string,
         public exe: fs.PathLike,

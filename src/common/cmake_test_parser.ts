@@ -4,8 +4,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as jsonfile from 'jsonfile';
 
-import { CatkinPackage } from "./catkin_package";
-import { runShellCommand } from './catkin_command';
+import { Package } from "./package";
+import { runShellCommand } from './shell_command';
+import { getExtensionConfiguration } from './configuration';
 
 export class GTestSuite {
     constructor(
@@ -121,14 +122,13 @@ export class GTestTestCase {
 }
 
 
-export async function skimCmakeListsForTests(catkin_package: CatkinPackage): Promise<boolean> {
-    let config = vscode.workspace.getConfiguration('catkin_tools');
+export async function skimCmakeListsForTests(workspace_package: Package): Promise<boolean> {
     let test_regexes: RegExp[] = [];
-    for (let expr of config['gtestMacroRegex']) {
+    for (let expr of getExtensionConfiguration('gtestMacroRegex')) {
         test_regexes.push(new RegExp(`.*(${expr})`));
     }
 
-    const cmake_lists_pattern = `${catkin_package.getAbsolutePath()}/**/CMakeLists.txt`;
+    const cmake_lists_pattern = `${workspace_package.getAbsolutePath()}/**/CMakeLists.txt`;
     const cmake_files = await glob.async(
         [cmake_lists_pattern]
     );
@@ -143,15 +143,14 @@ export async function skimCmakeListsForTests(catkin_package: CatkinPackage): Pro
     return false;
 }
 
-export async function parsePackageForTests(catkin_package: CatkinPackage): Promise<GTestSuite> {
-    console.log(catkin_package.cmakelists_path);
-    return queryCMakeFileApiCodeModel(catkin_package);
+export async function parsePackageForTests(workspace_package: Package): Promise<GTestSuite> {
+    console.log(workspace_package.cmakelists_path);
+    return queryCMakeFileApiCodeModel(workspace_package);
 }
 
 async function* iterateTestTargets(cmake_file: fs.PathLike) {
-    let config = vscode.workspace.getConfiguration('catkin_tools');
     let test_regexes: RegExp[] = [];
-    for (let expr of config['gtestMacroRegex']) {
+    for (let expr of getExtensionConfiguration('gtestMacroRegex')) {
         test_regexes.push(new RegExp(`.*(${expr})`));
     }
 
@@ -167,11 +166,11 @@ async function* iterateTestTargets(cmake_file: fs.PathLike) {
     }
 }
 
-async function queryCMakeFileApiCodeModel(catkin_package: CatkinPackage): Promise<GTestSuite> {
-    const package_space = catkin_package.getAbsolutePath();
-    const build_space = catkin_package.build_space.toString();
+async function queryCMakeFileApiCodeModel(workspace_package: Package): Promise<GTestSuite> {
+    const package_space = workspace_package.getAbsolutePath();
+    const build_space = workspace_package.build_space.toString();
     const api_dir = path.join(build_space, ".cmake", "api", "v1");
-    const query_dir = path.join(api_dir, "query", "client-catkin-tools-vscode");
+    const query_dir = path.join(api_dir, "query", "client-workspace-vscode");
     try {
         await fs.promises.mkdir(query_dir, { recursive: true });
 
@@ -189,9 +188,8 @@ async function queryCMakeFileApiCodeModel(catkin_package: CatkinPackage): Promis
     const reply_dir = path.join(api_dir, "reply");
     const files = await fs.promises.readdir(reply_dir);
 
-    let config = vscode.workspace.getConfiguration('catkin_tools');
     let test_regexes: RegExp[] = [];
-    for (let expr of config['gtestMacroRegex']) {
+    for (let expr of getExtensionConfiguration('gtestMacroRegex')) {
         test_regexes.push(new RegExp(`.*(${expr})`));
     }
 

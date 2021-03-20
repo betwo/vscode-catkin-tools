@@ -2,10 +2,10 @@
 import { TestSuiteInfo, TestInfo } from 'vscode-test-adapter-api';
 import * as fs from 'fs';
 
-import { BuildTarget, CatkinPackage, TestType } from './catkin_package';
+import { BuildTarget, Package, TestType } from './package';
 
-export class CatkinTestInterface {
-    public package: CatkinPackage;
+export class WorkspaceTestInterface {
+    public package: Package;
 
     public type: TestType;
     public filter: String;
@@ -19,21 +19,21 @@ export class CatkinTestInterface {
     public info: TestInfo | TestSuiteInfo;
 }
 
-export class CatkinTestCase extends CatkinTestInterface {
+export class WorkspaceTestCase extends WorkspaceTestInterface {
     public info: TestInfo;
 }
 
-export class CatkinTestFixture extends CatkinTestInterface {
-    public cases: CatkinTestCase[];
+export class WorkspaceTestFixture extends WorkspaceTestInterface {
+    public cases: WorkspaceTestCase[];
     public info: TestSuiteInfo;
 }
-export class CatkinTestExecutable extends CatkinTestInterface {
-    public fixtures: CatkinTestFixture[];
+export class WorkspaceTestExecutable extends WorkspaceTestInterface {
+    public fixtures: WorkspaceTestFixture[];
     public info: TestSuiteInfo;
 }
 
-export class CatkinTestSuite extends CatkinTestInterface {
-    public executables: CatkinTestExecutable[];
+export class WorkspaceTestSuite extends WorkspaceTestInterface {
+    public executables: WorkspaceTestExecutable[];
     public info: TestSuiteInfo | TestInfo;
 
     public test_build_targets: BuildTarget[];

@@ -1,6 +1,6 @@
-import * as vscode from 'vscode';
 import * as child_process from 'child_process';
 import * as fs from 'fs';
+import { getExtensionConfiguration } from './configuration';
 
 export class ShellOutput {
     constructor(
@@ -12,22 +12,12 @@ export class ShellOutput {
     }
 }
 
-export async function runCatkinCommand(args: string[], cwd: fs.PathLike): Promise<ShellOutput> {
-    try {
-        return await runCommand("catkin", args, [], cwd);
-    } catch (error) {
-        console.error(error);
-        throw error;
-    }
-}
-
 export function runShellCommand(command: string, cwd: fs.PathLike, callback?: (process: child_process.ChildProcess) => any): Thenable<ShellOutput> {
     let options: child_process.ExecOptions = {
         cwd: cwd.toString(),
         maxBuffer: 1024 * 1024
     };
-    const config = vscode.workspace.getConfiguration('catkin_tools');
-    const shell = config['shell'];
+    const shell = getExtensionConfiguration('shell');
 
     const shell_args = (shell === 'bash' || shell === 'sh') ? "--norc" : "";
 

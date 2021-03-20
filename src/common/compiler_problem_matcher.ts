@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
-import { CatkinPackage } from './catkin_package';
+import { Package } from './package';
 
 export function analyze(
-    catkin_pkg: CatkinPackage,
+    workspace_package: Package,
     error_output,
     diagnostics_collection: vscode.DiagnosticCollection
 ) {
     let diags = new Map<string, vscode.Diagnostic[]>();
 
-    analyzeLines(catkin_pkg, error_output.split('\n'), diags);
+    analyzeLines(workspace_package, error_output.split('\n'), diags);
 
     for (let it of diags.entries()) {
         let uri = vscode.Uri.file(it[0]);
@@ -18,7 +18,7 @@ export function analyze(
 
 
 function analyzeLines(
-    catkin_pkg: CatkinPackage,
+    workspace_package: Package,
     log: string[],
     diagnostics_collection: Map<string, vscode.Diagnostic[]>
 ) {
@@ -93,7 +93,7 @@ function analyzeLines(
             const diagnostic = new vscode.Diagnostic(new vscode.Range(start, end),
                 message, severity);
 
-            updateDiagnosticDatabase(diagnostics_collection, diagnostic, catkin_pkg.relative_path + "/" + cmake_failure_message[2]);
+            updateDiagnosticDatabase(diagnostics_collection, diagnostic, workspace_package.relative_path + "/" + cmake_failure_message[2]);
         }
     }
 }

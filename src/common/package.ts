@@ -5,10 +5,10 @@ import * as glob from 'fast-glob';
 import * as xml from 'fast-xml-parser';
 import * as path from 'path';
 
-import { runShellCommand, runCommand } from './catkin_command';
-import { CatkinTestCase, CatkinTestExecutable, CatkinTestSuite, CatkinTestFixture } from './catkin_test_types';
-import { CatkinWorkspace } from './catkin_workspace';
-import { GTestSuite, parsePackageForTests, skimCmakeListsForTests } from './catkin_cmake_parser';
+import { runShellCommand, runCommand } from './shell_command';
+import { WorkspaceTestCase, WorkspaceTestExecutable, WorkspaceTestSuite, WorkspaceTestFixture } from './test_types';
+import { Workspace } from './workspace';
+import { GTestSuite, parsePackageForTests, skimCmakeListsForTests } from './cmake_test_parser';
 import { wrapArray } from './utils';
 
 export type TestType = "unknown" | "gtest" | "generic" | "suite";
@@ -19,7 +19,7 @@ export class BuildTarget {
     public type: TestType) { }
 }
 
-export class CatkinPackage {
+export class Package {
   public build_space?: fs.PathLike;
 
   public name: string;
@@ -37,7 +37,7 @@ export class CatkinPackage {
 
   private constructor(
     public package_xml_path: fs.PathLike,
-    public workspace: CatkinWorkspace) {
+    public workspace: Workspace) {
 
     this.has_tests = false;
     this.tests_loaded = false;
@@ -96,8 +96,8 @@ export class CatkinPackage {
     return true;
   }
 
-  public static async loadFromXML(package_xml_path: fs.PathLike, workspace: CatkinWorkspace) {
-    let instance = new CatkinPackage(package_xml_path, workspace);
+  public static async loadFromXML(package_xml_path: fs.PathLike, workspace: Workspace) {
+    let instance = new Package(package_xml_path, workspace);
     let package_xml_loaded = await instance.loadPackageXml();
     instance.has_tests = await skimCmakeListsForTests(instance);
     return instance;
@@ -128,7 +128,7 @@ export class CatkinPackage {
   public async getWorkspacePath(src_dir: string = undefined): Promise<string[]> {
     const relative_path = await this.getRelativePath();
     let parts = relative_path.toString().split(path.sep);
-    const src = src_dir !== undefined ? src_dir : await this.workspace.getSrcDir();
+    const src = src_dir !== undefined ? src_dir : await this.workspace.workspace_provider.getSrcDir();
     if (parts[0] === path.basename(src)) {
       return parts.slice(1);
     }
@@ -188,7 +188,7 @@ export class CatkinPackage {
 
 
   public async loadTests(build_dir: String, devel_dir: String, outline_only: boolean):
-    Promise<CatkinTestSuite> {
+    Promise<WorkspaceTestSuite> {
     this.build_space = `${build_dir}/${this.name}`;
 
     if (!this.has_tests) {
@@ -297,7 +297,7 @@ export class CatkinPackage {
     }
 
     // create the test suite
-    let pkg_suite: CatkinTestSuite = {
+    let pkg_suite: WorkspaceTestSuite = {
       type: 'suite',
       package: this,
       build_space: this.build_space,
@@ -347,7 +347,7 @@ export class CatkinPackage {
       }
 
       // create the executable
-      let test_exec: CatkinTestExecutable = {
+      let test_exec: WorkspaceTestExecutable = {
         type: build_target.type,
         package: this,
         build_space: this.build_space,
@@ -437,7 +437,7 @@ export class CatkinPackage {
                 matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
                 matching_line = existing_test_case.line;
               }
-              let test_case: CatkinTestCase = {
+              let test_case: WorkspaceTestCase = {
                 package: this,
                 build_space: this.build_space,
                 build_target: build_target.cmake_target,
@@ -471,7 +471,7 @@ export class CatkinPackage {
         }
       }
       if (test_exec.fixtures.length === 0) {
-        let test_case: CatkinTestFixture = {
+        let test_case: WorkspaceTestFixture = {
           type: build_target.type,
           package: this,
           build_space: this.build_space,
