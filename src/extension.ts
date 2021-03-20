@@ -1,12 +1,14 @@
 import * as vscode from 'vscode';
 
 import * as catkin_build from './catkin_tools/tasks/catkin_build';
+import * as colcon from './colcon/tasks/colcon_build';
 import * as workspace_manager from './workspace_manager';
 import { Workspace } from './common/workspace';
 import { Package } from './common/package';
 
 
-let taskProvider: vscode.Disposable | undefined;
+let catkin_task_provider: vscode.Disposable | undefined;
+let colcon_task_provider: vscode.Disposable | undefined;
 let outputChannel: vscode.OutputChannel = null;
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -25,11 +27,25 @@ export async function activate(context: vscode.ExtensionContext) {
       return workspace_manager.switchProfile();
     }));
 
-  taskProvider = vscode.tasks.registerTaskProvider('catkin_build', {
+  catkin_task_provider = vscode.tasks.registerTaskProvider('catkin_build', {
     provideTasks: async () => {
       let tasks = [];
       for (let root of vscode.workspace.workspaceFolders) {
         tasks = tasks.concat(await catkin_build.getCatkinBuildTask(root));
+      }
+      return tasks;
+    },
+    resolveTask(_task: vscode.Task): vscode.Task |
+      undefined {
+      return undefined;
+    }
+  });
+
+  colcon_task_provider = vscode.tasks.registerTaskProvider('colcon', {
+    provideTasks: async () => {
+      let tasks = [];
+      for (let root of vscode.workspace.workspaceFolders) {
+        tasks = tasks.concat(await colcon.getColconBuildTask(root));
       }
       return tasks;
     },
@@ -85,7 +101,7 @@ async function checkActiveEditor(editor: vscode.TextEditor) {
 async function scanUri(uri: vscode.Uri) {
   const workspace_folder = vscode.workspace.getWorkspaceFolder(uri);
   if (workspace_folder !== undefined) {
-    const workspace = workspace_manager.getProvider().getWorkspace(workspace_folder);
+    const workspace = workspace_manager.getWorkspace(workspace_folder);
     if (workspace !== undefined) {
       scanPackageContaining(workspace, uri);
     }
@@ -118,7 +134,10 @@ async function unregisterWorkspace(context: vscode.ExtensionContext, root: vscod
 }
 
 export function deactivate() {
-  if (taskProvider) {
-    taskProvider.dispose();
+  if (catkin_task_provider) {
+    catkin_task_provider.dispose();
+  }
+  if (colcon_task_provider) {
+    colcon_task_provider.dispose();
   }
 }

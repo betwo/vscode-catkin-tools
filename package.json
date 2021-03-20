@@ -25,6 +25,7 @@
   ],
   "activationEvents": [
     "workspaceContains:.catkin_tools",
+    "workspaceContains:colcon.meta",
     "onCommand:extension.b2.catkin_tools.reload_workspaces",
     "onCommand:extension.b2.catkin_tools.reload_compile_commands"
   ],
@@ -37,6 +38,15 @@
           "task": {
             "type": "string",
             "description": "The catkin build task to run {build, build current package, run current package tests} "
+          }
+        }
+      },
+      {
+        "type": "colcon",
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The colcon build task to run {build, build current package, run current package tests} "
           }
         }
       }

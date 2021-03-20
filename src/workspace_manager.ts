@@ -9,6 +9,8 @@ import { CppToolsConfigurationProvider } from './common/cpp_tools_configuration_
 import { status_bar_status, status_bar_prefix } from './common/status_bar';
 import { CatkinWorkspaceProvider } from './catkin_tools/catkin_workspace_provider';
 import * as catkin_tools_workspace from "./catkin_tools/catkin_tools_workspace";
+import * as colcon_workspace from "./colcon/colcon_workspace";
+import { ColconWorkspaceProvider } from './colcon/colcon_workspace_provider';
 import { WorkspaceTestAdapter } from './common/workspace_test_adapter';
 
 let cpp_tools_configuration_provider: CppToolsConfigurationProvider = undefined;
@@ -36,7 +38,8 @@ export function getWorkspace(workspace_folder: vscode.WorkspaceFolder) {
 
 export async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.WorkspaceFolder, output_channel: vscode.OutputChannel) {
   const is_catkin_tools = await catkin_tools_workspace.isCatkinWorkspace(root);
-  if (is_catkin_tools) {
+  const is_colcon = await colcon_workspace.isColconWorkspace(root);
+  if (is_catkin_tools || is_colcon) {
     if (cpp_tools_configuration_provider === undefined) {
       // Inform cpptools that a custom config provider will be able to service
       // the current workspace.
@@ -48,30 +51,34 @@ export async function registerWorkspace(context: vscode.ExtensionContext, root: 
     // first try to get a cached instance of the workspace.
     // this might be triggered if the same workspace is opened in different folders
     if (workspace === undefined) {
-      workspace = await initializeCatkinToolsWorkspace(context, root, output_channel);
+      if (is_catkin_tools) {
+        workspace = await initializeCatkinToolsWorkspace(context, root, output_channel);
+      } else {
+        workspace = await initializeColconWorkspace(context, root, output_channel);
+      }
       output_channel.appendLine(`Adding new workspace ${root.uri.fsPath}`);
 
       if (workspace !== undefined) {
-      workspace.onWorkspaceInitialized.event((initialized) => {
+        workspace.onWorkspaceInitialized.event((initialized) => {
           if (cpp_tools_configuration_provider) {
             cpp_tools_configuration_provider.addWorkspace(root, workspace);
             cpp_tools_api.notifyReady(cpp_tools_configuration_provider);
-        }
-        if (test_explorer_api) {
-          workspace.test_adapter = new WorkspaceTestAdapter(
-            root.uri.fsPath,
-            workspace,
-            output_channel
-          );
-          test_explorer_api.exports.registerTestAdapter(workspace.test_adapter);
-        }
+          }
+          if (test_explorer_api) {
+            workspace.test_adapter = new WorkspaceTestAdapter(
+              root.uri.fsPath,
+              workspace,
+              output_channel
+            );
+            test_explorer_api.exports.registerTestAdapter(workspace.test_adapter);
+          }
 
-        onWorkspacesChanged.fire();
-      });
-      workspace.onTestsSetChanged.event((changed) => {
-        onWorkspacesChanged.fire();
-      });
-      await workspace.reload();
+          onWorkspacesChanged.fire();
+        });
+        workspace.onTestsSetChanged.event((changed) => {
+          onWorkspacesChanged.fire();
+        });
+        await workspace.reload();
       }
 
     } else {
@@ -115,6 +122,31 @@ export async function initializeCatkinToolsWorkspace(
     new PackageXmlCompleter(catkin_workspace));
   context.subscriptions.push(package_xml_provider);
   return catkin_workspace;
+}
+
+export async function initializeColconWorkspace(
+  context: vscode.ExtensionContext, root: vscode.WorkspaceFolder, outputChannel: vscode.OutputChannel): Promise<Workspace> {
+  let config = vscode.workspace.getConfiguration('clang');
+  if (config['completion'] !== undefined && config['completion']['enable']) {
+    let ack: string = 'Ok';
+    let msg =
+      'You seem to have clang.autocomplete enabled. This interferes with catkin-tools auto completion.\n' +
+      'To disable it, change the setting "clang.completion.enable" to false.';
+    vscode.window.showInformationMessage(msg, ack);
+  }
+
+  let ack: string = 'Ok';
+  let msg =
+    'Colcon support is not fully implemented yet. Please be warned.';
+  vscode.window.showWarningMessage(msg, ack);
+
+  let colcon_workspace_provider = new ColconWorkspaceProvider(root);
+  let colcon_workspace = new Workspace(colcon_workspace_provider, outputChannel);
+  const package_xml_provider = vscode.languages.registerCompletionItemProvider(
+    { pattern: '**/package.xml' },
+    new PackageXmlCompleter(colcon_workspace));
+  context.subscriptions.push(package_xml_provider);
+  return colcon_workspace;
 }
 
 export async function reloadCompileCommands() {
