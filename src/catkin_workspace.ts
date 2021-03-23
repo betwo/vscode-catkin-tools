@@ -766,7 +766,7 @@ export class CatkinWorkspace {
   public async makeCommand(payload: string) {
     const setup_shell = await this.getSetupShell();
     let command = `source ${setup_shell} > /dev/null 2 >& 1;`;
-    command += `pushd. > /dev/null; cd "${await this.getRootPath()}"; `;
+    command += `pushd . > /dev/null; cd "${await this.getRootPath()}"; `;
     command += `${payload} `;
     if (!payload.endsWith(";")) {
       command += "; ";
