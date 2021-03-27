@@ -25,5 +25,7 @@ export interface WorkspaceProvider {
     reload(): any;
     enableCompileCommandsGeneration(): any;
 
+    getDefaultRunTestTarget(): string;
     makePackageBuildCommand(package_name: string): string;
+    makeRosSourcecommand(): string;
 }

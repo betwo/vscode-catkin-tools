@@ -405,7 +405,10 @@ export class WorkspaceTestAdapter implements TestAdapter {
         command += `{ make -q install ; [ "$?" = "1" ] && make install; }; `;
 
         if (test.type !== 'suite') {
-            command += `env GCC_COLORS= make -j $(nproc) tests;`;
+            // generic target to build all tests
+            command += `{ make -q tests ; [ "$?" = "1" ] && env GCC_COLORS= make -j $(nproc) tests; }; `;
+            // try to build the requrested test:
+            command += `{ make -q ${test.build_target} ; [ "$?" = "1" ] && env GCC_COLORS= make -j $(nproc) ${test.build_target}; } `;
         } else {
             command += `env GCC_COLORS= make -j $(nproc) ${test.build_target}`;
         }

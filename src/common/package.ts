@@ -215,13 +215,28 @@ export class Package {
           let test_command = line.match(/[0-9]+: Test command:\s+(.*)$/);
           if (test_command !== null) {
             if (line.indexOf('catkin_generated') > 0) {
-              let python_gtest_wrapper = line.match(/[0-9]+: Test command:\s+.*env_cached.sh\s*.*"([^"]+\s+--gtest_output=[^"]+)".*/);
-              if (python_gtest_wrapper !== null) {
-                current_executable = python_gtest_wrapper[1];
+              let catkin_test_wrapper = line.match(/[0-9]+: Test command:\s+.*env_cached.sh\s*.*"([^"]+\s+--gtest_output=[^"]+)".*/);
+              if (catkin_test_wrapper !== null) {
+                current_executable = catkin_test_wrapper[1];
                 current_test_type = 'gtest';
               } else {
                 current_executable = test_command[1];
                 current_test_type = 'unknown';
+              }
+            } else if (line.indexOf('ament_cmake_test') > 0) {
+              let ament_gtest_wrapper = line.match(/[0-9]+: Test command:.*"--command"\s+"([^"]+)"\s+"(--gtest_output=[^"]+)".*/);
+              if (ament_gtest_wrapper !== null) {
+                current_executable = ament_gtest_wrapper[1];
+                current_test_type = 'gtest';
+              } else {
+                let ament_xunit_test_wrapper = line.match(/[0-9]+: Test command:.*"--command"\s+"([^"]+)"\s+"--xunit-file"\s+"([^"]+)".*/);
+                if (ament_xunit_test_wrapper !== null) {
+                  current_executable = ament_xunit_test_wrapper[1];
+                  current_test_type = 'gtest';
+                } else {
+                  current_executable = test_command[1];
+                  current_test_type = 'unknown';
+                }
               }
             } else {
               let gtest_output = line.match(/[0-9]+: Test command:\s+"([^"]+\s+--gtest_output=[^"]+)".*/);
@@ -249,6 +264,8 @@ export class Package {
             test_build_targets.push(target);
           } else {
             if (line.indexOf('catkin_generated') > 0) {
+              continue;
+            } else if (line.indexOf('ament_cmake_test') > 0) {
               continue;
             }
             // general CTest target test
@@ -301,7 +318,7 @@ export class Package {
       type: 'suite',
       package: this,
       build_space: this.build_space,
-      build_target: 'run_tests',
+      build_target: this.workspace.workspace_provider.getDefaultRunTestTarget(),
       global_build_dir: build_dir,
       global_devel_dir: devel_dir,
       filter: undefined,

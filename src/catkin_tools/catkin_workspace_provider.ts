@@ -97,8 +97,19 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         return undefined;
     }
 
+    getDefaultRunTestTarget(): string {
+        return 'run_tests';
+    }
+
     makePackageBuildCommand(package_name: string): string {
         return `catkin build ${package_name} --no-notify --no-status`;
+    }
+
+    makeRosSourcecommand(): string {
+        // determine latest ros2 version
+        let find_ros1_version = 'for ROS1_VERSION in $(ls /opt/ros/|sort -r); do CATKIN_LINES=$(cat /opt/ros/$ROS1_VERSION/setup.sh | grep CATKIN | wc -l); if [ $CATKIN_LINES != "0" ]; then export INSTALL_PREFIX=/opt/ros/$ROS1_VERSION/; break; fi; done';
+        let source_script = find_ros1_version + '; source ${INSTALL_PREFIX}/setup.$(echo ${SHELL} | xargs basename)';
+        return source_script;
     }
 
     async enableCompileCommandsGeneration() {

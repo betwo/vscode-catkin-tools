@@ -74,8 +74,19 @@ export class ColconWorkspaceProvider implements WorkspaceProvider {
         return undefined;
     }
 
+    getDefaultRunTestTarget(): string {
+        return 'test';
+    }
+
     makePackageBuildCommand(package_name: string): string {
-        return `colcon build ${package_name} --no-notify --no-status`;
+        return `colcon build --packages-up-to ${package_name}`;
+    }
+
+    makeRosSourcecommand(): string {
+        // determine latest ros2 version
+        let find_ros2_version = 'for ROS2_VERSION in $(ls /opt/ros/|sort -r); do AMENT_LINES=$(cat /opt/ros/$ROS2_VERSION/setup.sh | grep ament | wc -l); if [ $AMENT_LINES != "0" ]; then export INSTALL_PREFIX=/opt/ros/$ROS2_VERSION/; break; fi; done';
+        let source_script = find_ros2_version + '; source ${INSTALL_PREFIX}/setup.$(echo ${SHELL} | xargs basename)';
+        return source_script;
     }
 
     async enableCompileCommandsGeneration() {

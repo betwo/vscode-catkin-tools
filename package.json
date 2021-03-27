@@ -84,6 +84,7 @@
             "type": "array",
             "default": [
               "^\\s*catkin_add_gtest",
+              "^\\s*ament_add_gtest",
               "^\\s*[^\\s\\(]*add[^\\s\\(]*test"
             ],
             "description": "Regular expression(s) to check a CMakeLists.txt file for (possible) GTest targets"
