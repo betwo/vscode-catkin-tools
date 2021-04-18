@@ -179,7 +179,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed subprocess calls to support echoing dotfile configurations
 
 
-## [2.0.0] - 2020-02-27
+## [2.0.0] - 2021-27
 ### Added
 - Added support for multi-root workspaces
 - Add TestExplorer integration for test case source locations
@@ -187,6 +187,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Improved test parsing
 - Improved readme with setup instructions
-## [2.1.0] - 2020-03-13
+## [2.1.0] - 2021-03-13
 ### Added
 - Added option to write a merged compile_commands.json file when the database changes
+
+## [3.0.0] - 2021-03-13
+### Added
+- Added rudimentary support for colcon as a build tool for the catkin_tools workspace

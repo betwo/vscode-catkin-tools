@@ -4,7 +4,7 @@
   "publisher": "betwo",
   "license": "MIT",
   "description": "Support for catkin_tools workspaces",
-  "version": "2.1.1",
+  "version": "3.0.0",
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
@@ -19,7 +19,7 @@
   "keywords": [
     "catkin-tools",
     "catkin",
-    "ros",
+    "colcon",
     "build",
     "multi-root ready"
   ],
