@@ -4,6 +4,7 @@
 [![VS Code Marketplace](https://vsmarketplacebadge.apphb.com/version-short/betwo.b2-catkin-tools.svg) ![Rating](https://vsmarketplacebadge.apphb.com/rating-short/betwo.b2-catkin-tools.svg) ![Downloads](https://vsmarketplacebadge.apphb.com/downloads-short/betwo.b2-catkin-tools.svg) ![Installs](https://vsmarketplacebadge.apphb.com/installs-short/betwo.b2-catkin-tools.svg)](https://marketplace.visualstudio.com/items?itemName=betwo.b2-catkin-tools)
 
 This extension makes it easier to work with [catkin-tools](https://github.com/catkin/catkin_tools).
+To some extent, it also allows the usage of [colcon](https://github.com/colcon) as the build tool to use.
 
 ## Features
 
@@ -15,7 +16,7 @@ This extension makes it easier to work with [catkin-tools](https://github.com/ca
 * Allows switching between different catkin profiles
 * Provides Test Explorer client to handle GTest targets
 
-## Setup / Configuration
+## Setup / Configuration (catkin_tools)
 
 This extension activates itself only if there is a top level `.catkin_tools` directory in any of your opened workspaces.
 In a standard catkin layout, this means that an opened workspace should look like the following:
@@ -47,7 +48,13 @@ your workspace's exclude list in your `settings.json` file:
 The folders for `devel`, `build` and `log` spaces can also be called differently, only the `src` space is required.
 This way, arbitrary catkin profiles are supported.
 
+## Setup / Configuration (colcon)
+
+Note: colcon support is rudimentary and needs some setup:
+For a colcon workspace, we expected a `colcon.meta` file to exist in the workspace `src` directory.
+
 ### CMAKE_EXPORT_COMPILE_COMMANDS
+
 Make sure that your catkin_tools workspace is set up to generate `compile_commands.json` files.
 This can be done by setting the `CMAKE_EXPORT_COMPILE_COMMANDS` flag to ON or 1 and re-building the workspace.  
 The `compile_commands.json` files are created for each package that is built inside the build folder.
@@ -67,6 +74,7 @@ cmake_args:
 ```
 
 ### IntelliSense
+
 Make sure to
 
 * use this extension as the __configurationProvider__ for `ms-vscode.cpptools`,
