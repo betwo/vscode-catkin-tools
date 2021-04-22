@@ -109,7 +109,7 @@ export class Package {
 
   public getAbsolutePath(): fs.PathLike {
     if (this.absolute_path === undefined) {
-      let src_path = path.dirname(this.package_xml_path.toString());
+      let src_path = path.normalize(path.dirname(this.package_xml_path.toString()));
       this.absolute_path = src_path;
     }
     return this.absolute_path;
