@@ -4,7 +4,7 @@
   "publisher": "betwo",
   "license": "MIT",
   "description": "Support for catkin_tools workspaces",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
@@ -203,7 +203,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^2.2.42",
-    "@types/node": "^10.17.55",
+    "@types/node": "^10.17.60",
     "lodash": "^4.17.21",
     "terser": "^4.8.0",
     "ts-loader": "^6.2.2",
@@ -218,7 +218,7 @@
     "@types/signals": "^1.0.1",
     "child_process": "^1.0.2",
     "fast-glob": "^2.2.7",
-    "fast-xml-parser": "^3.18.0",
+    "fast-xml-parser": "^3.19.0",
     "fs": "0.0.1-security",
     "jsonfile": "^5.0.0",
     "signals": "^1.0.0",
