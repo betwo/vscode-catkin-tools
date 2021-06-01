@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as jsonfile from 'jsonfile';
 import { CppToolsApi, CustomConfigurationProvider, SourceFileConfigurationItem, WorkspaceBrowseConfiguration } from 'vscode-cpptools';
-import { status_bar_status, status_bar_prefix } from "./status_bar";
+import { setStatusText } from "./status_bar";
 import { Workspace } from './workspace';
 import { getExtensionConfiguration } from './configuration';
 import { workspaces } from '../workspace_manager';
@@ -111,8 +111,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
           uri: file,
           configuration: workspace.getSourceFileConfiguration(commands)
         });
-        status_bar_status.text = status_bar_prefix + ' (' +
-          workspace.file_to_compile_commands.get(file.fsPath) + ')';
+        setStatusText('(' + workspace.file_to_compile_commands.get(file.fsPath) + ')')
 
       } else {
         let workspace_package = workspace.getPackageContaining(file);
@@ -125,7 +124,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
           return ret;
         }
 
-        status_bar_status.text = status_bar_prefix + ' (resolving header file...)';
+        setStatusText('(resolving header file...)');
         try {
           const found = await workspace.iteratePossibleSourceFiles(file, async (possible_source_file) => {
             if (token.isCancellationRequested) {
@@ -137,19 +136,18 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
                 uri: file,
                 configuration: workspace.getSourceFileConfiguration(commands)
               });
-              status_bar_status.text = status_bar_prefix + ' (header resolution via ' +
-                workspace.file_to_compile_commands.get(possible_source_file.fsPath) + ')';
+              setStatusText('(header resolution via ' + workspace.file_to_compile_commands.get(possible_source_file.fsPath) + ')');
               return true;
             } else {
               return false;
             }
           });
           if (!found) {
-            status_bar_status.text = status_bar_prefix + ' (no usage of header file  found.';
+            setStatusText('(no usage of header file  found.');
           }
         } catch (error) {
           console.log(error);
-          status_bar_status.text = status_bar_prefix + ' (error during configuration search...)';
+          setStatusText('(error during configuration search...)');
         }
       }
     }

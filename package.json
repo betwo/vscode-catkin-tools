@@ -24,10 +24,7 @@
     "multi-root ready"
   ],
   "activationEvents": [
-    "workspaceContains:.catkin_tools",
-    "workspaceContains:colcon.meta",
-    "onCommand:extension.b2.catkin_tools.reload_workspaces",
-    "onCommand:extension.b2.catkin_tools.reload_compile_commands"
+    "*"
   ],
   "main": "./dist/extension",
   "contributes": {

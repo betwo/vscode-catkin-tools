@@ -6,7 +6,7 @@ import * as glob from 'fast-glob';
 import { WorkspaceProvider } from "../common/workspace_provider";
 import { runCatkinCommand } from "./catkin_command";
 import { ShellOutput } from '../common/shell_command';
-import { status_bar_profile, status_bar_profile_prefix } from '../common/status_bar';
+import { setProfileText } from '../common/status_bar';
 
 export class CatkinWorkspaceProvider implements WorkspaceProvider {
     private catkin_config = new Map<string, string>();
@@ -170,7 +170,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         this.catkin_devel_dir = null;
         this.workspace_install_dir = null;
 
-        status_bar_profile.text = status_bar_profile_prefix + profile;
+        setProfileText(profile);
 
         await this.reload();
     }

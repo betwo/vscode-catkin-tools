@@ -6,7 +6,7 @@ import * as vscode_test from 'vscode-test-adapter-api';
 import { Workspace } from './common/workspace';
 import { PackageXmlCompleter } from './common/package_xml_tools';
 import { CppToolsConfigurationProvider } from './common/cpp_tools_configuration_provider';
-import { status_bar_status, status_bar_prefix } from './common/status_bar';
+import { setStatusText } from './common/status_bar';
 import { CatkinWorkspaceProvider } from './catkin_tools/catkin_workspace_provider';
 import * as catkin_tools_workspace from "./catkin_tools/catkin_tools_workspace";
 import * as colcon_workspace from "./colcon/colcon_workspace";
@@ -51,6 +51,7 @@ export async function registerWorkspace(context: vscode.ExtensionContext, root: 
     // first try to get a cached instance of the workspace.
     // this might be triggered if the same workspace is opened in different folders
     if (workspace === undefined) {
+      setStatusText(`initializing workspace`);
       if (is_catkin_tools) {
         workspace = await initializeCatkinToolsWorkspace(context, root, output_channel);
       } else {
@@ -79,6 +80,7 @@ export async function registerWorkspace(context: vscode.ExtensionContext, root: 
           onWorkspacesChanged.fire();
         });
         await workspace.reload();
+        setStatusText(`workspace ${await workspace.getName()} initialized`);
       }
 
     } else {
@@ -150,22 +152,20 @@ export async function initializeColconWorkspace(
 }
 
 export async function reloadCompileCommands() {
-  status_bar_status.text = status_bar_prefix + 'merging';
+  setStatusText('merging compile commands');
   const config = vscode.workspace.getConfiguration('catkin_tools');
   const merged_compile_commands_json_path = config.get('mergedCompileCommandsJsonPath', "");
 
   if (merged_compile_commands_json_path.length > 0) {
     await cpp_tools_configuration_provider.mergeCompileCommandsFiles();
-    status_bar_status.text = status_bar_prefix +
-      ` written to ${merged_compile_commands_json_path}`;
+    setStatusText(`written to ${merged_compile_commands_json_path}`);
   } else {
-    status_bar_status.text = status_bar_prefix +
-      ' (mergedCompileCommandsJsonPath not set)';
+    setStatusText('(mergedCompileCommandsJsonPath not set)');
   }
 }
 
 export async function reloadAllWorkspaces() {
-  status_bar_status.text = status_bar_prefix + 'reloading';
+  setStatusText('reloading');
 
   let workers = [];
   for (const [_, workspace] of workspaces) {
@@ -174,9 +174,9 @@ export async function reloadAllWorkspaces() {
   let reloaded_spaces: Workspace[] = await Promise.all(workers);
 
   if (reloaded_spaces.every(entry => entry !== undefined)) {
-    status_bar_status.text = status_bar_prefix + 'reload complete';
+    setStatusText('reload complete');
   } else {
-    status_bar_status.text = status_bar_prefix + 'reload failed';
+    setStatusText('reload failed');
   }
 }
 
@@ -212,6 +212,7 @@ export async function switchProfile() {
   }
   const active_profile = await workspace.workspace_provider.getActiveProfile();
   const profiles = await workspace.workspace_provider.getProfiles();
+  console.log(`catkin profiles: ${profiles.length}`)
 
   const profile_list = [];
   for (const profile of profiles) {
