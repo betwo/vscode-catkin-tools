@@ -128,11 +128,8 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
     public async getProfiles(): Promise<string[]> {
         const root_path = await this.getRootPath();
         let profile_base_path = path.join(root_path.toString(), ".catkin_tools/profiles");
-
-        let profiles_path = path.join(profile_base_path, "profiles.yaml");
-        if (!fs.existsSync(profiles_path)) {
-            // profiles.yaml is only generated when there is more than one profile available
-            // if it does not exist, then the `default` profile is used
+        if (!fs.existsSync(profile_base_path)) {
+            console.error(".catkin_tools was not found, cannot enumerate profiles");
             return [];
         }
 
