@@ -570,10 +570,13 @@ export class Workspace {
 
   public async getSetupShell(): Promise<string> {
     const shell_type = getExtensionConfiguration('shell');
-    const install_dir = await this.workspace_provider.getInstallDir();
-    let setup = install_dir + `/setup.${shell_type}`;
-    if (fs.existsSync(setup)) {
-      return setup;
+    const use_install_space = getExtensionConfiguration('useInstallSpace');
+    if (use_install_space) {
+      const install_dir = await this.workspace_provider.getInstallDir();
+      let setup = install_dir + `/setup.${shell_type}`;
+      if (fs.existsSync(setup)) {
+        return setup;
+      }
     }
     const devel_dir = await this.workspace_provider.getDevelDir();
     return devel_dir + `/setup.${shell_type}`;
