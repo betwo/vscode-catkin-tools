@@ -67,6 +67,11 @@
             "default": "c++11",
             "description": "C++ standard to use  (see C_CPP extension)"
           },
+          "catkin_tools.useInstallSpace": {
+            "type": "boolean",
+            "default": "true",
+            "description": "Flag to source from install space instead of devel space"
+          },
           "catkin_tools.intelliSenseMode": {
             "type": "string",
             "default": "gcc-x64",
