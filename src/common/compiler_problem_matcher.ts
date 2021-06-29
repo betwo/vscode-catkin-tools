@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { Package } from './package';
+import { IPackage } from 'vscode-catkin-tools-api';
 
 export function analyze(
-    workspace_package: Package,
+    workspace_package: IPackage,
     error_output,
     diagnostics_collection: vscode.DiagnosticCollection
 ) {
@@ -18,7 +18,7 @@ export function analyze(
 
 
 function analyzeLines(
-    workspace_package: Package,
+    workspace_package: IPackage,
     log: string[],
     diagnostics_collection: Map<string, vscode.Diagnostic[]>
 ) {

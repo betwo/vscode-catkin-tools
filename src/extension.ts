@@ -1,30 +1,89 @@
 import * as vscode from 'vscode';
 
+import { API, IWorkspaceManager, IWorkspace, ITestParser } from 'vscode-catkin-tools-api';
 import * as catkin_build from './catkin_tools/tasks/catkin_build';
 import * as colcon from './colcon/tasks/colcon_build';
-import * as workspace_manager from './workspace_manager';
+import { WorkspaceManager } from './workspace_manager';
 import { Workspace } from './common/workspace';
 import { Package } from './common/package';
+import { test_parsers } from "./common/testing/cmake_test_parser";
 
 
 let catkin_task_provider: vscode.Disposable | undefined;
 let colcon_task_provider: vscode.Disposable | undefined;
 let outputChannel: vscode.OutputChannel = null;
 
-export async function activate(context: vscode.ExtensionContext) {
+export let api = new class implements API {
+  workspace_manager: WorkspaceManager;
+
+  constructor() {
+    this.workspace_manager = new WorkspaceManager();
+  }
+
+  async reload(): Promise<void> {
+    return api.getWorkspaceManager().reloadAllWorkspaces();
+  }
+
+  async registerWorkspace(context: vscode.ExtensionContext,
+    root: vscode.WorkspaceFolder,
+    output_channel: vscode.OutputChannel): Promise<void> {
+    return await this.workspace_manager.registerWorkspace(context, root, output_channel);
+  }
+
+  async unregisterWorkspace(context: vscode.ExtensionContext,
+    root: vscode.WorkspaceFolder): Promise<void> {
+    return await this.workspace_manager.unregisterWorkspace(context, root);
+  }
+
+  getWorkspaceManager(): IWorkspaceManager {
+    return this.workspace_manager;
+  }
+
+  getWorkspaces(): Map<vscode.WorkspaceFolder, IWorkspace> {
+    return this.workspace_manager.workspaces;
+  }
+
+  getWorkspace(workspace_folder: vscode.WorkspaceFolder) {
+    return this.workspace_manager.getWorkspace(workspace_folder);
+  }
+
+  registerTestParser(parser: ITestParser): vscode.Disposable {
+    test_parsers.push(parser);
+
+    let scope = this;
+    return {
+      dispose: function () {
+        const before = test_parsers.length;
+        scope.unregisterTestParser(parser);
+
+      }
+    };
+  }
+  unregisterTestParser(parser: ITestParser) {
+    for (let index = 0; index < test_parsers.length; ++index) {
+      if (test_parsers[index] === parser) {
+        test_parsers.splice(index, 1);
+        return;
+      }
+    }
+  }
+};
+
+
+export async function activate(context: vscode.ExtensionContext): Promise<API> {
   outputChannel = vscode.window.createOutputChannel("catkin_tools");
 
   context.subscriptions.push(vscode.commands.registerCommand(
     'extension.b2.catkin_tools.reload_compile_commands', async () => {
-      return workspace_manager.reloadCompileCommands();
+      return api.getWorkspaceManager().reloadCompileCommands();
     }));
   context.subscriptions.push(vscode.commands.registerCommand(
     'extension.b2.catkin_tools.reload_workspaces', async () => {
-      return workspace_manager.reloadAllWorkspaces();
+      return api.getWorkspaceManager().reloadAllWorkspaces();
     }));
   context.subscriptions.push(vscode.commands.registerCommand(
     'extension.b2.catkin_tools.switch_profile', async () => {
-      return workspace_manager.switchProfile();
+      return api.getWorkspaceManager().switchProfile();
     }));
 
   catkin_task_provider = vscode.tasks.registerTaskProvider('catkin_build', {
@@ -55,12 +114,26 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   });
 
+  let workspace_manager = api.getWorkspaceManager();
   workspace_manager.onWorkspacesChanged.event(() => {
     checkActiveEditor(vscode.window.activeTextEditor);
+  });
+  vscode.window.onDidChangeActiveTextEditor((editor: vscode.TextEditor) => {
+    checkActiveEditor(editor);
+  });
+
+  vscode.workspace.onDidSaveTextDocument((document: vscode.TextDocument) => {
+    scanUri(document.uri);
   });
 
   await workspace_manager.initialize();
 
+  setTimeout(loadWorkspaces, 1000, context);
+
+  return api;
+}
+
+async function loadWorkspaces(context: vscode.ExtensionContext) {
   vscode.workspace.onDidChangeWorkspaceFolders(workspaces => {
     for (const workspace of workspaces.removed) {
       unregisterWorkspace(context, workspace);
@@ -80,13 +153,10 @@ export async function activate(context: vscode.ExtensionContext) {
   for (const editor of vscode.window.visibleTextEditors) {
     await checkActiveEditor(editor);
   }
-  vscode.window.onDidChangeActiveTextEditor((editor: vscode.TextEditor) => {
-    checkActiveEditor(editor);
-  });
+}
 
-  vscode.workspace.onDidSaveTextDocument((document: vscode.TextDocument) => {
-    scanUri(document.uri);
-  });
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function checkActiveEditor(editor: vscode.TextEditor) {
@@ -101,7 +171,7 @@ async function checkActiveEditor(editor: vscode.TextEditor) {
 async function scanUri(uri: vscode.Uri) {
   const workspace_folder = vscode.workspace.getWorkspaceFolder(uri);
   if (workspace_folder !== undefined) {
-    const workspace = workspace_manager.getWorkspace(workspace_folder);
+    const workspace = api.getWorkspace(workspace_folder);
     if (workspace !== undefined) {
       scanPackageContaining(workspace, uri);
     }
@@ -125,12 +195,12 @@ async function scanPackageContaining(workspace: Workspace, uri: vscode.Uri) {
 }
 
 async function registerWorkspace(context: vscode.ExtensionContext, root: vscode.WorkspaceFolder) {
-  workspace_manager.registerWorkspace(context, root, outputChannel);
+  api.registerWorkspace(context, root, outputChannel);
 
 }
 
 async function unregisterWorkspace(context: vscode.ExtensionContext, root: vscode.WorkspaceFolder) {
-  workspace_manager.unregisterWorkspace(context, root);
+  api.unregisterWorkspace(context, root);
 }
 
 export function deactivate() {

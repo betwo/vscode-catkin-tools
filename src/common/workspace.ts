@@ -8,11 +8,11 @@ import { Signal } from 'signals';
 import * as vscode from 'vscode';
 import { SourceFileConfiguration } from 'vscode-cpptools';
 import { Package } from './package';
-import { WorkspaceTestAdapter } from './workspace_test_adapter';
+import { WorkspaceTestAdapter } from './testing/workspace_test_adapter';
 import { getExtensionConfiguration } from './configuration';
-import { WorkspaceProvider } from './workspace_provider';
+import { WorkspaceProvider, IWorkspace, WorkspaceTestSuite } from 'vscode-catkin-tools-api';
 
-export class Workspace {
+export class Workspace implements IWorkspace {
   public compile_commands: Map<string, JSON> = new Map<string, JSON>();
   public file_to_command: Map<string, JSON> = new Map<string, JSON>();
   public file_to_compile_commands: Map<string, string> =
@@ -480,9 +480,11 @@ export class Workspace {
                 let package_xml = await this.locatePackageXML(filename);
                 let workspace_package = await this.loadPackage(package_xml);
                 if (workspace_package && workspace_package.has_tests) {
-                  let suite = await this.test_adapter.updatePackageTests(workspace_package, true);
+                  workspace_package.package_test_suite = await this.test_adapter.updatePackageTests(workspace_package, true);
                   this.test_adapter.updateSuiteSet();
-                  console.log(`New package ${workspace_package.name} found and ${suite.executables === null ? "unknown" : suite.executables.length} tests added`);
+                  console.log(`New package ${workspace_package.name} found and ${workspace_package.package_test_suite.executables === null ?
+                    "unknown" :
+                    workspace_package.package_test_suite.executables.length} tests added`);
                 } else {
                   console.log(`New package ${workspace_package.name} but no package.xml found`);
                 }
@@ -558,6 +560,16 @@ export class Workspace {
   }
 
 
+  public async getBuildDir(): Promise<fs.PathLike> {
+    return this.workspace_provider.getBuildDir();
+  }
+  public async getDevelDir(): Promise<fs.PathLike> {
+    return this.workspace_provider.getDevelDir();
+  }
+  public async getInstallDir(): Promise<fs.PathLike> {
+    return this.workspace_provider.getInstallDir();
+  }
+
   public async getRootPath(): Promise<fs.PathLike> {
     return this.workspace_provider.getRootPath();
   }
@@ -617,7 +629,7 @@ export class Workspace {
     }));
   }
 
-  public async makeCommand(payload: string) {
+  public async makeCommand(payload: string): Promise<string> {
     const setup_shell = await this.getSetupShell();
     let command = `source ${setup_shell} > /dev/null 2 >& 1;`;
     command += `pushd . > /dev/null; cd "${await this.getRootPath()}"; `;

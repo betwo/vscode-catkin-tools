@@ -5,21 +5,22 @@ import * as glob from 'fast-glob';
 import * as xml from 'fast-xml-parser';
 import * as path from 'path';
 
+import { IPackage, TestType, TestSuite, IBuildTarget, WorkspaceTestCase, WorkspaceTestExecutable, WorkspaceTestSuite, WorkspaceTestFixture } from 'vscode-catkin-tools-api';
+
 import { runShellCommand, runCommand } from './shell_command';
-import { WorkspaceTestCase, WorkspaceTestExecutable, WorkspaceTestSuite, WorkspaceTestFixture } from './test_types';
 import { Workspace } from './workspace';
-import { GTestSuite, parsePackageForTests, skimCmakeListsForTests } from './cmake_test_parser';
+import { parsePackageForTests, skimCmakeListsForTests } from './testing/cmake_test_parser';
 import { wrapArray } from './utils';
 
-export type TestType = "unknown" | "gtest" | "generic" | "suite";
+export class BuildTarget implements IBuildTarget {
 
-export class BuildTarget {
   constructor(public cmake_target: string,
+    public label: string,
     public exec_path: string,
     public type: TestType) { }
 }
 
-export class Package {
+export class Package implements IPackage {
   public build_space?: fs.PathLike;
 
   public name: string;
@@ -29,6 +30,7 @@ export class Package {
 
   public has_tests: boolean;
   public tests_loaded: boolean;
+  public package_test_suite: WorkspaceTestSuite;
 
   public path: string;
   public relative_path: fs.PathLike;
@@ -202,7 +204,7 @@ export class Package {
     //                                `---------------`
 
     // find gtest build targets
-    let test_build_targets = [];
+    let test_build_targets: BuildTarget[] = [];
     if (!outline_only) {
       try {
         let output = await runCommand('ctest', ['-N', '-V'], [], this.build_space);
@@ -215,10 +217,14 @@ export class Package {
           let test_command = line.match(/[0-9]+: Test command:\s+(.*)$/);
           if (test_command !== null) {
             if (line.indexOf('catkin_generated') > 0) {
-              let catkin_test_wrapper = line.match(/[0-9]+: Test command:\s+.*env_cached.sh\s*.*"([^"]+\s+--gtest_output=[^"]+)".*/);
+              const catkin_test_wrapper = line.match(/[0-9]+: Test command:\s+.*env_cached.sh\s*.*"([^"]+\s+--gtest_output=[^"]+)".*/);
+              const rostest_wrapper = line.match(/[0-9]+: Test command:\s+(.*env_cached.sh.*cmake\/test\/run_tests.py.*bin\/rostest.*)/);
               if (catkin_test_wrapper !== null) {
                 current_executable = catkin_test_wrapper[1];
                 current_test_type = 'gtest';
+              } else if (rostest_wrapper !== null) {
+                current_executable = rostest_wrapper[1];
+                current_test_type = 'generic';
               } else {
                 current_executable = test_command[1];
                 current_test_type = 'unknown';
@@ -258,6 +264,7 @@ export class Package {
             }
             let target: BuildTarget = {
               cmake_target: gtest_match[1],
+              label: gtest_match[1],
               exec_path: current_executable,
               type: current_test_type
             };
@@ -296,8 +303,19 @@ export class Package {
                     // assume that the executable has the same name as the cmake target
                     exe = target;
                   }
+                  let label = exe;
+                  if (cmd.indexOf('bin/rostest') > 0) {
+                    const rostest_wrapper = cmd.match(/.*"\s*[^\s]+\/test_([^\s]+)\.test["\s]*/);
+                    if (rostest_wrapper !== null) {
+                      label = rostest_wrapper[1];
+                      exe = rostest_wrapper[1];
+                    } else {
+                      label = target;
+                    }
+                  }
                   test_build_targets.push({
                     cmake_target: exe,
+                    label: label,
                     exec_path: cmd,
                     type: current_test_type
                   });
@@ -338,7 +356,7 @@ export class Package {
       executables: null
     };
 
-    let gtest_build_targets: GTestSuite;
+    let gtest_build_targets: TestSuite;
     if (!outline_only) {
       try {
         gtest_build_targets = await parsePackageForTests(this);
@@ -348,7 +366,7 @@ export class Package {
     }
     if (gtest_build_targets === undefined) {
       // default to an empty suite
-      gtest_build_targets = new GTestSuite([]);
+      gtest_build_targets = new TestSuite([]);
     }
 
     // generate a list of all tests in this target
@@ -360,6 +378,8 @@ export class Package {
         if (gtest_build_target !== undefined) {
           matching_source_file = path.join(this.getAbsolutePath().toString(), gtest_build_target.package_relative_file_path.toString());
           matching_line = gtest_build_target.line;
+        } else {
+          console.error(`No matching line for build target ${build_target.cmake_target}`);
         }
       }
 
@@ -376,7 +396,7 @@ export class Package {
         info: {
           type: 'suite',
           id: `exec_${build_target.cmake_target}`,
-          label: build_target.cmake_target,
+          label: build_target.label,
           children: [],
           tooltip: `Executable test ${build_target.cmake_target}.`,
           file: matching_source_file,
@@ -411,6 +431,12 @@ export class Package {
               if (existing_fixture !== undefined) {
                 matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
                 matching_line = existing_fixture.line;
+              } else {
+                console.error(`No matching line for fixture ${current_fixture_label}`);
+                console.log("Available fixtures:");
+                for (const f of gtest_build_targets.getFixtures()) {
+                  console.log(f);
+                }
               }
               test_exec.fixtures.push({
                 type: 'gtest',
@@ -453,6 +479,8 @@ export class Package {
               if (existing_test_case !== undefined) {
                 matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
                 matching_line = existing_test_case.line;
+              } else {
+                console.error(`No matching line for test case ${test_name} in suite ${current_test_suite}`);
               }
               let test_case: WorkspaceTestCase = {
                 package: this,
@@ -523,6 +551,8 @@ export class Package {
     if (!outline_only) {
       this.tests_loaded = true;
     }
+
+    this.package_test_suite = pkg_suite;
 
     return pkg_suite;
   }

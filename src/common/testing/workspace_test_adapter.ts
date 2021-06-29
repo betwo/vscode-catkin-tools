@@ -9,19 +9,26 @@ import {
     TestRunFinishedEvent,
     TestSuiteEvent,
     TestAdapter,
-    TestSuiteInfo,
-    TestInfo
+    TestSuiteInfo
 } from 'vscode-test-adapter-api';
+import {
+    IPackage,
+    WorkspaceTestInterface,
+    WorkspaceTestCase,
+    WorkspaceTestExecutable,
+    WorkspaceTestSuite,
+    WorkspaceTestFixture,
+    TestType
+} from 'vscode-catkin-tools-api';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Package, TestType } from './package';
-import { Workspace } from './workspace';
-import { runShellCommand, runCommand } from './shell_command';
-import { WorkspaceTestInterface, WorkspaceTestCase, WorkspaceTestExecutable, WorkspaceTestSuite, WorkspaceTestFixture } from './test_types';
+import { Package } from '../package';
+import { Workspace } from '../workspace';
+import { runShellCommand, runCommand } from '../shell_command';
 import { WorkspaceTestParameters, WorkspaceTestRunResult, WorkspaceTestRunResultKind } from './test_parameters';
-import { wrapArray } from './utils';
-import * as gtest_problem_matcher from './gtest_problem_matcher';
-import * as compiler_problem_matcher from './compiler_problem_matcher';
+import { wrapArray } from '../utils';
+import * as gtest_problem_matcher from './gtest/gtest_problem_matcher';
+import * as compiler_problem_matcher from '../compiler_problem_matcher';
 import * as xml from 'fast-xml-parser';
 import * as treekill from 'tree-kill';
 
@@ -123,7 +130,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
                         });
                     }
 
-                    await this.updatePackageTests(workspace_package, true, build_dir, devel_dir);
+                    workspace_package.package_test_suite = await this.updatePackageTests(workspace_package, true, build_dir, devel_dir);
                 }
                 this.updateSuiteSet();
 
@@ -230,7 +237,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
         this.suites.set(suite.info.id, suite);
     }
 
-    public async loadPackageTests(workspace_package: Package,
+    public async loadPackageTests(workspace_package: IPackage,
         outline_only: boolean = false,
         build_dir?: String, devel_dir?: String):
         Promise<[WorkspaceTestSuite, WorkspaceTestSuite]> {
@@ -247,9 +254,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
         }
 
         try {
-            console.log("loading tests for package");
             let suite = await workspace_package.loadTests(build_dir, devel_dir, outline_only);
-            console.log(`setting suite ${suite.info.id}`);
             let old_suite = this.suites.get(suite.info.id);
 
             return [suite, old_suite];
@@ -441,7 +446,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
     }
 
     private async runCommands(
-        workspace_package: Package,
+        workspace_package: IPackage,
         commands: WorkspaceTestParameters,
         progress: vscode.Progress<{ message?: string; increment?: number; }>,
         token: vscode.CancellationToken,
@@ -589,7 +594,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
         this.output_channel.appendLine(`running test command for ${id}`);
 
         let commands: WorkspaceTestParameters;
-        let test: WorkspaceTestInterface;
+        let test: WorkspaceTestInterface | WorkspaceTestExecutable;
 
         if (id.startsWith("fixture_unknown_")) {
             // Run an unknown executable's tests
@@ -859,7 +864,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
         return result;
     }
 
-    public async reloadPackageIfChanged(workspace_package: Package): Promise<WorkspaceTestSuite | undefined> {
+    public async reloadPackageIfChanged(workspace_package: IPackage): Promise<WorkspaceTestSuite | undefined> {
         // check if a test suite was changed
         // this can happen, if a test executable was not compiled before the run,
         // or if the user changes the test itself between runs

@@ -4,7 +4,7 @@ import { CppToolsApi, CustomConfigurationProvider, SourceFileConfigurationItem, 
 import { setStatusText } from "./status_bar";
 import { Workspace } from './workspace';
 import { getExtensionConfiguration } from './configuration';
-import { workspaces } from '../workspace_manager';
+import { api } from '../extension';
 
 // Worker class that implements a C++ configuration provider
 export class CppToolsConfigurationProvider implements CustomConfigurationProvider {
@@ -16,7 +16,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
   dispose() { }
   public async reloadAllWorkspaces(): Promise<boolean> {
     let workers = [];
-    for (let [_, workspace] of workspaces) {
+    for (let [_, workspace] of api.getWorkspaces()) {
       workers.push(workspace.reload());
     }
     await Promise.all(workers);
@@ -24,11 +24,11 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
   }
 
   private getWorkspace(workspace_folder: vscode.WorkspaceFolder) {
-    return workspaces.get(workspace_folder);
+    return api.getWorkspace(workspace_folder);
   }
 
   public addWorkspace(workspace_folder: vscode.WorkspaceFolder, workspace: Workspace) {
-    workspaces.set(workspace_folder, workspace);
+    api.getWorkspaces().set(workspace_folder, workspace);
 
     workspace.build_commands_changed.add(() => {
       this.cppToolsApi.didChangeCustomConfiguration(this);
@@ -40,7 +40,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
 
   }
   public removeWorkspace(workspace_folder: vscode.WorkspaceFolder) {
-    workspaces.delete(workspace_folder);
+    api.getWorkspaces().delete(workspace_folder);
   }
 
   public async mergeCompileCommandsFiles() {
@@ -74,7 +74,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
       console.log(`Cannot provide compile flags for ${uri.fsPath}, not contained in vscode folder`);
       return false;
     }
-    let workspace = workspaces.get(vscode_workspace);
+    let workspace = api.getWorkspace(vscode_workspace);
     if (!workspace) {
       console.log(`Cannot provide compile flags for ${uri.fsPath}, not contained in any workspace`);
       return false;
@@ -99,7 +99,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
         vscode.window.showErrorMessage(`Tried to provide C++ configuration for a file '${file.fsPath}' not contained in any code workspace`);
         continue;
       }
-      let workspace = workspaces.get(vscode_workspace);
+      let workspace = api.getWorkspace(vscode_workspace);
       if (!workspace) {
         vscode.window.showErrorMessage(`Tried to provide C++ configuration for a file '${file.fsPath}' not contained in any workspace`);
         continue;
@@ -163,7 +163,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
     for (var vscode_workspace of vscode.workspace.workspaceFolders) {
       // paths.push(vscode_workspace.uri.fsPath);
 
-      let workspace = workspaces.get(vscode_workspace);
+      let workspace = api.getWorkspace(vscode_workspace);
       if (workspace) {
         for (var sp of workspace.system_include_browse_paths) {
           paths.push(sp);

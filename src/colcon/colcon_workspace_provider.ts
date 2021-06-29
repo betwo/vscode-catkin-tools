@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 
-import { WorkspaceProvider } from "../common/workspace_provider";
+import { WorkspaceProvider } from "vscode-catkin-tools-api";
 import { runColconCommand } from "./colcon_command";
 
 export class ColconWorkspaceProvider implements WorkspaceProvider {

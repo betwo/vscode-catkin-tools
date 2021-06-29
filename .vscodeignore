@@ -14,3 +14,4 @@ vsc-extension-quickstart.md
 webpack.config.js
 *.vsix
 accesstoken.txt
+api

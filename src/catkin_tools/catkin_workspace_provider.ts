@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as glob from 'fast-glob';
 
-import { WorkspaceProvider } from "../common/workspace_provider";
+import { WorkspaceProvider } from "vscode-catkin-tools-api";
 import { runCatkinCommand } from "./catkin_command";
 import { ShellOutput } from '../common/shell_command';
 import { setProfileText } from '../common/status_bar';
@@ -114,7 +114,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
 
     async enableCompileCommandsGeneration() {
         const cmake_opts = await this.getConfigEntry("Additional CMake Args");
-        runCatkinCommand(['config', '--cmake-args', `${cmake_opts} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`], await this.getRootPath());
+        runCatkinCommand(['config', '--cmake-args', `${cmake_opts !== "None" ? `${cmake_opts} ` : ""}-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`], await this.getRootPath());
         this.loadCatkinConfig();
     }
 
