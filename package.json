@@ -215,14 +215,14 @@
     "tslint": "^5.20.1",
     "typescript": "^3.9.9",
     "vscode": "^1.1.37",
-    "webpack": "^4.46.0",
+    "webpack": "^5.41.1",
     "webpack-cli": "^3.3.12"
   },
   "dependencies": {
     "@types/jsonfile": "^5.0.1",
     "@types/signals": "^1.0.1",
     "child_process": "^1.0.2",
-    "fast-glob": "^2.2.7",
+    "fast-glob": "^3.2.6",
     "fast-xml-parser": "^3.19.0",
     "fs": "0.0.1-security",
     "jsonfile": "^5.0.0",

@@ -168,7 +168,7 @@ export class Package implements IPackage {
       return false;
     }
     const include_relpath = header_file.fsPath.substr(include_start_pos + include_prefix.length);
-    let sources = await glob.async(
+    let sources = await glob(
       [`${this.getAbsolutePath()}/**/*.(c|cc|cpp|cxx)`]
     );
     for (let source of sources) {

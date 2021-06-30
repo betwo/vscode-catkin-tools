@@ -82,7 +82,7 @@ export class Workspace implements IWorkspace {
 
       progress.report({ increment: 1, message: "Searching packages" });
       const package_xml_pattern = `${await this.workspace_provider.getSrcDir()}/**/package.xml`;
-      const package_xml_files = await glob.async(
+      const package_xml_files = await glob(
         [package_xml_pattern]
       );
       let range_progress_packages_min = 1;
@@ -139,7 +139,7 @@ export class Workspace implements IWorkspace {
 
   public async locatePackageXML(package_name: String) {
     const package_xml_pattern = `${await this.workspace_provider.getSrcDir()}/**/package.xml`;
-    const package_xml_files = await glob.async(
+    const package_xml_files = await glob(
       [package_xml_pattern]
     );
     for (let package_xml_entry of package_xml_files) {
@@ -503,7 +503,7 @@ export class Workspace implements IWorkspace {
 
       let expr = this.build_dir + '/**/compile_commands.json';
 
-      const entries = await glob.async([expr]);
+      const entries = await glob([expr]);
       for (let file of entries) {
         this.startWatchingCompileCommandsFile(file.toString());
       }

@@ -133,7 +133,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
             return [];
         }
 
-        const configs = await glob.async([profile_base_path + '/**/config.yaml']);
+        const configs = await glob([profile_base_path + '/**/config.yaml']);
         return configs.map((yaml) => path.basename(path.dirname(yaml.toString())));
     }
 

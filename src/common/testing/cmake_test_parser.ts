@@ -19,7 +19,7 @@ export async function skimCmakeListsForTests(workspace_package: Package): Promis
     }
 
     const cmake_lists_pattern = `${workspace_package.getAbsolutePath()}/**/CMakeLists.txt`;
-    const cmake_files = await glob.async(
+    const cmake_files = await glob(
         [cmake_lists_pattern]
     );
     for (let cmake_file of cmake_files) {
