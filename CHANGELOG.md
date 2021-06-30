@@ -194,3 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] - 2021-03-13
 ### Added
 - Added rudimentary support for colcon as a build tool for the catkin_tools workspace
+
+## [3.2.0] - 2021-06-30
+### Added
+- Extracted public API for other extensions to access catkin information
