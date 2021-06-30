@@ -50,16 +50,20 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
       const opts = { spaces: 2, EOL: '\r\n' };
       if (merged_compile_commands_json_path.indexOf('${workspaceFolder}') >= 0) {
         // save per workspace
-        for (const folder of vscode.workspace.workspaceFolders) {
-          const output_path = merged_compile_commands_json_path.replace("${workspaceFolder}", folder.uri.fsPath);
-          const commands = this.getWorkspace(folder).collectCompileCommands();
-          await jsonfile.writeFile(output_path, commands, opts);
+        if (vscode.workspace.workspaceFolders !== undefined) {
+          for (const folder of vscode.workspace.workspaceFolders) {
+            const output_path = merged_compile_commands_json_path.replace("${workspaceFolder}", folder.uri.fsPath);
+            const commands = this.getWorkspace(folder).collectCompileCommands();
+            await jsonfile.writeFile(output_path, commands, opts);
+          }
         }
       } else {
         // merge into one
         let commands = [];
-        for (const folder of vscode.workspace.workspaceFolders) {
-          commands = commands.concat(this.getWorkspace(folder).collectCompileCommands());
+        if (vscode.workspace.workspaceFolders !== undefined) {
+          for (const folder of vscode.workspace.workspaceFolders) {
+            commands = commands.concat(this.getWorkspace(folder).collectCompileCommands());
+          }
         }
         await jsonfile.writeFile(merged_compile_commands_json_path, commands, opts);
       }
@@ -160,16 +164,16 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
   public async provideBrowseConfiguration(token?: vscode.CancellationToken):
     Promise<WorkspaceBrowseConfiguration> {
     let paths = [];
-    for (var vscode_workspace of vscode.workspace.workspaceFolders) {
-      // paths.push(vscode_workspace.uri.fsPath);
-
-      let workspace = api.getWorkspace(vscode_workspace);
-      if (workspace) {
-        for (var sp of workspace.system_include_browse_paths) {
-          paths.push(sp);
-        }
-        for (var dp of workspace.default_system_include_paths) {
-          paths.push(dp);
+    if (vscode.workspace.workspaceFolders !== undefined) {
+      for (var vscode_workspace of vscode.workspace.workspaceFolders) {
+        let workspace = api.getWorkspace(vscode_workspace);
+        if (workspace) {
+          for (var sp of workspace.system_include_browse_paths) {
+            paths.push(sp);
+          }
+          for (var dp of workspace.default_system_include_paths) {
+            paths.push(dp);
+          }
         }
       }
     }

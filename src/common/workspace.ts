@@ -312,6 +312,9 @@ export class Workspace implements IWorkspace {
   }
 
   private isWorkspacePath(path: string): boolean {
+    if (vscode.workspace.workspaceFolders === undefined) {
+      return false;
+    }
     for (var ws of vscode.workspace.workspaceFolders) {
       let base = ws.uri.fsPath;
       if (!base.endsWith('/')) {

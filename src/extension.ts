@@ -89,8 +89,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<API> {
   catkin_task_provider = vscode.tasks.registerTaskProvider('catkin_build', {
     provideTasks: async () => {
       let tasks = [];
-      for (let root of vscode.workspace.workspaceFolders) {
-        tasks = tasks.concat(await catkin_build.getCatkinBuildTask(root));
+      if (vscode.workspace.workspaceFolders !== undefined) {
+        for (let root of vscode.workspace.workspaceFolders) {
+          tasks = tasks.concat(await catkin_build.getCatkinBuildTask(root));
+        }
       }
       return tasks;
     },
@@ -103,8 +105,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<API> {
   colcon_task_provider = vscode.tasks.registerTaskProvider('colcon', {
     provideTasks: async () => {
       let tasks = [];
-      for (let root of vscode.workspace.workspaceFolders) {
-        tasks = tasks.concat(await colcon.getColconBuildTask(root));
+      if (vscode.workspace.workspaceFolders !== undefined) {
+        for (let root of vscode.workspace.workspaceFolders) {
+          tasks = tasks.concat(await colcon.getColconBuildTask(root));
+        }
       }
       return tasks;
     },
@@ -145,8 +149,10 @@ async function loadWorkspaces(context: vscode.ExtensionContext) {
 
 
   let workers = [];
-  for (let root of vscode.workspace.workspaceFolders) {
-    workers.push(registerWorkspace(context, root));
+  if (vscode.workspace.workspaceFolders !== undefined) {
+    for (let root of vscode.workspace.workspaceFolders) {
+      workers.push(registerWorkspace(context, root));
+    }
   }
   await Promise.all(workers);
 
