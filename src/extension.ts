@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { API, IWorkspaceManager, IWorkspace, ITestParser } from 'vscode-catkin-tools-api';
+import { API, IWorkspaceManager, IWorkspace, ITestParser, TestRunResult, IPackage } from 'vscode-catkin-tools-api';
 import * as catkin_build from './catkin_tools/tasks/catkin_build';
 import * as colcon from './colcon/tasks/colcon_build';
 import { WorkspaceManager } from './workspace_manager';
@@ -15,6 +15,7 @@ let outputChannel: vscode.OutputChannel = null;
 
 export let api = new class implements API {
   workspace_manager: WorkspaceManager;
+  test_mode_enabled = false;
 
   constructor() {
     this.workspace_manager = new WorkspaceManager();
@@ -67,7 +68,71 @@ export let api = new class implements API {
       }
     }
   }
+
+  async ensureWorkspaceInitialized(): Promise<void> {
+    return;
+  }
+
+  async cleanWorkspace(workspace: IWorkspace): Promise<boolean> {
+    console.log(`Cleaning workspace ${workspace.getName()}`);
+    let clean_task = await workspace.workspace_provider.getCleanTask();
+    if (clean_task === undefined) {
+      return false;
+    }
+
+    return runTask(clean_task);
+  }
+
+  async buildWorkspace(workspace: IWorkspace): Promise<boolean> {
+    console.log(`Building workspace ${await workspace.getName()}`);
+    let build_task = await workspace.workspace_provider.getBuildTask();
+    if (build_task === undefined) {
+      return false;
+    }
+
+    return runTask(build_task);
+  }
+
+  async buildWorkspaceTests(workspace: IWorkspace): Promise<boolean> {
+    console.log(`Building workspace tests ${await workspace.getName()}`);
+    let build_task = await workspace.workspace_provider.getBuildTestsTask();
+    if (build_task === undefined) {
+      return false;
+    }
+
+    return runTask(build_task);
+  }
+
+  async buildPackage(pkg: IPackage): Promise<boolean> {
+    // TODO: implement this using a custom executor
+    // console.log(`Building package ${pkg.getName()}`);
+    return false;
+  }
+
+  async buildPackageTests(pkg: IPackage): Promise<boolean> {
+    // TODO: implement this using a custom executor
+    // console.log(`Building package tests ${pkg.getName()}`);
+    return false;
+  }
+
+  setAutomaticTestMode() {
+    this.test_mode_enabled = true;
+  }
 };
+
+
+async function runTask(task: vscode.Task): Promise<boolean> {
+  let result = await vscode.tasks.executeTask(task);
+
+  return new Promise<boolean>(resolve => {
+    let disposable = vscode.tasks.onDidEndTask(e => {
+      if (e.execution.task === task) {
+        disposable.dispose();
+        resolve(true);
+      }
+    });
+  });
+}
 
 
 export async function activate(context: vscode.ExtensionContext): Promise<API> {

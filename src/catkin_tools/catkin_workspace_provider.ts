@@ -97,6 +97,34 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         return undefined;
     }
 
+    async getBuildTestsTask(): Promise<vscode.Task> {
+        let build_tasks = await vscode.tasks.fetchTasks({
+            type: "catkin_build"
+        });
+        if (build_tasks !== undefined && build_tasks.length > 0) {
+            for (let task of build_tasks) {
+                if (task.name === "build_tests" && task.scope === this.associated_workspace_for_tasks) {
+                    return task;
+                }
+            }
+        }
+        return undefined;
+    }
+
+    async getCleanTask(): Promise<vscode.Task> {
+        let build_tasks = await vscode.tasks.fetchTasks({
+            type: "catkin_build"
+        });
+        if (build_tasks !== undefined && build_tasks.length > 0) {
+            for (let task of build_tasks) {
+                if (task.name === "clean" && task.scope === this.associated_workspace_for_tasks) {
+                    return task;
+                }
+            }
+        }
+        return undefined;
+    }
+
     getDefaultRunTestTarget(): string {
         return 'run_tests';
     }

@@ -18,7 +18,9 @@ import {
     WorkspaceTestExecutable,
     WorkspaceTestSuite,
     WorkspaceTestFixture,
-    TestType
+    TestType,
+    TestRunResult,
+    TestRunReloadRequest
 } from 'vscode-catkin-tools-api';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -35,20 +37,6 @@ import * as treekill from 'tree-kill';
 type TestRunEvent = TestRunStartedEvent | TestRunFinishedEvent | TestSuiteEvent | TestEvent;
 type TestLoadEvent = TestLoadStartedEvent | TestLoadFinishedEvent;
 
-class TestRunReloadRequest {
-    test: WorkspaceTestSuite;
-    dom?;
-    output?: string;
-}
-class TestRunResult {
-    public repeat_ids: string[];
-    public reload_packages: TestRunReloadRequest[];
-
-    constructor() {
-        this.repeat_ids = [];
-        this.reload_packages = [];
-    }
-}
 
 /**
  * Implementation of the TestAdapter interface for workspace tests.
@@ -204,7 +192,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
         return tests;
     }
 
-    public async updatePackageTests(workspace_package: Package,
+    public async updatePackageTests(workspace_package: IPackage,
         outline_only: boolean = false,
         build_dir?: String, devel_dir?: String): Promise<WorkspaceTestSuite> {
         if (outline_only && workspace_package.tests_loaded) {
@@ -277,7 +265,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
             token.onCancellationRequested(() => {
                 this.cancel_requested = true;
             });
-            let result = new TestRunResult();
+            let result = new TestRunResult(true);
             try {
                 for (let id of nodeIds) {
                     let intermediate_result: TestRunResult;
@@ -288,8 +276,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
                     } else if (id.startsWith("test_")) {
                         intermediate_result = await this.runTest(id, progress, token);
                     }
-                    result.repeat_ids = result.repeat_ids.concat(intermediate_result.repeat_ids);
-                    result.reload_packages = result.reload_packages.concat(intermediate_result.reload_packages);
+                    result.merge(intermediate_result);
                 }
             } catch (err) {
                 this.output_channel.appendLine(`Run failed: ${err}`);
@@ -317,8 +304,8 @@ export class WorkspaceTestAdapter implements TestAdapter {
     }
 
     public async runTest(id: string,
-        progress: vscode.Progress<{ message?: string; increment?: number; }>,
-        token: vscode.CancellationToken): Promise<TestRunResult> {
+        progress?: vscode.Progress<{ message?: string; increment?: number; }>,
+        token?: vscode.CancellationToken): Promise<TestRunResult> {
         this.output_channel.appendLine(`Running test for package ${id}`);
 
         try {
@@ -330,7 +317,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
                 test: id,
                 message: `Failure running test ${id}: ${err}`
             });
-            return new TestRunResult();
+            return new TestRunResult(false);
         }
     }
 
@@ -349,7 +336,6 @@ export class WorkspaceTestAdapter implements TestAdapter {
         this.output_channel.appendLine(`Running test suite ${id}`);
 
         let tests: (WorkspaceTestExecutable | WorkspaceTestSuite | WorkspaceTestFixture)[] = [];
-        let result = new TestRunResult();
         if (id.startsWith("package_")) {
             let suite: WorkspaceTestSuite = this.suites.get(id);
             tests.push(suite);
@@ -387,13 +373,13 @@ export class WorkspaceTestAdapter implements TestAdapter {
             return;
         }
 
+        let result = new TestRunResult(true);
         for (let test of tests) {
             if (this.cancel_requested) {
                 this.skipTest(test.info.id);
             } else {
                 let intermediate_result = await this.runTest(test.info.id, progress, token);
-                result.repeat_ids = result.repeat_ids.concat(intermediate_result.repeat_ids);
-                result.reload_packages = result.reload_packages.concat(intermediate_result.reload_packages);
+                result.merge(intermediate_result);
             }
         }
         return result;
@@ -588,8 +574,8 @@ export class WorkspaceTestAdapter implements TestAdapter {
     }
 
     private async runTestCommand(id: string,
-        progress: vscode.Progress<{ message?: string; increment?: number; }>,
-        token: vscode.CancellationToken): Promise<TestRunResult> {
+        progress?: vscode.Progress<{ message?: string; increment?: number; }>,
+        token?: vscode.CancellationToken): Promise<TestRunResult> {
 
         this.output_channel.appendLine(`running test command for ${id}`);
 
@@ -738,15 +724,16 @@ export class WorkspaceTestAdapter implements TestAdapter {
                 test.type = await this.determineTestType(test);
 
                 if (test.type !== 'generic') {
-                    return <TestRunResult>{
-                        repeat_ids: [id],
-                        reload_packages: []
-                    };
+                    return new TestRunResult(
+                        false,
+                        [id],
+                        []
+                    );
                 }
             }
         }
 
-        return new TestRunResult();
+        return new TestRunResult(false);
     }
 
     private async determineTestType(test: WorkspaceTestInterface): Promise<TestType> {
@@ -807,7 +794,8 @@ export class WorkspaceTestAdapter implements TestAdapter {
     private async analyzeGtestResult(test: WorkspaceTestInterface, output_file: string, test_output: string): Promise<TestRunResult> {
         let tests: WorkspaceTestCase[] = this.getTestCases(test.info.id);
         let dom = undefined;
-        let result = new TestRunResult();
+        let reload_packages = [];
+        let all_succeeded = true;
         try {
             let options = {
                 ignoreAttributes: false,
@@ -818,38 +806,38 @@ export class WorkspaceTestAdapter implements TestAdapter {
 
             // send the result for all matching ids
             tests.forEach((test) => {
-                this.sendGtestResultForTest(test, dom, test_output);
+                all_succeeded = all_succeeded && this.sendGtestResultForTest(test, dom, test_output);
             });
 
             if (test.info.id.startsWith("package_")) {
-                this.sendGtestResultForTest(test, dom, test_output);
-                result.reload_packages.push({
+                all_succeeded = all_succeeded && this.sendGtestResultForTest(test, dom, test_output);
+                reload_packages.push({
                     test: test as WorkspaceTestSuite,
                     dom: dom,
                     output: test_output
                 });
 
             } else if (test.info.id.startsWith("exec_")) {
-                this.sendGtestResultForTest(test, dom, test_output);
+                all_succeeded = all_succeeded && this.sendGtestResultForTest(test, dom, test_output);
                 let suite = this.getTestSuiteForExcutable(test.info.id);
-                let contained = result.reload_packages.reduce((result, pkg) => {
+                let contained = reload_packages.reduce((result, pkg) => {
                     if (pkg.test.info.id === suite.info.id) {
                         return true;
                     }
                     return result;
                 }, false);
                 if (!contained) {
-                    result.reload_packages.push({
+                    reload_packages.push({
                         test: suite,
                         dom: dom,
                         output: test_output
                     });
                 }
             } else {
-                this.sendGtestResultForTest(test, dom, test_output);
+                all_succeeded = all_succeeded && this.sendGtestResultForTest(test, dom, test_output);
                 let executable = (test.info.id.startsWith("fixture_")) ? this.getExecutableForTestFixture(test.info.id) : this.getExecutableForTestCase(test.info.id);
                 let suite = this.getTestSuiteForExcutable(executable.info.id);
-                result.reload_packages.push({
+                reload_packages.push({
                     test: suite,
                     dom: dom,
                     output: test_output
@@ -859,9 +847,10 @@ export class WorkspaceTestAdapter implements TestAdapter {
         } catch (error) {
             test_output += `\n(Cannot read the test results results from ${output_file})`;
             this.sendErrorForTest(test, test_output);
+            all_succeeded = false;
         }
 
-        return result;
+        return new TestRunResult(all_succeeded, undefined, reload_packages);
     }
 
     public async reloadPackageIfChanged(workspace_package: IPackage): Promise<WorkspaceTestSuite | undefined> {
@@ -894,7 +883,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
         return undefined;
     }
 
-    private getTestSuiteForPackage(pkg: Package): WorkspaceTestSuite {
+    private getTestSuiteForPackage(pkg: IPackage): WorkspaceTestSuite {
         for (let [suite_id, suite] of this.suites.entries()) {
             if (suite.package === pkg) {
                 return suite;
@@ -967,13 +956,15 @@ export class WorkspaceTestAdapter implements TestAdapter {
         }
     }
 
-    private sendGtestResultForTest(test: WorkspaceTestInterface, dom, message: string) {
+    private sendGtestResultForTest(test: WorkspaceTestInterface, dom, message: string): boolean {
         let result: TestEvent = {
             type: 'test',
             test: test.info.id,
             state: 'errored',
             message: message
         };
+
+        let all_succeeded = true;
 
         gtest_problem_matcher.analyze(dom, this.diagnostics);
 
@@ -982,6 +973,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
             let node_suites = dom['testsuites'];
             if (node_suites.attr['@_failures'] > 0 || node_suites.attr['@_errors'] > 0) {
                 result.state = 'failed';
+                all_succeeded = false;
             } else {
                 result.state = 'passed';
             }
@@ -1001,6 +993,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
                                 let failure = test_case['failure'];
                                 if (failure !== undefined) {
                                     result.state = 'failed';
+                                    all_succeeded = false;
                                     result.message = failure['#text'];
                                 } else {
                                     result.state = 'passed';
@@ -1011,6 +1004,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
                     } else {
                         if (node.attr['@_failures'] > 0 || node.attr['@_errors'] > 0) {
                             result.state = 'failed';
+                            all_succeeded = false;
                         } else {
                             result.state = 'passed';
                         }
@@ -1020,6 +1014,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
             }
             this.testStatesEmitter.fire(result);
         }
+        return all_succeeded;
     }
 
     private isSuiteEquivalent(a: WorkspaceTestSuite, b: WorkspaceTestSuite): boolean {

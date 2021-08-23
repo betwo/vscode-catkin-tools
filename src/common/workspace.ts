@@ -10,7 +10,8 @@ import { SourceFileConfiguration } from 'vscode-cpptools';
 import { Package } from './package';
 import { WorkspaceTestAdapter } from './testing/workspace_test_adapter';
 import { getExtensionConfiguration } from './configuration';
-import { WorkspaceProvider, IWorkspace, WorkspaceTestSuite } from 'vscode-catkin-tools-api';
+import { WorkspaceProvider, IWorkspace, WorkspaceTestSuite, TestRunResult, IPackage } from 'vscode-catkin-tools-api';
+import { api } from '../extension';
 
 export class Workspace implements IWorkspace {
   public compile_commands: Map<string, JSON> = new Map<string, JSON>();
@@ -135,6 +136,15 @@ export class Workspace implements IWorkspace {
       console.error(`Error parsing package ${package_xml}: ${err}`);
       return null;
     }
+  }
+
+
+  loadPackageTests(workspace_package: IPackage,
+    outline_only: boolean,
+    build_dir?: String,
+    devel_dir?: String):
+    Promise<WorkspaceTestSuite> {
+    return this.test_adapter.updatePackageTests(workspace_package, outline_only, build_dir, devel_dir);
   }
 
   public async locatePackageXML(package_name: String) {
@@ -509,6 +519,9 @@ export class Workspace implements IWorkspace {
       }
       db_found = entries.length !== 0;
     }
+    if (api.test_mode_enabled) {
+      return false;
+    }
 
     if (!db_found && !this.ignore_missing_db) {
       let ask_trigger_build = !db_found;
@@ -643,5 +656,9 @@ export class Workspace implements IWorkspace {
     command += "EXIT_CODE=$?; ";
     command += `popd > /dev/null;["$EXIT_CODE" = "0"] || exit $EXIT_CODE;`;
     return command;
+  }
+
+  public async runTest(id: string): Promise<TestRunResult> {
+    return this.test_adapter.runTest(id);
   }
 }

@@ -11,5 +11,9 @@
 		],
 		"triple-equals": true
 	},
-	"defaultSeverity": "warning"
+	"defaultSeverity": "warning",
+	"exclude": [
+		"node_modules",
+		".vscode-test"
+	]
 }
