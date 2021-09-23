@@ -103,17 +103,31 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 
 				assert.strictEqual(test_suite.executables.length, 1);
 				const test_exec = test_suite.executables[0];
-				
-				assert.strictEqual(test_exec.fixtures.length, 3);
+
+				assert.strictEqual(test_exec.fixtures.length, 9);
 				const test_fixture = test_exec.fixtures[0];
-				assert.strictEqual(test_exec.fixtures[0].info.label, "Instance/TypedTest/0");
-				assert.strictEqual(test_exec.fixtures[1].info.label, "Instance/TypedTest/1");
-				assert.strictEqual(test_exec.fixtures[2].info.label, "Instance/TypedTest/2");
+				assert.strictEqual(test_fixture.cases.length, 2);
+
+				assert.strictEqual(test_exec.fixtures[3].info.label, "InstanceP/TypedTestP/0");
+				assert.strictEqual(test_exec.fixtures[3].info.description, "TypeParam = char");
+				assert.strictEqual(test_exec.fixtures[4].info.label, "InstanceP/TypedTestP/1");
+				assert.strictEqual(test_exec.fixtures[4].info.description, "TypeParam = int");
+				assert.strictEqual(test_exec.fixtures[5].info.label, "InstanceP/TypedTestP/2");
+				assert.strictEqual(test_exec.fixtures[5].info.description, "TypeParam = unsigned int");
+
+				assert.strictEqual(test_exec.fixtures[0].info.label, "TypedTest/0");
 				assert.strictEqual(test_exec.fixtures[0].info.description, "TypeParam = char");
+				assert.strictEqual(test_exec.fixtures[1].info.label, "TypedTest/1");
 				assert.strictEqual(test_exec.fixtures[1].info.description, "TypeParam = int");
+				assert.strictEqual(test_exec.fixtures[2].info.label, "TypedTest/2");
 				assert.strictEqual(test_exec.fixtures[2].info.description, "TypeParam = unsigned int");
 
-				assert.strictEqual(test_fixture.cases.length, 2);
+				assert.strictEqual(test_exec.fixtures[6].info.label, "TypedTestWithColon/foo::bar::0");
+				assert.strictEqual(test_exec.fixtures[6].info.description, "TypeParam = char");
+				assert.strictEqual(test_exec.fixtures[7].info.label, "TypedTestWithColon/foo::bar::1");
+				assert.strictEqual(test_exec.fixtures[7].info.description, "TypeParam = int");
+				assert.strictEqual(test_exec.fixtures[8].info.label, "TypedTestWithColon/foo::bar::2");
+				assert.strictEqual(test_exec.fixtures[8].info.description, "TypeParam = unsigned int");
 			}).timeout(50000);
 
 		});
