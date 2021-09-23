@@ -74,7 +74,7 @@ export let api = new class implements API {
   }
 
   async cleanWorkspace(workspace: IWorkspace): Promise<boolean> {
-    console.log(`Cleaning workspace ${workspace.getName()}`);
+    console.log(`Cleaning workspace ${await workspace.getName()}`);
     let clean_task = await workspace.workspace_provider.getCleanTask();
     if (clean_task === undefined) {
       return false;
@@ -122,15 +122,14 @@ export let api = new class implements API {
 
 
 async function runTask(task: vscode.Task): Promise<boolean> {
-  let result = await vscode.tasks.executeTask(task);
-
-  return new Promise<boolean>(resolve => {
+  return new Promise<boolean>(async resolve => {
     let disposable = vscode.tasks.onDidEndTask(e => {
       if (e.execution.task === task) {
         disposable.dispose();
         resolve(true);
       }
     });
+    await vscode.tasks.executeTask(task);
   });
 }
 

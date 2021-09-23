@@ -59,7 +59,7 @@ export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder)
     let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
     let task = new vscode.Task(
       kind, workspace_root, taskName, 'catkin_build',
-      new vscode.ShellExecution(source_workspace + ' && catkin clean -y'),
+      new vscode.ShellExecution(source_workspace + ' && catkin clean -vyf'),
       ['$catkin-gcc', '$catkin-cmake']);
     task.group = vscode.TaskGroup.Build;
     result.push(task);
