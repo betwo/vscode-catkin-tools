@@ -1,0 +1,42 @@
+on:
+  push:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2    
+      with:
+        submodules: recursive
+    - name: Install Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: 10.x
+    - name: Install API
+      run: |
+        cd api
+        npm install .
+        npm run compile
+        cd ..
+    - name: Build
+      run: |
+        npm install .
+        npm install ./api
+        npm run compile
+  
+  integration-test:
+    needs: build
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2  
+      with:
+        submodules: recursive
+    - run: timeout -k 10s 400s npm run integrationtest

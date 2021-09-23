@@ -11,7 +11,7 @@
     "url": "https://github.com/betwo/vscode-catkin-tools"
   },
   "engines": {
-    "vscode": "^1.59.0"
+    "vscode": "^1.60.0"
   },
   "categories": [
     "Other"
@@ -202,6 +202,10 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
     "test": "node ./out/test/runTest.js",
+    "test-headless": "xvfb-run -a npm run test",
+    "build-docker-images": "docker build -f docker/test/catkin_tools.docker . -t vscode-catkin-tools",
+    "preintegrationtest": "npm run build-docker-images",
+    "integrationtest": "set -x; /usr/bin/Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 & XVFBPID=$!; docker run -e DISPLAY=:99 -v /tmp/.X11-unix:/tmp/.X11-unix -e CI=true vscode-catkin-tools bash -c \"npm run test\"; EXIT=$?; echo \"Stopping xvfb\"; kill -9 $XVFBPID; exit $EXIT",
     "webpack": "webpack --mode development",
     "webpack-dev": "webpack --mode development --watch"
   },
@@ -210,7 +214,7 @@
     "@types/mocha": "^9.0.0",
     "@types/node": "^10.17.60",
     "@types/signals": "^1.0.1",
-    "@types/vscode": "^1.59.0",
+    "@types/vscode": "^1.60.0",
     "@vscode/test-electron": "^1.6.1",
     "chai": "^4.3.4",
     "lodash": "^4.17.21",
@@ -219,8 +223,8 @@
     "ts-loader": "^6.2.2",
     "tslint": "^5.20.1",
     "typescript": "^4.2.2",
-    "webpack": "^5.41.1",
-    "webpack-cli": "^3.3.12"
+    "webpack": "^5.53.0",
+    "webpack-cli": "^4.8.0"
   },
   "dependencies": {
     "child_process": "^1.0.2",
