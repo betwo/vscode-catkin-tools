@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import { expect } from 'chai';
+import { PathLike } from 'fs';
 import * as vscode from 'vscode';
 import { IWorkspace, WorkspaceTestSuite } from 'vscode-catkin-tools-api';
 import * as extension from '../../extension';
@@ -14,8 +15,11 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 
 	describe('Workspace catkin_add_gtest', () => {
 		describe("catkin_add_gtest", () => {
-			let test_suite: WorkspaceTestSuite;
+			let test_suite_pkg_a: WorkspaceTestSuite;
 			let workspace: IWorkspace;
+
+			let build_dir: PathLike;
+			let devel_dir: PathLike;
 
 			before(async function () {
 				this.timeout(50000);
@@ -25,9 +29,9 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 
 				await extension.api.ensureWorkspaceInitialized();
 
-				const build_dir = await workspace.getBuildDir();
-				const devel_dir = await workspace.getDevelDir();
-				assert.strictEqual(workspace.packages.size, 2);
+				build_dir = await workspace.getBuildDir();
+				devel_dir = await workspace.getDevelDir();
+				assert.strictEqual(workspace.packages.size, 3);
 
 				const pkg_a = workspace.packages.get("package_a");
 				const pkg_wo_tests = workspace.packages.get("package_wo_tests");
@@ -40,7 +44,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 				// assert.ok(await extension.api.buildPackage(pkg));
 				// assert.ok(await extension.api.buildPackageTests(pkg));
 
-				test_suite = await pkg_a.loadTests(build_dir.toString(), devel_dir.toString(), false);
+				test_suite_pkg_a = await pkg_a.loadTests(build_dir.toString(), devel_dir.toString(), false);
 			});
 
 			it("contains one package", () => {
@@ -49,8 +53,8 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 			}).timeout(50000);
 
 			it("package_a tests can be loaded", async () => {
-				assert.strictEqual(test_suite.executables.length, 1);
-				const test_exec = test_suite.executables[0];
+				assert.strictEqual(test_suite_pkg_a.executables.length, 1);
+				const test_exec = test_suite_pkg_a.executables[0];
 				assert.strictEqual(test_exec.fixtures.length, 1);
 				const test_fixture = test_exec.fixtures[0];
 
@@ -64,7 +68,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 			}).timeout(50000);
 
 			it("#package_a tests test result is detected", async () => {
-				const test_exec = test_suite.executables[0];
+				const test_exec = test_suite_pkg_a.executables[0];
 				const test_fixture = test_exec.fixtures[0];
 
 				const pkg = workspace.packages.get("package_a");
@@ -74,6 +78,42 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 
 				const should_fail = await workspace.runTest(test_fixture.cases[1].info.id);
 				assert.ok(!should_fail.success);
+			}).timeout(50000);
+
+
+			it("#TEST macro is detected", async () => {
+				const test_exec = test_suite_pkg_a.executables[0];
+				const test_fixture = test_exec.fixtures[0];
+
+				const pkg = workspace.packages.get("package_a");
+				await workspace.loadPackageTests(pkg, false);
+
+				assert.strictEqual(test_fixture.info.label, "TestSuite");
+
+			}).timeout(50000);
+
+
+			it("#TYPED_TEST_P macro is detected", async () => {
+				const pkg = workspace.packages.get("package_with_gtests");
+				// await workspace.loadPackageTests(pkg, false);
+				let test_suite = await pkg.loadTests(build_dir.toString(), devel_dir.toString(), false);
+
+				let suite = await workspace.loadPackageTests(pkg, false);
+				assert.ok(suite !== undefined);
+
+				assert.strictEqual(test_suite.executables.length, 1);
+				const test_exec = test_suite.executables[0];
+				
+				assert.strictEqual(test_exec.fixtures.length, 3);
+				const test_fixture = test_exec.fixtures[0];
+				assert.strictEqual(test_exec.fixtures[0].info.label, "Instance/TypedTest/0");
+				assert.strictEqual(test_exec.fixtures[1].info.label, "Instance/TypedTest/1");
+				assert.strictEqual(test_exec.fixtures[2].info.label, "Instance/TypedTest/2");
+				assert.strictEqual(test_exec.fixtures[0].info.description, "TypeParam = char");
+				assert.strictEqual(test_exec.fixtures[1].info.description, "TypeParam = int");
+				assert.strictEqual(test_exec.fixtures[2].info.description, "TypeParam = unsigned int");
+
+				assert.strictEqual(test_fixture.cases.length, 2);
 			}).timeout(50000);
 
 		});

@@ -1111,7 +1111,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
                     ],
                     cwd: this.workspaceRootDirectoryPath,
                     program: cmd,
-                    args: args.concat(['--gtest_break_on_failure', `--gtest_filter=${test.filter}`])
+                    args: args.concat(['--gtest_break_on_failure', `--gtest_filter="${test.filter}"`])
                 };
                 await vscode.debug.startDebugging(undefined, config);
             }

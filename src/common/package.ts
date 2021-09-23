@@ -413,21 +413,35 @@ export class Package implements IPackage {
           let current_fixture_label: string = null;
           let current_test_suite: string = null;
           for (let line of output.stdout.split('\n')) {
-            let fixture_match = line.match(/^([^\s]+)\.\s*$/);
+            let fixture_match = line.match(/^([^\s]+)\.\s*(#.*)?$/);
             if (fixture_match) {
               current_fixture_label = fixture_match[1];
+              let current_instance_label = undefined;
               if (current_fixture_label.indexOf('/') > 0) {
                 // This is an instanced test of the form  <module_name>/<test_name>
                 // For now we ignore the module name
                 // TODO: support multiple instance of a test module
                 current_test_suite = current_fixture_label.substr(current_fixture_label.indexOf('/') + 1);
+                current_instance_label = current_fixture_label.substr(0, current_fixture_label.indexOf('/'));
               } else {
                 current_test_suite = current_fixture_label;
               }
 
+              if (current_test_suite.indexOf('/') > 0) {
+                // This is an instanced and typed test of the form  <module_name>/<test_name>/<instance_name>
+                // For now we ignore the instance_name
+                current_test_suite = current_test_suite.substr(0, current_test_suite.indexOf('/'));
+              }
+
+              let description = undefined;
+              if(fixture_match[2] !== undefined) {
+                // we have a comment in the line
+                description = fixture_match[2].substring(1).trim();
+              }
+
               let matching_source_file: string;
               let matching_line: number;
-              let [existing_fixture, source_file, _] = gtest_build_targets.getFixture(current_fixture_label);
+              let [existing_fixture, source_file, _] = gtest_build_targets.getFixture(current_test_suite);
               if (existing_fixture !== undefined) {
                 matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
                 matching_line = existing_fixture.line;
@@ -451,6 +465,7 @@ export class Package implements IPackage {
                   type: 'suite',
                   id: `fixture_${build_target.cmake_target}_${current_fixture_label}`,
                   label: current_fixture_label,
+                  description: description,
                   children: [],
                   tooltip: `Test fixture ${build_target.cmake_target}::${current_fixture_label}.`,
                   file: matching_source_file,
