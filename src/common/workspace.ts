@@ -654,7 +654,7 @@ export class Workspace implements IWorkspace {
       command += "; ";
     }
     command += "EXIT_CODE=$?; ";
-    command += `popd > /dev/null;["$EXIT_CODE" = "0"] || exit $EXIT_CODE;`;
+    command += `popd > /dev/null; [ "$EXIT_CODE" = "0" ] || exit $EXIT_CODE;`;
     return command;
   }
 
