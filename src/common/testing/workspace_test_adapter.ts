@@ -439,7 +439,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
         cwd: fs.PathLike): Promise<WorkspaceTestRunResult> {
         let result = new WorkspaceTestRunResult(WorkspaceTestRunResultKind.BuildFailed, "");
 
-        this.output_channel.appendLine(`command: ${commands}`);
+        this.output_channel.appendLine(`command: ${commands.exe} ${commands.args.join(" ")}`);
 
         try {
             let build_output = await this.runShellCommand(commands.setup_shell_code, progress, token, cwd);
@@ -595,7 +595,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
             this.output_channel.appendLine(`Id ${id} maps to test in package ${testcase.package.name}`);
             commands = new WorkspaceTestParameters(await this.makeBuildTestCommand(testcase), testcase.executable);
             if (testcase.filter !== undefined) {
-                commands.args = [`--gtest_filter=${testcase.filter}`];
+                commands.args = [`--gtest_filter=${this.escapeFilter(testcase.filter)}`];
             }
             test = testcase;
 
@@ -605,7 +605,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
             this.output_channel.appendLine(`Id ${id} maps to test fixture in package ${testfixture.package.name}`);
             commands = new WorkspaceTestParameters(await this.makeBuildTestCommand(testfixture), testfixture.executable);
             if (testfixture.filter !== undefined) {
-                commands.args = [`--gtest_filter=${testfixture.filter}`];
+                commands.args = [`--gtest_filter=${this.escapeFilter(testfixture.filter)}`];
             }
             test = testfixture;
 
@@ -982,8 +982,8 @@ export class WorkspaceTestAdapter implements TestAdapter {
         } else {
             // this is one single test case
             let node_suites = wrapArray(dom['testsuites']['testsuite']);
-            let test_fixture = test.filter === undefined ? '*' : test.filter.substr(0, test.filter.lastIndexOf('.'));
-            let test_case_id = test.filter === undefined ? null : test.filter.substr(test.filter.lastIndexOf('.') + 1);
+            let test_fixture = test.filter === undefined ? '*' : this.htmlEncode(test.filter.substr(0, test.filter.lastIndexOf('.')));
+            let test_case_id = test.filter === undefined ? null : this.htmlEncode(test.filter.substr(test.filter.lastIndexOf('.') + 1));
             for (let node of node_suites) {
                 if (node.attr['@_name'] === test_fixture) {
                     if (test_case_id !== null) {
@@ -1012,9 +1012,20 @@ export class WorkspaceTestAdapter implements TestAdapter {
                     break;
                 }
             }
+            if (result.state === "errored") {
+                console.error(`Could not find the test id "${test_fixture}" in the generated xml file`);
+            }
             this.testStatesEmitter.fire(result);
         }
         return all_succeeded;
+    }
+
+    private htmlEncode(s) {
+        return s.replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/'/g, '&#39;')
+            .replace(/"/g, '&quot;');
     }
 
     private isSuiteEquivalent(a: WorkspaceTestSuite, b: WorkspaceTestSuite): boolean {
@@ -1111,10 +1122,19 @@ export class WorkspaceTestAdapter implements TestAdapter {
                     ],
                     cwd: this.workspaceRootDirectoryPath,
                     program: cmd,
-                    args: args.concat(['--gtest_break_on_failure', `--gtest_filter="${test.filter}"`])
+                    args: args.concat(['--gtest_break_on_failure', `--gtest_filter="${this.escapeFilter(test.filter)}"`])
                 };
                 await vscode.debug.startDebugging(undefined, config);
             }
+        }
+    }
+
+    private escapeFilter(filter: String) {
+        if (filter.indexOf("::") > 0) {
+            // gtest replaces '::' with something else internally because '::' is used as the separator
+            return filter.replace(/::/gi, "*");
+        } else {
+            return filter;
         }
     }
 
