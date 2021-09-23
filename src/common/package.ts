@@ -421,8 +421,8 @@ export class Package implements IPackage {
                 // This is an instanced test of the form  <module_name>/<test_name>
                 // For now we ignore the module name
                 // TODO: support multiple instance of a test module
-                current_test_suite = current_fixture_label.substr(current_fixture_label.indexOf('/') + 1);
-                current_instance_label = current_fixture_label.substr(0, current_fixture_label.indexOf('/'));
+                current_instance_label = current_fixture_label.substr(current_fixture_label.indexOf('/') + 1);
+                current_test_suite = current_fixture_label.substr(0, current_fixture_label.indexOf('/'));
               } else {
                 current_test_suite = current_fixture_label;
               }
@@ -446,7 +446,7 @@ export class Package implements IPackage {
                 matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
                 matching_line = existing_fixture.line;
               } else {
-                console.error(`No matching line for fixture ${current_fixture_label}`);
+                console.error(`No matching line for fixture ${current_test_suite}`);
                 console.log("Available fixtures:");
                 for (const f of gtest_build_targets.getFixtures()) {
                   console.log(f);
