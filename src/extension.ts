@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { API, IWorkspaceManager, IWorkspace, ITestParser, TestRunResult, IPackage } from 'vscode-catkin-tools-api';
+import { VERSION, API, IWorkspaceManager, IWorkspace, ITestParser, TestRunResult, IPackage } from 'vscode-catkin-tools-api';
 import * as catkin_build from './catkin_tools/tasks/catkin_build';
 import * as colcon from './colcon/tasks/colcon_build';
 import { WorkspaceManager } from './workspace_manager';
@@ -18,6 +18,7 @@ export let api = new class implements API {
   test_mode_enabled = false;
 
   constructor() {
+    console.info(`Providing API for version: ${VERSION}`);
     this.workspace_manager = new WorkspaceManager();
   }
 
