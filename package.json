@@ -197,7 +197,11 @@
     ]
   },
   "scripts": {
+    "main-set-dist": "sed -i -e \"s/out\\\/extension/dist\\\/extension/\" package.json",
+    "main-set-out": "sed -i -e \"s/dist\\\/extension/out\\\/extension/\" package.json",
+    "prevscode:prepublish": "npm run main-set-dist",
     "vscode:prepublish": "webpack --mode production",
+    "precompile": "npm run main-set-out",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile",
