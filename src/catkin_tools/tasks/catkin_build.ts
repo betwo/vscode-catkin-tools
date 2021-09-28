@@ -31,7 +31,7 @@ export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder)
   // command to source the setup shell file for the enveloping workspace of the workspace folder
   let source_workspace = 'cd "${workspaceFolder}" && ' + source_catkin;
   // command to source the setup shell file for the enveloping workspace of the folder ${fileDirname}
-  let source_current_package = 'cd "${fileDirname}" && ' + source_catkin;
+  let source_current_package = 'cd "${fileDirname}" && pushd . 2> /dev/null && ' + source_catkin + ' && popd 2> /dev/null';
 
   let result: vscode.Task[] = [];
   {
