@@ -46,7 +46,6 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
   public async mergeCompileCommandsFiles() {
     const merged_compile_commands_json_path = getExtensionConfiguration('mergedCompileCommandsJsonPath', "");
     if (merged_compile_commands_json_path.length > 0) {
-      console.log(merged_compile_commands_json_path);
       const opts = { spaces: 2, EOL: '\r\n' };
       if (merged_compile_commands_json_path.indexOf('${workspaceFolder}') >= 0) {
         // save per workspace
@@ -54,6 +53,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
           for (const folder of vscode.workspace.workspaceFolders) {
             const output_path = merged_compile_commands_json_path.replace("${workspaceFolder}", folder.uri.fsPath);
             const commands = this.getWorkspace(folder).collectCompileCommands();
+            console.log(`Writing merged database in workspace ${output_path}`);
             await jsonfile.writeFile(output_path, commands, opts);
           }
         }
@@ -65,6 +65,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
             commands = commands.concat(this.getWorkspace(folder).collectCompileCommands());
           }
         }
+        console.log(`Writing merged database in ${merged_compile_commands_json_path}`);
         await jsonfile.writeFile(merged_compile_commands_json_path, commands, opts);
       }
     }
