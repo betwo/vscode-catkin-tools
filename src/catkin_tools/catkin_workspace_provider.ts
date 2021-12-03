@@ -142,7 +142,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
 
     async enableCompileCommandsGeneration() {
         const cmake_opts = await this.getConfigEntry("Additional CMake Args");
-        runCatkinCommand(['config', '--cmake-args', `${cmake_opts !== "None" ? `${cmake_opts} ` : ""}-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`], await this.getRootPath());
+        runCatkinCommand(['config', '--cmake-args', `${cmake_opts !== "None" ? `${cmake_opts} ` : ""} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`], await this.getRootPath());
         this.loadCatkinConfig();
     }
 
