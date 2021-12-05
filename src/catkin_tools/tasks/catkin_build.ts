@@ -14,7 +14,9 @@ export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder)
 
   let find_source_script = 'export SOURCE_SCRIPT="${DEVEL_PREFIX}/setup.$(echo ${SHELL} | xargs basename)"'
     + ' && '
-    + 'if [[ ! -f "${SOURCE_SCRIPT}" ]]; then export SOURCE_SCRIPT=$(catkin config | grep Extending | cut -c 30-)/setup.$(echo ${SHELL} | xargs basename); fi';
+    + 'if [[ ! -f "${EXTENDING}" ]]; then export EXTENDING=$(catkin config | grep Extending | cut -c 30-); fi && '
+    + 'if [[ ${EXTENDING} == "None" ]]; then export EXTENDING=/opt/ros/$(ls /opt/ros/ | head -n 1); fi && '
+    + 'if [[ ! -f "${SOURCE_SCRIPT}" ]]; then export SOURCE_SCRIPT=${EXTENDING}/setup.$(echo ${SHELL} | xargs basename); fi';
 
   // command to source the setup shell file for the enveloping workspace of the current directory
   //  1. find the base dir. If it can be found, change into it
