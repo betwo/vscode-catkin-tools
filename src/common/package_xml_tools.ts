@@ -17,7 +17,6 @@ export class PackageXmlCompleter implements
       for (var [_, pkg] of this.workspace.packages) {
         let item = new vscode.CompletionItem(pkg.name);
         item.documentation = 'Add dependency: ' + pkg.name;
-        item.command = { title: 'Close Tag', command: 'closeTag.closeHTMLTag' };
         snippets.push(item);
       }
     } else {

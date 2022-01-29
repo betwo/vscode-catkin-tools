@@ -247,7 +247,6 @@
   },
   "extensionDependencies": [
     "ms-vscode.cpptools",
-    "compulim.compulim-vscode-closetag",
     "hbenl.vscode-test-explorer"
   ]
 }
