@@ -52,9 +52,14 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
         if (vscode.workspace.workspaceFolders !== undefined) {
           for (const folder of vscode.workspace.workspaceFolders) {
             const output_path = merged_compile_commands_json_path.replace("${workspaceFolder}", folder.uri.fsPath);
-            const commands = this.getWorkspace(folder).collectCompileCommands();
-            console.log(`Writing merged database in workspace ${output_path}`);
-            await jsonfile.writeFile(output_path, commands, opts);
+            const wsfolder = this.getWorkspace(folder);
+            if (wsfolder !== undefined) {
+              const commands = this.getWorkspace(folder).collectCompileCommands();
+              console.log(`Writing merged database in workspace ${output_path}`);
+              await jsonfile.writeFile(output_path, commands, opts);
+            } else {
+              vscode.window.showWarningMessage(`Cannot get catkin workspace for folder ${folder}`);
+            }
           }
         }
       } else {
@@ -62,7 +67,12 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
         let commands = [];
         if (vscode.workspace.workspaceFolders !== undefined) {
           for (const folder of vscode.workspace.workspaceFolders) {
-            commands = commands.concat(this.getWorkspace(folder).collectCompileCommands());
+            const wsfolder = this.getWorkspace(folder);
+            if (wsfolder !== undefined) {
+              commands = commands.concat(wsfolder.collectCompileCommands());
+            } else {
+              vscode.window.showWarningMessage(`Cannot get catkin workspace for folder ${folder}`);
+            }
           }
         }
         console.log(`Writing merged database in ${merged_compile_commands_json_path}`);
