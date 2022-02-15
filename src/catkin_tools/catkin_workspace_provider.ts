@@ -71,8 +71,38 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         return this.workspace_install_dir;
     }
 
-    reload() {
-        this.loadCatkinConfig();
+    async getDefaultRosWorkspace(): Promise<string> {
+        const default_search_paths = getExtensionConfiguration('defaultRosWorkspaces');
+        if (default_search_paths.length !== 0) {
+            for (const candidate of default_search_paths) {
+                if (fs.existsSync(candidate)) {
+                    const candidate_content = await fs.promises.readdir(candidate);
+                    if (candidate_content.indexOf("env.sh") >= 0) {
+                        // #ros 1 workspace (ros2 does not have the env.sh script)
+                        return candidate;
+                    }
+                }
+            }
+        }
+
+        console.log(`Searching default workspace in "/opt/ros/"`);
+        const base_path = "/opt/ros/";
+        if (fs.existsSync(base_path)) {
+            const subdirs = await fs.promises.readdir(base_path);
+            for (const subdir of subdirs) {
+                const candidate = path.join(base_path, subdir);
+                const candidate_content = await fs.promises.readdir(candidate);
+                if (candidate_content.indexOf("env.sh") >= 0) {
+                    // #ros 1 workspace (ros2 does not have the env.sh script)
+                    return candidate;
+                }
+            }
+        }
+        throw Error("Cannot determine default ros workspace");
+    }
+
+    reload(): Promise<void> {
+        return this.loadCatkinConfig();
     }
 
     getCodeWorkspace(): vscode.WorkspaceFolder {

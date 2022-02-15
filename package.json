@@ -62,6 +62,11 @@
             "default": "bash",
             "description": "Shell to use for catkin commands. Also determines which `setup.<shell>` file is loaded."
           },
+          "catkin_tools.defaultRosWorkspaces": {
+            "type": "array",
+            "default": [],
+            "description": "A list of paths to use when searching for the default ros workspace. When empty, /opt/ros will be searched."
+          },
           "catkin_tools.cppStandard": {
             "type": "string",
             "default": "c++11",

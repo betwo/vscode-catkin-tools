@@ -47,9 +47,38 @@ export class ColconWorkspaceProvider implements WorkspaceProvider {
         }
         return this.workspace_install_dir;
     }
+    async getDefaultRosWorkspace(): Promise<string> {
+        const default_search_paths = getExtensionConfiguration('defaultRosWorkspaces');
+        if (default_search_paths.length !== 0) {
+            for (const candidate of default_search_paths) {
+                if (fs.existsSync(candidate)) {
+                    const candidate_content = await fs.promises.readdir(candidate);
+                    if (candidate_content.indexOf("tools") >= 0) {
+                        // #ros 2 workspace (ros1 does not have the tools folder)
+                        return candidate;
+                    }
+                }
+            }
+        }
 
-    reload() {
-        this.loadColconConfig();
+        console.log(`Searching default workspace in "/opt/ros/"`);
+        const base_path = "/opt/ros/";
+        if (fs.existsSync(base_path)) {
+            const subdirs = await fs.promises.readdir(base_path);
+            for (const subdir of subdirs) {
+                const candidate = path.join(base_path, subdir);
+                const candidate_content = await fs.promises.readdir(candidate);
+                if (candidate_content.indexOf("tools") >= 0) {
+                    // #ros 2 workspace (ros1 does not have the tools folder)
+                    return candidate;
+                }
+            }
+        }
+        throw Error("Cannot determine default ros workspace");
+    }
+
+    reload(): Promise<void> {
+        return this.loadColconConfig();
     }
 
     getCodeWorkspace(): vscode.WorkspaceFolder {
