@@ -5,8 +5,9 @@ import * as glob from 'fast-glob';
 
 import { WorkspaceProvider } from "vscode-catkin-tools-api";
 import { runCatkinCommand } from "./catkin_command";
-import { ShellOutput } from '../common/shell_command';
+import { getShellExtension, ShellOutput } from '../common/shell_command';
 import { setProfileText } from '../common/status_bar';
+import { getExtensionConfiguration } from '../common/configuration';
 
 export class CatkinWorkspaceProvider implements WorkspaceProvider {
     private catkin_config = new Map<string, string>();
@@ -26,7 +27,12 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
     }
 
     getRootPath(): Promise<fs.PathLike> {
-        return this.getConfigEntry('Workspace');
+        const entry = this.getConfigEntry('Workspace');
+        if (entry !== undefined) {
+            return entry;
+        }
+
+        throw Error("Failed to determine root path");
     }
 
     async getSrcDir(): Promise<string> {
@@ -119,9 +125,15 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         });
         if (build_tasks !== undefined && build_tasks.length > 0) {
             for (let task of build_tasks) {
-                if (task.name === "build" && task.scope === this.associated_workspace_for_tasks) {
+                if ((task.name === "catkin_build: build" || task.name === "build") && task.scope === this.associated_workspace_for_tasks) {
                     return task;
                 }
+            }
+        }
+        if (build_tasks !== undefined && build_tasks.length > 0) {
+            console.error("Failed to get catkin build task");
+            for (let task of build_tasks) {
+                console.error(`Available: ${task.name} != catkin_build: build`);
             }
         }
         return undefined;
@@ -164,9 +176,10 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
     }
 
     makeRosSourcecommand(): string {
+        const shell = getShellExtension();
         // determine latest ros2 version
-        let find_ros1_version = 'for ROS1_VERSION in $(ls /opt/ros/|sort -r); do CATKIN_LINES=$(cat /opt/ros/$ROS1_VERSION/setup.sh | grep CATKIN | wc -l); if [ $CATKIN_LINES != "0" ]; then export INSTALL_PREFIX=/opt/ros/$ROS1_VERSION/; break; fi; done';
-        let source_script = find_ros1_version + '; source ${INSTALL_PREFIX}/setup.$(echo ${SHELL} | xargs basename)';
+        let find_ros1_version = `for ROS1_VERSION in $(ls /opt/ros/|sort -r); do CATKIN_LINES=$(cat /opt/ros/$ROS1_VERSION/setup.${shell} | grep CATKIN | wc -l); if [ $CATKIN_LINES != "0" ]; then export INSTALL_PREFIX=/opt/ros/$ROS1_VERSION/; break; fi; done`;
+        let source_script = find_ros1_version + `; source \${INSTALL_PREFIX}/setup.${shell}`;
         return source_script;
     }
 
@@ -271,9 +284,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         return true;
     }
 
-
-
-    private async loadCatkinConfig() {
+    private async loadCatkinConfig(): Promise<void> {
         const output = await runCatkinCommand(['config'], this.associated_workspace_for_tasks.uri.fsPath);
 
         this.catkin_config.clear();
@@ -283,6 +294,10 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
                 console.log(key, val);
                 this.catkin_config.set(key, val);
             }
+        }
+
+        if (this.catkin_config.size === 0) {
+            console.error("Failed to get catkin config");
         }
     }
 
