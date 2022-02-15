@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { IWorkspace } from 'vscode-catkin-tools-api';
+import { CatkinToolsTerminal } from '../catkin_tools_terminal';
 
 interface CatkinTaskDefinition extends vscode.TaskDefinition {
   /**
@@ -7,42 +9,21 @@ interface CatkinTaskDefinition extends vscode.TaskDefinition {
   task: string;
 }
 
+const catkin_tools_build_script = 'catkin';
 
-export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder): Promise<vscode.Task[]> {
-  // command to find the directory containing '.catkin_tools'
-  let find_basedir = 'basedir=$(pwd) && while ! [[ -d "${basedir}/.catkin_tools" ]] && [[ "${basedir}" != "/" ]]; do basedir=$(dirname $basedir); done';
-
-  let find_source_script = 'export SOURCE_SCRIPT="${DEVEL_PREFIX}/setup.$(echo ${SHELL} | xargs basename)"'
-    + ' && '
-    + 'if [[ ! -f "${EXTENDING}" ]]; then export EXTENDING=$(catkin config | grep Extending | cut -c 30-); fi && '
-    + 'if [[ ${EXTENDING} == "None" ]]; then export EXTENDING=/opt/ros/$(ls /opt/ros/ | head -n 1); fi && '
-    + 'if [[ ! -f "${SOURCE_SCRIPT}" ]]; then export SOURCE_SCRIPT=${EXTENDING}/setup.$(echo ${SHELL} | xargs basename); fi';
-
-  // command to source the setup shell file for the enveloping workspace of the current directory
-  //  1. find the base dir. If it can be found, change into it
-  //  2.1 call `catkin locate -d` to find the current devel space, which is not guaranteed to be "devel"
-  //  2.2. source the setup shell file ending with the current shell's name
-  //  3. reset the working directory to the original
-  let source_catkin = find_basedir + ' && '
-    + 'if [[ "${basedir}" != "/" ]]; then cd ${basedir}; fi' + ' && '
-    + 'export DEVEL_PREFIX=$(catkin locate -d) && '
-    + find_source_script + ' && '
-    + 'source "${SOURCE_SCRIPT}"' + ' && '
-    + 'cd ${basedir}';
-
-  // command to source the setup shell file for the enveloping workspace of the workspace folder
-  let source_workspace = 'cd "${workspaceFolder}" && ' + source_catkin;
-  // command to source the setup shell file for the enveloping workspace of the folder ${fileDirname}
-  let source_current_package = 'cd "${fileDirname}" && pushd . 2> /dev/null && ' + source_catkin + ' && popd 2> /dev/null';
+export async function getCatkinBuildTask(workspace: IWorkspace): Promise<vscode.Task[]> {
+  const workspace_root_path = await workspace.getRootPath();
+  const workspace_root = vscode.workspace.getWorkspaceFolder(vscode.Uri.parse(workspace_root_path.toString()));
 
   let result: vscode.Task[] = [];
   {
     let taskName = 'build';
     let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
     let task = new vscode.Task(
-      kind, workspace_root, taskName, 'catkin_build',
-      new vscode.ShellExecution(source_workspace + ' && catkin build'),
-      ['$catkin-gcc', '$catkin-cmake']);
+      kind, workspace_root, taskName,
+      catkin_tools_build_script, new vscode.CustomExecution(async (): Promise<vscode.Pseudoterminal> => {
+        return new CatkinToolsTerminal(workspace, ['build', '--no-notify']);
+      }));
     task.group = vscode.TaskGroup.Build;
     result.push(task);
   }
@@ -50,9 +31,10 @@ export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder)
     let taskName = 'build_tests';
     let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
     let task = new vscode.Task(
-      kind, workspace_root, taskName, 'catkin_build',
-      new vscode.ShellExecution(source_workspace + ' && catkin build --make-args tests'),
-      ['$catkin-gcc', '$catkin-cmake']);
+      kind, workspace_root, taskName,
+      catkin_tools_build_script, new vscode.CustomExecution(async (): Promise<vscode.Pseudoterminal> => {
+        return new CatkinToolsTerminal(workspace, ['build', '--no-notify', '--make-args', 'tests']);
+      }));
     task.group = vscode.TaskGroup.Build;
     result.push(task);
   }
@@ -60,9 +42,10 @@ export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder)
     let taskName = 'clean';
     let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
     let task = new vscode.Task(
-      kind, workspace_root, taskName, 'catkin_build',
-      new vscode.ShellExecution(source_workspace + ' && catkin clean -vyf'),
-      ['$catkin-gcc', '$catkin-cmake']);
+      kind, workspace_root, taskName,
+      catkin_tools_build_script, new vscode.CustomExecution(async (): Promise<vscode.Pseudoterminal> => {
+        return new CatkinToolsTerminal(workspace, ['clean', '-y', '-v']);
+      }));
     task.group = vscode.TaskGroup.Build;
     result.push(task);
   }
@@ -70,9 +53,10 @@ export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder)
     let taskName = 'build current package';
     let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
     let task = new vscode.Task(
-      kind, workspace_root, taskName, 'catkin_build',
-      new vscode.ShellExecution(source_current_package + ' && catkin build --this -v --no-deps'),
-      ['$catkin-gcc', '$catkin-cmake']);
+      kind, workspace_root, taskName,
+      catkin_tools_build_script, new vscode.CustomExecution(async (): Promise<vscode.Pseudoterminal> => {
+        return new CatkinToolsTerminal(workspace, ['build', '--no-notify', '--this', '-v', '--no-deps'], true);
+      }));
     task.group = vscode.TaskGroup.Build;
     result.push(task);
   }
@@ -80,10 +64,13 @@ export async function getCatkinBuildTask(workspace_root: vscode.WorkspaceFolder)
     let taskName = 'run current package tests';
     let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
     let task = new vscode.Task(
-      kind, workspace_root, taskName, 'catkin_build',
-      new vscode.ShellExecution(source_current_package + ' && ' +
-        'env CTEST_OUTPUT_ON_FAILURE=1 catkin build --this -v --no-deps --catkin-make-args run_tests'),
-      ['$catkin-gcc', '$catkin-cmake', '$catkin-gtest', '$catkin-gtest-failed']);
+      kind, workspace_root, taskName,
+      catkin_tools_build_script, new vscode.CustomExecution(async (resolvedDefinition: vscode.TaskDefinition): Promise<vscode.Pseudoterminal> => {
+        console.log(resolvedDefinition);
+        return new CatkinToolsTerminal(workspace,
+          ['test', '--no-notify', '--this', '--force-color'],
+          true, [['CTEST_OUTPUT_ON_FAILURE', '1']]);
+      }));
     task.group = vscode.TaskGroup.Build;
     result.push(task);
   }
