@@ -1,8 +1,7 @@
 
 import * as vscode from 'vscode';
-import { IWorkspace, IWorkspaceManager } from 'vscode-catkin-tools-api';
+import { IWorkspaceManager } from 'vscode-catkin-tools-api';
 import { CppToolsApi, getCppToolsApi, Version } from 'vscode-cpptools';
-import * as vscode_test from 'vscode-test-adapter-api';
 
 import { Workspace } from './common/workspace';
 import { PackageXmlCompleter } from './common/package_xml_tools';
@@ -18,14 +17,13 @@ import { WorkspaceTestAdapter } from './common/testing/workspace_test_adapter';
 export class WorkspaceManager implements IWorkspaceManager {
 
   cpp_tools_configuration_provider: CppToolsConfigurationProvider = undefined;
-  test_explorer_api: vscode.Extension<vscode_test.TestHub>;
+  test_controller: vscode.TestController;
   cpp_tools_api: CppToolsApi;
 
   workspaces = new Map<vscode.WorkspaceFolder, Workspace>();
   onWorkspacesChanged = new vscode.EventEmitter<void>();
 
   async initialize(): Promise<void> {
-    this.test_explorer_api = vscode.extensions.getExtension<vscode_test.TestHub>(vscode_test.testExplorerExtensionId);
     this.cpp_tools_api = await getCppToolsApi(Version.v2);
     if (this.cpp_tools_api) {
       if (!this.cpp_tools_api.notifyReady) {
@@ -34,6 +32,7 @@ export class WorkspaceManager implements IWorkspaceManager {
         return;
       }
     }
+      this.test_controller = vscode.tests.createTestController('catkin-tools', 'catkin tools test controller');
   }
 
   public getWorkspace(workspace_folder: vscode.WorkspaceFolder): Workspace {
@@ -69,17 +68,18 @@ export class WorkspaceManager implements IWorkspaceManager {
               this.cpp_tools_configuration_provider.addWorkspace(root, workspace);
               this.cpp_tools_api.notifyReady(this.cpp_tools_configuration_provider);
             }
-            if (this.test_explorer_api) {
+            if (this.test_controller) {
               if (workspace.test_adapter !== null) {
-                this.test_explorer_api.exports.unregisterTestAdapter(workspace.test_adapter);
                 workspace.test_adapter.dispose();
               }
               workspace.test_adapter = new WorkspaceTestAdapter(
                 root.uri.fsPath,
+                this.test_controller,
                 workspace,
                 output_channel
               );
-              this.test_explorer_api.exports.registerTestAdapter(workspace.test_adapter);
+
+              workspace.test_adapter.load();
             }
 
             this.onWorkspacesChanged.fire();
@@ -103,9 +103,6 @@ export class WorkspaceManager implements IWorkspaceManager {
 
     let workspace = this.getWorkspace(root);
     if (workspace !== undefined) {
-      if (this.test_explorer_api) {
-        this.test_explorer_api.exports.unregisterTestAdapter(workspace.test_adapter);
-      }
       if (this.cpp_tools_configuration_provider) {
         this.cpp_tools_configuration_provider.removeWorkspace(root);
       }
@@ -220,7 +217,7 @@ export class WorkspaceManager implements IWorkspaceManager {
     }
     const active_profile = await workspace.workspace_provider.getActiveProfile();
     const profiles = await workspace.workspace_provider.getProfiles();
-    console.log(`catkin profiles: ${profiles.length}`)
+    console.log(`catkin profiles: ${profiles.length}`);
 
     const profile_list = [];
     for (const profile of profiles) {
@@ -240,5 +237,4 @@ export class WorkspaceManager implements IWorkspaceManager {
       vscode.window.showErrorMessage(`Failed to list profiles`);
     }
   }
-
-};
+}

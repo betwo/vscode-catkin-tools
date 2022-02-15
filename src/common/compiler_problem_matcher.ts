@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
-import { IPackage } from 'vscode-catkin-tools-api';
+import { IWorkspace } from 'vscode-catkin-tools-api';
 
 export function analyze(
-    workspace_package: IPackage,
+    workspace: IWorkspace,
     error_output,
     diagnostics_collection: vscode.DiagnosticCollection
 ) {
     let diags = new Map<string, vscode.Diagnostic[]>();
 
-    analyzeLines(workspace_package, error_output.split('\n'), diags);
+    analyzeLines(workspace, error_output.split('\n'), diags);
 
     for (let it of diags.entries()) {
         let uri = vscode.Uri.file(it[0]);
@@ -18,11 +18,11 @@ export function analyze(
 
 
 function analyzeLines(
-    workspace_package: IPackage,
+    workspace: IWorkspace,
     log: string[],
     diagnostics_collection: Map<string, vscode.Diagnostic[]>
 ) {
-    let relatedInformation: vscode.DiagnosticRelatedInformation[] = [];
+    let related_information: vscode.DiagnosticRelatedInformation[] = [];
     for (let line in log) {
         let gcc_failure_message = /^(.*):(\d+):(\d+):\s+(warning|error|.*):\s+(.*)$/.exec(log[line]);
         if (gcc_failure_message !== null) {
@@ -46,19 +46,19 @@ function analyzeLines(
 
             const diagnostic = new vscode.Diagnostic(new vscode.Range(start, end),
                 message, severity);
-            if (relatedInformation.length > 0) {
-                diagnostic.relatedInformation = relatedInformation;
+            if (related_information.length > 0) {
+                diagnostic.relatedInformation = related_information;
             }
 
             updateDiagnosticDatabase(diagnostics_collection, diagnostic, gcc_failure_message[1]);
-            relatedInformation = [];
+            related_information = [];
         } else {
             // not the error message
             let requirement = /^(.*):(\d+):(\d+):\s+(required\s+.*)$/.exec(log[line]);
             if (requirement !== null) {
                 let start = new vscode.Position(parseInt(requirement[2]) - 1, 0);
                 let end = new vscode.Position(parseInt(requirement[2]) - 1, 1000);
-                relatedInformation.push({
+                related_information.push({
                     message: requirement[4],
                     location: {
                         uri: vscode.Uri.file(requirement[1]),
@@ -70,7 +70,7 @@ function analyzeLines(
                 if (file_reference !== null) {
                     let start = new vscode.Position(parseInt(file_reference[3]) - 1, 0);
                     let end = new vscode.Position(parseInt(file_reference[3]) - 1, 1000);
-                    relatedInformation.push({
+                    related_information.push({
                         message: file_reference[0],
                         location: {
                             uri: vscode.Uri.file(file_reference[2]),
@@ -78,7 +78,7 @@ function analyzeLines(
                         }
                     });
                 } else {
-                    console.log("Unhandled line: ", log[line]);
+                    console.debug("Unhandled line: ", log[line]);
                 }
             }
         }
@@ -93,7 +93,7 @@ function analyzeLines(
             const diagnostic = new vscode.Diagnostic(new vscode.Range(start, end),
                 message, severity);
 
-            updateDiagnosticDatabase(diagnostics_collection, diagnostic, workspace_package.relative_path + "/" + cmake_failure_message[2]);
+            updateDiagnosticDatabase(diagnostics_collection, diagnostic, cmake_failure_message[2]);
         }
     }
 }

@@ -659,6 +659,29 @@ export class Workspace implements IWorkspace {
   }
 
   public async runTest(id: string): Promise<TestRunResult> {
-    return this.test_adapter.runTest(id);
+    let headless_test_run = new NoninteractiveTestRun();
+    return this.test_adapter.runTest(id, headless_test_run);
+  }
+}
+
+class NoninteractiveTestRun implements vscode.TestRun {
+  name: string = "headless";
+  token: vscode.CancellationToken;
+  isPersisted: boolean;
+  enqueued(test: vscode.TestItem): void {
+  }
+  started(test: vscode.TestItem): void {
+  }
+  skipped(test: vscode.TestItem): void {
+  }
+  failed(test: vscode.TestItem, message: vscode.TestMessage | readonly vscode.TestMessage[], duration?: number): void {
+  }
+  errored(test: vscode.TestItem, message: vscode.TestMessage | readonly vscode.TestMessage[], duration?: number): void {
+  }
+  passed(test: vscode.TestItem, duration?: number): void {
+  }
+  appendOutput(output: string): void {
+  }
+  end(): void {
   }
 }

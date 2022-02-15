@@ -1,17 +1,6 @@
 import * as child_process from 'child_process';
 import * as vscode from 'vscode';
 import {
-    TestEvent,
-    TestHub,
-    TestLoadStartedEvent,
-    TestLoadFinishedEvent,
-    TestRunStartedEvent,
-    TestRunFinishedEvent,
-    TestSuiteEvent,
-    TestAdapter,
-    TestSuiteInfo
-} from 'vscode-test-adapter-api';
-import {
     IPackage,
     WorkspaceTestInterface,
     WorkspaceTestCase,
@@ -20,7 +9,9 @@ import {
     WorkspaceTestFixture,
     TestType,
     TestRunResult,
-    TestRunReloadRequest
+    TestRunReloadRequest,
+    TestSuiteInfo,
+    TestInfo
 } from 'vscode-catkin-tools-api';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -34,14 +25,10 @@ import * as compiler_problem_matcher from '../compiler_problem_matcher';
 import * as xml from 'fast-xml-parser';
 import * as treekill from 'tree-kill';
 
-type TestRunEvent = TestRunStartedEvent | TestRunFinishedEvent | TestSuiteEvent | TestEvent;
-type TestLoadEvent = TestLoadStartedEvent | TestLoadFinishedEvent;
-
-
 /**
  * Implementation of the TestAdapter interface for workspace tests.
  */
-export class WorkspaceTestAdapter implements TestAdapter {
+export class WorkspaceTestAdapter {
     suites: Map<string, WorkspaceTestSuite> = new Map<string, WorkspaceTestSuite>();
     executables: Map<string, WorkspaceTestExecutable> = new Map<string, WorkspaceTestExecutable>();
     testfixtures: Map<string, WorkspaceTestFixture> = new Map<string, WorkspaceTestFixture>();
@@ -54,23 +41,19 @@ export class WorkspaceTestAdapter implements TestAdapter {
 
     private diagnostics: vscode.DiagnosticCollection;
 
-    private testsEmitter = new vscode.EventEmitter<TestLoadEvent>();
-    private testStatesEmitter = new vscode.EventEmitter<TestRunEvent>();
-    private autorunEmitter = new vscode.EventEmitter<void>();
-
     constructor(
         public readonly workspaceRootDirectoryPath: string,
+        public test_controller: vscode.TestController,
         public readonly workspace: Workspace,
         private readonly output_channel: vscode.OutputChannel
     ) {
         this.workspace.test_adapter = this;
         this.output_channel.appendLine(`Initializing test adapter for workspace ${workspaceRootDirectoryPath}`);
         this.diagnostics = vscode.languages.createDiagnosticCollection(`catkin_tools`);
-    }
 
-    public get tests() { return this.testsEmitter.event; }
-    public get testStates() { return this.testStatesEmitter.event; }
-    public get autorun() { return this.autorunEmitter.event; }
+        this.test_controller.createRunProfile('Run', vscode.TestRunProfileKind.Run, (request, token) => this.run(request, token, false), true);
+        this.test_controller.createRunProfile('Debug', vscode.TestRunProfileKind.Debug, (request, token) => this.run(request, token, true), false);
+    }
 
     public async load(): Promise<void> {
         if (!this.workspace.isInitialized()) {
@@ -126,13 +109,13 @@ export class WorkspaceTestAdapter implements TestAdapter {
 
             } catch (err) {
                 this.output_channel.appendLine(`Error loading tests: ${err}`);
-                this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', errorMessage: err });
+                // this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', errorMessage: err });
             }
         });
     }
 
     public signalReload() {
-        this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
+        // this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
     }
     public async updateSuiteSet() {
         let test_tree = <TestSuiteInfo>{
@@ -149,7 +132,39 @@ export class WorkspaceTestAdapter implements TestAdapter {
             subtree.children.push(info);
         }
         this.root_test_suite = test_tree;
-        this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.root_test_suite });
+        this.test_controller.items.replace([this.convertTestSuite(this.root_test_suite)]);
+    }
+
+    private convertTestSuite(info: TestSuiteInfo | TestInfo): vscode.TestItem {
+        if ("children" in info) {
+            return this.convertTestSuiteInfo(info);
+        } else {
+            return this.convertTestInfo(info);
+        }
+    }
+
+    private convertTestSuiteInfo(info: TestSuiteInfo): vscode.TestItem {
+        const uri = (info.file !== undefined) ? vscode.Uri.parse(info.file) : undefined;
+        let result = this.test_controller.createTestItem(info.id, info.label, uri);
+        result.description = info.description;
+        if (info.line !== undefined) {
+            result.range = new vscode.Range(
+                new vscode.Position(info.line, 0),
+                new vscode.Position(info.line, 100));
+        }
+        for (const e of info.children) {
+            result.children.add(this.convertTestSuite(e));
+        }
+        return result;
+    }
+
+    private convertTestInfo(info: TestInfo): vscode.TestItem {
+        let result = this.test_controller.createTestItem(info.id, info.label, vscode.Uri.parse(info.file));
+        result.description = info.description;
+        result.range = new vscode.Range(
+            new vscode.Position(info.line, 0),
+            new vscode.Position(info.line, 100));
+        return result;
     }
 
     private static getSubtree(tree: TestSuiteInfo, prefix: string, key: string[], createIfNonExistent = false) {
@@ -251,41 +266,48 @@ export class WorkspaceTestAdapter implements TestAdapter {
         }
     }
 
-    public async run(nodeIds: string[]): Promise<void> {
+    public async run(request: vscode.TestRunRequest, token: vscode.CancellationToken, debug: boolean): Promise<void> {
         this.diagnostics.clear();
+        let test_run = this.test_controller.createTestRun(request);
+
+        if (debug) {
+            this.debug(request, token, test_run);
+        } else {
+            this.runWithProgress(request, token, test_run);
+        }
+    }
+
+    public async runWithProgress(
+        request: vscode.TestRunRequest,
+        token: vscode.CancellationToken,
+        test_run: vscode.TestRun
+    ): Promise<void> {
         this.cancel_requested = false;
-
-        this.output_channel.appendLine(`Running test(s): ${nodeIds.join(', ')}`);
-        this.testStatesEmitter.fire(<TestRunStartedEvent>{ type: 'started', tests: nodeIds });
-        let result: TestRunResult = await vscode.window.withProgress<TestRunResult>({
-            location: vscode.ProgressLocation.Notification,
-            title: 'Test ' + (nodeIds.length > 1 ? "multiple tests" : nodeIds[0]),
-            cancellable: true,
-        }, async (progress, token) => {
-            token.onCancellationRequested(() => {
-                this.cancel_requested = true;
-            });
-            let result = new TestRunResult(true);
-            try {
-                for (let id of nodeIds) {
-                    let intermediate_result: TestRunResult;
-                    if (id.startsWith("package_") || id.startsWith("exec_") || id.startsWith("fixture_") || id === "all_tests") {
-                        intermediate_result = await this.runTestSuite(id, progress, token);
-                    } else if (id.startsWith("directory")) {
-                        intermediate_result = await this.runTestSuite(id, progress, token);
-                    } else if (id.startsWith("test_")) {
-                        intermediate_result = await this.runTest(id, progress, token);
-                    }
-                    result.merge(intermediate_result);
-                }
-            } catch (err) {
-                this.output_channel.appendLine(`Run failed: ${err}`);
-                console.log(`Run failed: ${err}`);
-            }
-            return result;
+        token.onCancellationRequested(() => {
+            this.cancel_requested = true;
         });
+        this.output_channel.appendLine(`Running test(s): ${request.include.join(', ')}`);
 
-        this.testStatesEmitter.fire(<TestRunFinishedEvent>{ type: 'finished' });
+        let result = new TestRunResult(true);
+        try {
+            for (let item of request.include) {
+                const id = item.id;
+                let intermediate_result: TestRunResult;
+                if (id.startsWith("package_") || id.startsWith("exec_") || id.startsWith("fixture_") || id === "all_tests") {
+                    intermediate_result = await this.runTestSuite(id, test_run, token);
+                } else if (id.startsWith("directory")) {
+                    intermediate_result = await this.runTestSuite(id, test_run, token);
+                } else if (id.startsWith("test_")) {
+                    intermediate_result = await this.runTest(id, test_run, token);
+                }
+                result.merge(intermediate_result);
+            }
+        } catch (err) {
+            this.output_channel.appendLine(`Run failed: ${err}`);
+            console.log(`Run failed: ${err}`);
+        }
+
+        test_run.end();
 
         if (result.reload_packages.length > 0) {
             for (let request of result.reload_packages) {
@@ -293,45 +315,38 @@ export class WorkspaceTestAdapter implements TestAdapter {
                 let change_suite = await this.reloadPackageIfChanged(request.test.package);
                 if (change_suite !== undefined) {
                     console.log(`Changed suite: ${change_suite.info.id}`);
-                    result.repeat_ids.push(change_suite.info.id);
+                    result.repeat_tests.push(this.getTestItem(change_suite.info.id));
                 }
             }
         }
 
-        if (result.repeat_ids.length > 0) {
-            this.run(result.repeat_ids);
+        if (result.repeat_tests.length > 0) {
+            const request = new vscode.TestRunRequest(result.repeat_tests);
+            this.run(request, token, false);
         }
     }
 
     public async runTest(id: string,
-        progress?: vscode.Progress<{ message?: string; increment?: number; }>,
+        test_run: vscode.TestRun,
         token?: vscode.CancellationToken): Promise<TestRunResult> {
         this.output_channel.appendLine(`Running test for package ${id}`);
 
         try {
-            return await this.runTestCommand(id, progress, token);
+            return await this.runTestCommand(id, test_run, token);
         } catch (err) {
-            this.testStatesEmitter.fire({
-                state: 'errored',
-                type: 'test',
-                test: id,
-                message: `Failure running test ${id}: ${err}`
-            });
+            let item = this.getTestItem(id);
+            if (test_run !== undefined) {
+                test_run.failed(item, err);
+            } else {
+                console.error("Running test failed!!!");
+                console.error(err);
+            }
             return new TestRunResult(false);
         }
     }
 
-    public async skipTest(id: string) {
-        this.testStatesEmitter.fire({
-            state: 'errored',
-            type: 'test',
-            test: id,
-            message: `Skipped test ${id}`
-        });
-    }
-
     private async runTestSuite(id: string,
-        progress: vscode.Progress<{ message?: string; increment?: number; }>,
+        test_run: vscode.TestRun,
         token: vscode.CancellationToken): Promise<TestRunResult> {
         this.output_channel.appendLine(`Running test suite ${id}`);
 
@@ -363,22 +378,16 @@ export class WorkspaceTestAdapter implements TestAdapter {
 
         if (tests.length === 0) {
             this.output_channel.appendLine(`No test found with id ${id}`);
-            this.testStatesEmitter.fire(
-                {
-                    state: 'errored',
-                    type: 'test',
-                    test: id,
-                    message: `No test found with id ${id}`
-                });
+            test_run.errored(this.getTestItem(id), new vscode.TestMessage(`No test found with id ${id}`));
             return;
         }
 
         let result = new TestRunResult(true);
         for (let test of tests) {
             if (this.cancel_requested) {
-                this.skipTest(test.info.id);
+                test_run.skipped(this.getTestItem(test.info.id));
             } else {
-                let intermediate_result = await this.runTest(test.info.id, progress, token);
+                let intermediate_result = await this.runTest(test.info.id, test_run, token);
                 result.merge(intermediate_result);
             }
         }
@@ -432,17 +441,15 @@ export class WorkspaceTestAdapter implements TestAdapter {
     }
 
     private async runCommands(
-        workspace_package: IPackage,
         commands: WorkspaceTestParameters,
-        progress: vscode.Progress<{ message?: string; increment?: number; }>,
         token: vscode.CancellationToken,
         cwd: fs.PathLike): Promise<WorkspaceTestRunResult> {
-        let result = new WorkspaceTestRunResult(WorkspaceTestRunResultKind.BuildFailed, "");
+        let result = new WorkspaceTestRunResult(WorkspaceTestRunResultKind.BuildFailed);
 
         this.output_channel.appendLine(`command: ${commands.exe} ${commands.args.join(" ")}`);
 
         try {
-            let build_output = await this.runShellCommand(commands.setup_shell_code, progress, token, cwd);
+            let build_output = await this.runShellCommand(commands.setup_shell_code, token, cwd);
             this.output_channel.appendLine(`${build_output.stdout}`);
             this.output_channel.appendLine(`${build_output.stderr}`);
 
@@ -452,17 +459,17 @@ export class WorkspaceTestAdapter implements TestAdapter {
             this.output_channel.appendLine("stderr:");
             this.output_channel.appendLine(`${error_output.stderr}`);
 
-            compiler_problem_matcher.analyze(workspace_package, error_output.stderr, this.diagnostics);
+            compiler_problem_matcher.analyze(this.workspace, error_output.stderr, this.diagnostics);
 
             result.state = WorkspaceTestRunResultKind.BuildFailed;
-            result.message += error_output.stdout + '\n' + error_output.stderr + '\n';
+            result.message.message += error_output.stdout + '\n' + error_output.stderr + '\n';
 
             return result;
         }
 
         if (commands.exe !== undefined) {
             try {
-                let test_output = await this.runExecutableCommand([commands.exe, commands.args], progress, token, cwd);
+                let test_output = await this.runExecutableCommand([commands.exe, commands.args], token, cwd);
                 this.output_channel.appendLine(`${test_output.stdout}`);
                 this.output_channel.appendLine(`${test_output.stderr}`);
                 result.state = WorkspaceTestRunResultKind.TestSucceeded;
@@ -474,7 +481,11 @@ export class WorkspaceTestAdapter implements TestAdapter {
                 this.output_channel.appendLine(`${error_output.stderr}`);
 
                 result.state = WorkspaceTestRunResultKind.TestFailed;
-                result.message += error_output.stdout + '\n' + error_output.stderr + '\n';
+                result.message.message += error_output.stdout + '\n' + error_output.stderr + '\n';
+                if (error_output.error !== undefined) {
+                    result.message.message = `Error: ${error_output.error.message}\n\n` + result.message.message;
+                }
+                result.error = error_output.error;
 
                 return result;
             }
@@ -486,42 +497,17 @@ export class WorkspaceTestAdapter implements TestAdapter {
     }
 
     private async runExecutableCommand([exe, args]: [fs.PathLike, string[]],
-        progress: vscode.Progress<{ message?: string; increment?: number; }>,
         token: vscode.CancellationToken,
         cwd: fs.PathLike) {
 
         let environment = await this.getRuntimeEnvironment();
 
-        let output_promise = runCommand(`${exe}`, args, environment, cwd, (process) => {
+        let output_promise = runCommand(exe.toString(), args, environment, cwd, [], (process) => {
             this.active_process = process;
 
             if (token !== undefined) {
                 token.onCancellationRequested(() => {
                     treekill(this.active_process.pid);
-                });
-            }
-
-            if (progress !== undefined) {
-                let buffer = '';
-                let last_update = 0;
-                this.active_process.stdout.on('data', (data) => {
-                    buffer += data.toString().replace(/\r/gi, '');
-
-                    // split the data into lines
-                    let lines = buffer.split('\n');
-                    // assume that the last line is incomplete, add it back to the buffer
-                    buffer = lines[lines.length - 1];
-
-                    // log the complete lines
-                    for (let lineno = 0; lineno < lines.length - 1; ++lineno) {
-                        console.log(lines[lineno]);
-                    }
-                    // if enough time has passed (1 second), update the progress
-                    let now = Date.now();
-                    if (now - last_update > 250) {
-                        progress.report({ message: lines[lines.length - 2], increment: 0 });
-                        last_update = now;
-                    }
                 });
             }
         });
@@ -531,7 +517,6 @@ export class WorkspaceTestAdapter implements TestAdapter {
     }
 
     private async runShellCommand(command: string,
-        progress: vscode.Progress<{ message?: string; increment?: number; }>,
         token: vscode.CancellationToken,
         cwd: fs.PathLike) {
 
@@ -543,30 +528,6 @@ export class WorkspaceTestAdapter implements TestAdapter {
                     treekill(this.active_process.pid);
                 });
             }
-
-            if (progress !== undefined) {
-                let buffer = '';
-                let last_update = 0;
-                this.active_process.stdout.on('data', (data) => {
-                    buffer += data.toString().replace(/\r/gi, '');
-
-                    // split the data into lines
-                    let lines = buffer.split('\n');
-                    // assume that the last line is incomplete, add it back to the buffer
-                    buffer = lines[lines.length - 1];
-
-                    // log the complete lines
-                    for (let lineno = 0; lineno < lines.length - 1; ++lineno) {
-                        console.log(lines[lineno]);
-                    }
-                    // if enough time has passed (1 second), update the progress
-                    let now = Date.now();
-                    if (now - last_update > 250) {
-                        progress.report({ message: lines[lines.length - 2], increment: 0 });
-                        last_update = now;
-                    }
-                });
-            }
         });
         const output = await output_promise;
         this.active_process = undefined;
@@ -574,7 +535,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
     }
 
     private async runTestCommand(id: string,
-        progress?: vscode.Progress<{ message?: string; increment?: number; }>,
+        test_run: vscode.TestRun,
         token?: vscode.CancellationToken): Promise<TestRunResult> {
 
         this.output_channel.appendLine(`running test command for ${id}`);
@@ -633,22 +594,16 @@ export class WorkspaceTestAdapter implements TestAdapter {
         }
 
         // run the test
-        let test_result: WorkspaceTestRunResult = await this.runCommands(test.package, commands, progress, token, '/tmp');
+        let test_result: WorkspaceTestRunResult = await this.runCommands(commands, token, '/tmp');
 
         if (test.type === 'gtest') {
-            return await this.analyzeGtestResult(test, output_file, test_result.message);
+            return await this.analyzeGtestResult(test_run, test, output_file, test_result.message.message.toString());
 
         } else if (test.type === 'suite') {
             let suite: WorkspaceTestSuite = this.suites.get(id);
             if (suite.executables === null) {
                 if (test_result.state === WorkspaceTestRunResultKind.BuildFailed) {
-                    let result: TestEvent = {
-                        type: 'test',
-                        test: test.info.id,
-                        state: test_result.toTestExplorerTestState(),
-                        message: test_result.message
-                    };
-                    this.testStatesEmitter.fire(result);
+                    test_run.errored(this.getTestItem(id), test_result.message);
 
                 } else {
                     console.log("Requested to run an empty suite, building and then retrying");
@@ -656,7 +611,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
                         reload_packages: [<TestRunReloadRequest>{
                             test: suite
                         }],
-                        repeat_ids: []
+                        repeat_tests: []
                     };
 
                 }
@@ -666,7 +621,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
                     reload_packages: [<TestRunReloadRequest>{
                         test: suite
                     }],
-                    repeat_ids: suite.executables.map((exe) => exe.info.id)
+                    repeat_tests: suite.executables.map((exe) => this.getTestItem(exe.info.id))
                 };
             }
         } else {
@@ -675,46 +630,22 @@ export class WorkspaceTestAdapter implements TestAdapter {
                 if (id.startsWith("fixture_unknown_")) {
                     let exe = this.getExecutableForTestFixture(id);
                     exe.fixtures.forEach((test) => {
-                        let result: TestSuiteEvent = {
-                            type: 'suite',
-                            suite: test.info.id,
-                            state: test_result.toTestExplorerSuiteState(),
-                            message: test_result.message
-                        };
-                        this.testStatesEmitter.fire(result);
+                        test_result.updateTestRunSuite(this.getTestItem(id), test_run);
                     });
                 } else {
                     let exe = this.getTestForExecutable(test.executable.toString());
                     exe.fixtures.forEach((test) => {
-                        let result: TestSuiteEvent = {
-                            type: 'suite',
-                            suite: test.info.id,
-                            state: test_result.toTestExplorerSuiteState(),
-                            message: test_result.message
-                        };
-                        this.testStatesEmitter.fire(result);
+                        test_result.updateTestRunSuite(this.getTestItem(id), test_run);
                     });
                 }
             } else {
                 tests.forEach((test) => {
                     if (test.info.id.startsWith('test_')) {
-                        let result: TestEvent = {
-                            type: 'test',
-                            test: test.info.id,
-                            state: test_result.toTestExplorerTestState(),
-                            message: test_result.message
-                        };
-                        this.testStatesEmitter.fire(result);
+                        test_result.updateTestRunTest(this.getTestItem(id), test_run);
                     } else {
                         let exe = this.getTestForExecutable(test.executable.toString());
                         exe.fixtures.forEach((test) => {
-                            let result: TestEvent = {
-                                type: 'test',
-                                test: test.info.id,
-                                state: test_result.toTestExplorerTestState(),
-                                message: test_result.message
-                            };
-                            this.testStatesEmitter.fire(result);
+                            test_result.updateTestRunTest(this.getTestItem(id), test_run);
                         });
                     }
                 });
@@ -726,7 +657,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
                 if (test.type !== 'generic') {
                     return new TestRunResult(
                         false,
-                        [id],
+                        [this.getTestItem(id)],
                         []
                     );
                 }
@@ -749,6 +680,33 @@ export class WorkspaceTestAdapter implements TestAdapter {
             }
         } catch (_) {
             return "generic";
+        }
+    }
+
+    private getTestItem(id: string): vscode.TestItem {
+        return this.getTestItemFromCollection(id, this.test_controller.items);
+    }
+
+    private getTestItemFromCollection(id: string, suite: vscode.TestItemCollection): vscode.TestItem {
+        let item = suite.get(id);
+        if (item !== undefined) {
+            return item;
+        }
+        suite.forEach(i => {
+            console.log(i);
+            let r = this.getTestItemChild(id, i);
+            if (r !== undefined) {
+                item = r;
+            }
+        });
+
+        return item;
+    }
+    private getTestItemChild(id: string, item: vscode.TestItem): vscode.TestItem {
+        if (item.id === id) {
+            return item;
+        } else if (item.children.size > 0) {
+            return this.getTestItemFromCollection(id, item.children);
         }
     }
 
@@ -791,7 +749,11 @@ export class WorkspaceTestAdapter implements TestAdapter {
         return tests;
     }
 
-    private async analyzeGtestResult(test: WorkspaceTestInterface, output_file: string, test_output: string): Promise<TestRunResult> {
+    private async analyzeGtestResult(test_run: vscode.TestRun,
+        test: WorkspaceTestInterface,
+        output_file: string,
+        test_output: string)
+        : Promise<TestRunResult> {
         let tests: WorkspaceTestCase[] = this.getTestCases(test.info.id);
         let dom = undefined;
         let reload_packages = [];
@@ -805,12 +767,16 @@ export class WorkspaceTestAdapter implements TestAdapter {
             dom = xml.parse(content_raw.toString(), options);
 
             // send the result for all matching ids
-            tests.forEach((test) => {
-                all_succeeded = all_succeeded && this.sendGtestResultForTest(test, dom, test_output);
+            if (!this.sendGtestResultForTest(test_run, test, dom, test_output)) {
+                all_succeeded = false;
+            }
+            tests.forEach((sub_test) => {
+                if (!this.sendGtestResultForTest(test_run, sub_test, dom, test_output)) {
+                    all_succeeded = false;
+                }
             });
 
             if (test.info.id.startsWith("package_")) {
-                all_succeeded = all_succeeded && this.sendGtestResultForTest(test, dom, test_output);
                 reload_packages.push({
                     test: test as WorkspaceTestSuite,
                     dom: dom,
@@ -818,7 +784,6 @@ export class WorkspaceTestAdapter implements TestAdapter {
                 });
 
             } else if (test.info.id.startsWith("exec_")) {
-                all_succeeded = all_succeeded && this.sendGtestResultForTest(test, dom, test_output);
                 let suite = this.getTestSuiteForExcutable(test.info.id);
                 let contained = reload_packages.reduce((result, pkg) => {
                     if (pkg.test.info.id === suite.info.id) {
@@ -834,7 +799,6 @@ export class WorkspaceTestAdapter implements TestAdapter {
                     });
                 }
             } else {
-                all_succeeded = all_succeeded && this.sendGtestResultForTest(test, dom, test_output);
                 let executable = (test.info.id.startsWith("fixture_")) ? this.getExecutableForTestFixture(test.info.id) : this.getExecutableForTestCase(test.info.id);
                 let suite = this.getTestSuiteForExcutable(executable.info.id);
                 reload_packages.push({
@@ -846,7 +810,7 @@ export class WorkspaceTestAdapter implements TestAdapter {
 
         } catch (error) {
             test_output += `\n(Cannot read the test results results from ${output_file})`;
-            this.sendErrorForTest(test, test_output);
+            test_run.errored(this.getTestItem(test.info.id), new vscode.TestMessage(test_output));
             all_succeeded = false;
         }
 
@@ -860,16 +824,12 @@ export class WorkspaceTestAdapter implements TestAdapter {
         let [pkg_suite, old_suite] = await this.loadPackageTests(workspace_package, false);
         if (!this.isSuiteEquivalent(old_suite, pkg_suite)) {
             // update the list of tests
-            this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
             this.updatePackageTestsWith(pkg_suite);
             this.updateSuiteSet();
-            this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.root_test_suite });
             return pkg_suite;
 
         } else {
-            this.testsEmitter.fire(<TestLoadStartedEvent>{ type: 'started' });
             this.updateSuiteSet();
-            this.testsEmitter.fire(<TestLoadFinishedEvent>{ type: 'finished', suite: this.root_test_suite });
             return undefined;
         }
     }
@@ -937,33 +897,12 @@ export class WorkspaceTestAdapter implements TestAdapter {
         return undefined;
     }
 
-    private sendErrorForTest(test: WorkspaceTestInterface, message: string) {
-        if (test.info.type === 'suite') {
-            this.testStatesEmitter.fire(<TestSuiteEvent>{
-                type: 'suite',
-                suite: test.info.id,
-                state: 'errored',
-                message: message
-            });
-
-        } else {
-            this.testStatesEmitter.fire(<TestEvent>{
-                type: 'test',
-                test: test.info.id,
-                state: 'errored',
-                message: message
-            });
-        }
-    }
-
-    private sendGtestResultForTest(test: WorkspaceTestInterface, dom, message: string): boolean {
-        let result: TestEvent = {
-            type: 'test',
-            test: test.info.id,
-            state: 'errored',
-            message: message
-        };
-
+    private sendGtestResultForTest(
+        test_run: vscode.TestRun,
+        test: WorkspaceTestInterface,
+        dom,
+        message: string)
+        : boolean {
         let all_succeeded = true;
 
         gtest_problem_matcher.analyze(dom, this.diagnostics);
@@ -972,12 +911,11 @@ export class WorkspaceTestAdapter implements TestAdapter {
             // this is the whole test executable
             let node_suites = dom['testsuites'];
             if (node_suites.attr['@_failures'] > 0 || node_suites.attr['@_errors'] > 0) {
-                result.state = 'failed';
+                test_run.failed(this.getTestItem(test.info.id), new vscode.TestMessage(message));
                 all_succeeded = false;
             } else {
-                result.state = 'passed';
+                test_run.passed(this.getTestItem(test.info.id));
             }
-            this.testStatesEmitter.fire(result);
 
         } else {
             // this is one single test case
@@ -992,30 +930,25 @@ export class WorkspaceTestAdapter implements TestAdapter {
                             if (test_case.attr['@_name'] === test_case_id) {
                                 let failure = test_case['failure'];
                                 if (failure !== undefined) {
-                                    result.state = 'failed';
+                                    test_run.failed(this.getTestItem(test.info.id), new vscode.TestMessage(failure['#text']));
                                     all_succeeded = false;
-                                    result.message = failure['#text'];
                                 } else {
-                                    result.state = 'passed';
+                                    test_run.passed(this.getTestItem(test.info.id));
                                 }
                                 break;
                             }
                         }
                     } else {
                         if (node.attr['@_failures'] > 0 || node.attr['@_errors'] > 0) {
-                            result.state = 'failed';
+                            test_run.failed(this.getTestItem(test.info.id), new vscode.TestMessage("unknown error"));
                             all_succeeded = false;
                         } else {
-                            result.state = 'passed';
+                            test_run.passed(this.getTestItem(test.info.id));
                         }
                     }
                     break;
                 }
             }
-            if (result.state === "errored") {
-                console.error(`Could not find the test id "${test_fixture}" in the generated xml file`);
-            }
-            this.testStatesEmitter.fire(result);
         }
         return all_succeeded;
     }
@@ -1071,12 +1004,17 @@ export class WorkspaceTestAdapter implements TestAdapter {
         return a.filter === b.filter;
     }
 
-    public async debug(test_ids: string[]): Promise<void> {
-        if (test_ids.length > 1) {
+    public async debug(
+        request: vscode.TestRunRequest,
+        token: vscode.CancellationToken,
+        test_run: vscode.TestRun
+    ): Promise<void> {
+        if (request.include.length > 1) {
             vscode.window.showWarningMessage("Debugging more than one test case is not yet supported.");
         }
-        if (test_ids.length > 0) {
-            let test_id = test_ids[0];
+        if (request.include.length > 0) {
+            const test_item = request.include[0];
+            const test_id = test_item.id;
             let test: WorkspaceTestFixture | WorkspaceTestCase | WorkspaceTestExecutable;
             if (test_id.startsWith("exec_")) {
                 test = this.executables.get(test_id);
@@ -1105,14 +1043,21 @@ export class WorkspaceTestAdapter implements TestAdapter {
                 parts.shift();
                 let args: string[] = parts;
 
-                let environment = await this.getRuntimeEnvironment();
+                let environment_variables = [];
+                for (const [k, v] of await this.getRuntimeEnvironment()) {
+                    environment_variables.push({
+                        name: k,
+                        value: v
+                    });
+                }
 
                 let config: vscode.DebugConfiguration = {
                     type: 'cppdbg',
                     name: cmd,
                     request: 'launch',
-                    environment: environment,
+                    environment: environment_variables,
                     MIMode: 'gdb',
+                    stopAtEntry: true,
                     setupCommands: [
                         {
                             "description": "Enable pretty-printing for gdb",
@@ -1139,16 +1084,13 @@ export class WorkspaceTestAdapter implements TestAdapter {
     }
 
     private async getRuntimeEnvironment(): Promise<[string, string][]> {
-        let environment = [];
+        let environment: [string, string][] = [];
         let env_command = await this.workspace.makeCommand(`env`);
         try {
             let env_output = await runShellCommand(env_command, await this.workspace.getRootPath());
             environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
                 let [name, value] = env_entry.split("=");
-                return {
-                    name: name,
-                    value: value
-                };
+                return [name, value];
             });
         } catch (error) {
             console.error(error.stderr);

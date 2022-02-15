@@ -11,7 +11,7 @@
     "url": "https://github.com/betwo/vscode-catkin-tools"
   },
   "engines": {
-    "vscode": "^1.60.0"
+    "vscode": "^1.61.0"
   },
   "categories": [
     "Other"
@@ -251,7 +251,6 @@
     "vscode-test-adapter-util": "^0.7.1"
   },
   "extensionDependencies": [
-    "ms-vscode.cpptools",
-    "hbenl.vscode-test-explorer"
+    "ms-vscode.cpptools"
   ]
 }

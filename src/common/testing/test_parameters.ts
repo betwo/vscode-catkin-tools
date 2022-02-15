@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import * as fs from 'fs';
 
 export enum WorkspaceTestRunResultKind {
@@ -8,8 +9,31 @@ export enum WorkspaceTestRunResultKind {
 export class WorkspaceTestRunResult {
     public constructor(
         public state: WorkspaceTestRunResultKind,
-        public message: string) { }
+        public message?: vscode.TestMessage,
+        public error?: Error) {
+        if (message === undefined) {
+            this.message = new vscode.TestMessage("");
+        }
+    }
 
+    public updateTestRunSuite(item: vscode.TestItem, test_run: vscode.TestRun) {
+        switch (this.state) {
+            case WorkspaceTestRunResultKind.TestSucceeded:
+                return test_run.passed(item);
+            default:
+                return test_run.errored(item, this.message);
+        }
+    }
+    public updateTestRunTest(item: vscode.TestItem, test_run: vscode.TestRun) {
+        switch (this.state) {
+            case WorkspaceTestRunResultKind.BuildFailed:
+                return test_run.errored(item, this.message);
+            case WorkspaceTestRunResultKind.TestFailed:
+                return test_run.failed(item, this.message);
+            case WorkspaceTestRunResultKind.TestSucceeded:
+                return test_run.passed(item);
+        }
+    }
     public toTestExplorerSuiteState() {
         switch (this.state) {
             case WorkspaceTestRunResultKind.TestSucceeded:
