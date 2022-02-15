@@ -2,3 +2,5 @@ build
 devel
 logs
 install
+**/.catkin_tools/profiles
+**/.catkin_tools/VERSION
