@@ -68,7 +68,7 @@ async function queryCMakeFileApiCodeModel(workspace_package: Package): Promise<T
         const query_file = path.join(query_dir, "query.json");
         await fs.promises.writeFile(query_file, query_txt);
         const source_command = workspace_package.workspace.workspace_provider.makeRosSourcecommand();
-        const output = await runShellCommand(source_command + "; cmake .", build_space);
+        const output = await runShellCommand(source_command + " && cmake .", build_space);
         console.log(output.stdout);
     } catch (error) {
         console.error(error);
