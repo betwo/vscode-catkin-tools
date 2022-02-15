@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 
 import { WorkspaceProvider } from "vscode-catkin-tools-api";
 import { runColconCommand } from "./colcon_command";
+import { getExtensionConfiguration } from '../common/configuration';
 
 export class ColconWorkspaceProvider implements WorkspaceProvider {
     private catkin_config = new Map<string, string>();
@@ -146,10 +148,20 @@ export class ColconWorkspaceProvider implements WorkspaceProvider {
         return source_script;
     }
 
-    async enableCompileCommandsGeneration() {
+    async enableCompileCommandsGeneration() : Promise<boolean> {
         const cmake_opts = await this.getConfigEntry("Additional CMake Args");
         runColconCommand(['config', '--cmake-args', `${cmake_opts} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`], await this.getRootPath());
         this.loadColconConfig();
+        return true;
+    }
+
+    async initialize(extending: fs.PathLike[]): Promise<boolean> {
+        // TODO: implement this for full colcon support
+        return true;
+    }
+    async isInitialized(): Promise<boolean> {
+        // TODO: implement this for full colcon support
+        return true;
     }
 
     public async checkProfile() {

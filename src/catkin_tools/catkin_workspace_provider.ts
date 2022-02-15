@@ -194,6 +194,19 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         }
         return true;
     }
+
+    async initialize(extending: fs.PathLike[]): Promise<boolean> {
+        const root = await this.getRootPath();
+
+        await runCatkinCommand(['init', '--workspace', root.toString()], root);
+        for (const extend of extending) {
+            await runCatkinCommand(['config', '--extend', extend.toString()], root);
+        }
+        return await this.enableCompileCommandsGeneration();
+    }
+    async isInitialized(): Promise<boolean> {
+        const root = await this.getRootPath();
+        return fs.existsSync(`${root}/.catkin_tools`);
     }
 
     public async checkProfile() {
