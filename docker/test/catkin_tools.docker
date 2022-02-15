@@ -1,11 +1,13 @@
 FROM ros:noetic
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update -qq  && \
-    apt-get install -y -qq  ros-noetic-catkin npm  software-properties-common apt-transport-https wget sudo python3-catkin-tools  python3-colcon-ros && \
-    npm install -g typescript vsce && \
+    apt-get install -y -qq  ros-noetic-catkin npm  software-properties-common apt-transport-https wget sudo python3-catkin-tools  python3-colcon-ros libasound2 dbus dbus-x11 cmake && \
+    apt-get remove -y whoopsie && \
+    npm install -g typescript && \
     wget -qq  https://packages.microsoft.com/keys/microsoft.asc -O- | apt-key add - && \
     add-apt-repository "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" && \
-    apt install -y -qq  code libasound2 xvfb
+    apt-get install -y -qq code
+
 RUN useradd -ms /bin/bash -g root -G sudo docker && echo "docker:docker" | chpasswd
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 USER docker
@@ -13,5 +15,6 @@ WORKDIR /workspace
 COPY . .
 RUN sudo chown -R docker /workspace
 RUN DEPENDENCIES=$(cat package.json | grep extensionDependencies -A 100 | grep \" | tail +2 | tr -d ",\" "); for D in $DEPENDENCIES; do code --install-extension $D; done
-RUN cd api && npm install . && npm run compile && cd ..
-RUN npm install . && npm install ./api && npm run compile
+RUN cd api && npm install && npm run compile && cd .. && npm install && npm install ./api && npm run compile
+
+ENTRYPOINT ["/workspace/docker/test/test_entrypoint.sh"]

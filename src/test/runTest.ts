@@ -14,14 +14,14 @@ async function main() {
 
         const workspace_catkin_add_gtest = path.resolve(__dirname, '../../tests/workspaces/test_types/catkin_add_gtest');
 
-        console.log(extensionDevelopmentPath);
-
         // Download VS Code, unzip it and run the integration test
         await runTests({
-            extensionDevelopmentPath, 
+            extensionDevelopmentPath,
             extensionTestsPath,
             launchArgs: [
                 workspace_catkin_add_gtest,
+                "--disable-gpu", "--disable-gpu-compositing",
+                " --no-sandbox"
                 // This disables all extensions except the one being tested
                 // '--disable-extensions'
             ],

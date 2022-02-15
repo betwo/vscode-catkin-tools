@@ -202,8 +202,8 @@
     ]
   },
   "scripts": {
-    "main-set-dist": "sed -i -e \"s/out\\\/extension/dist\\\/extension/\" package.json",
-    "main-set-out": "sed -i -e \"s/dist\\\/extension/out\\\/extension/\" package.json",
+    "main-set-dist": "sed -i -e \"s/out\\/extension/dist\\/extension/\" package.json",
+    "main-set-out": "sed -i -e \"s/dist\\/extension/out\\/extension/\" package.json",
     "prevscode:prepublish": "npm run main-set-dist",
     "vscode:prepublish": "webpack --mode production",
     "precompile": "npm run main-set-out",
@@ -215,7 +215,9 @@
     "prebuild-docker-images": "npm run main-set-out",
     "build-docker-images": "docker build -f docker/test/catkin_tools.docker . -t vscode-catkin-tools",
     "preintegrationtest": "npm run build-docker-images",
-    "integrationtest": "set -x; /usr/bin/Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 & XVFBPID=$!; docker run -e DISPLAY=:99 -v /tmp/.X11-unix:/tmp/.X11-unix -e CI=true vscode-catkin-tools bash -c \"npm run test\"; EXIT=$?; echo \"Stopping xvfb\"; kill -9 $XVFBPID; exit $EXIT",
+    "integrationtest": "set -x; /usr/bin/Xvfb :99 -screen 0 1024x768x24 -nolisten tcp 2>&1 & XVFBPID=$!; sleep 1; docker run --rm -e DISPLAY=:99.0 -v /tmp/.X11-unix:/tmp/.X11-unix -e CI=true vscode-catkin-tools bash -c \"npm run test\"; EXIT=$?; echo \"Stopping xvfb\"; kill -9 $XVFBPID; exit $EXIT",
+    "preintegrationtestloop": "npm run build-docker-images",
+    "integrationtestloop": "set -x; /usr/bin/Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 & XVFBPID=$!; docker run --rm -e DISPLAY=:99 -v /tmp/.X11-unix:/tmp/.X11-unix -e CI=true vscode-catkin-tools bash -c \"OK=0; while [[ \"\\$OK\" == \"0\" ]]; do npm run test; OK=\\$?; done\"; EXIT=$?; echo \"Stopping xvfb\"; kill -9 $XVFBPID; exit $EXIT",
     "webpack": "webpack --mode development",
     "webpack-dev": "webpack --mode development --watch"
   },
