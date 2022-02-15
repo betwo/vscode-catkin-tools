@@ -434,7 +434,7 @@ export class Package implements IPackage {
               }
 
               let description = undefined;
-              if(fixture_match[2] !== undefined) {
+              if (fixture_match[2] !== undefined) {
                 // we have a comment in the line
                 description = fixture_match[2].substring(1).trim();
               }
@@ -495,7 +495,7 @@ export class Package implements IPackage {
                 matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
                 matching_line = existing_test_case.line;
               } else {
-                console.error(`No matching line for test case ${test_name} in suite ${current_test_suite}`);
+                  console.error(`No matching line for test case ${test_name} in suite ${current_test_suite}`);
               }
               let test_case: WorkspaceTestCase = {
                 package: this,

@@ -20,6 +20,16 @@ export let api = new class implements API {
   constructor() {
     console.info(`Providing API for version: ${VERSION}`);
     this.workspace_manager = new WorkspaceManager();
+
+    vscode.tasks.onDidStartTask(e => {
+      console.log(`Task started: ${e.execution.task.name}`);
+    });
+    vscode.tasks.onDidEndTask(e => {
+      console.log(`Task ended: ${e.execution.task.name}`);
+    });
+    vscode.tasks.onDidEndTaskProcess(e => {
+      console.log(`Task process ended: ${e.execution.task.name}, exit code: ${e.exitCode}`);
+    });
   }
 
   async reload(): Promise<void> {
@@ -88,6 +98,7 @@ export let api = new class implements API {
     console.log(`Building workspace ${await workspace.getName()}`);
     let build_task = await workspace.workspace_provider.getBuildTask();
     if (build_task === undefined) {
+      console.error("Failed to get build task");
       return false;
     }
 
@@ -98,6 +109,7 @@ export let api = new class implements API {
     console.log(`Building workspace tests ${await workspace.getName()}`);
     let build_task = await workspace.workspace_provider.getBuildTestsTask();
     if (build_task === undefined) {
+      console.error("Failed to get build_test task");
       return false;
     }
 
@@ -124,13 +136,13 @@ export let api = new class implements API {
 
 async function runTask(task: vscode.Task): Promise<boolean> {
   return new Promise<boolean>(async resolve => {
-    let disposable = vscode.tasks.onDidEndTask(e => {
+    let disposable = vscode.tasks.onDidEndTaskProcess(e => {
       if (e.execution.task === task) {
         disposable.dispose();
-        resolve(true);
+        resolve(e.exitCode === 0);
       }
     });
-    await vscode.tasks.executeTask(task);
+    vscode.tasks.executeTask(task);
   });
 }
 
@@ -156,7 +168,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<API> {
       let tasks = [];
       if (vscode.workspace.workspaceFolders !== undefined) {
         for (let root of vscode.workspace.workspaceFolders) {
-          tasks = tasks.concat(await catkin_build.getCatkinBuildTask(root));
+          let workspace = workspace_manager.getWorkspace(root);
+          if (workspace !== undefined) {
+            tasks = tasks.concat(await catkin_build.getCatkinBuildTask(workspace));
+          }
         }
       }
       return tasks;

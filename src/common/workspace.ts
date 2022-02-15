@@ -77,7 +77,10 @@ export class Workspace implements IWorkspace {
       try {
         await this.loadAndWatchCompileCommands();
       } catch (error) {
-        vscode.window.showErrorMessage(`cannot load workspace folder: ${error.command} failed with ${error.error.message}`);
+        if (error.stack !== undefined) {
+          console.error(error.stack);
+        }
+        vscode.window.showErrorMessage(`cannot load workspace folder: ${error.command} failed with ${error.error}`);
         return;
       }
 
@@ -472,7 +475,7 @@ export class Workspace implements IWorkspace {
 
   private async loadAndWatchCompileCommands() {
     let build_dir = await this.workspace_provider.getBuildDir();
-    if (build_dir === null) {
+    if (build_dir === null || build_dir.length === 0) {
       vscode.window.showErrorMessage('Cannot determine build directory');
       return;
     }
@@ -518,6 +521,9 @@ export class Workspace implements IWorkspace {
         this.startWatchingCompileCommandsFile(file.toString());
       }
       db_found = entries.length !== 0;
+      if (!db_found) {
+        console.log("No compile_commands.json file found");
+      }
     }
     if (api.test_mode_enabled) {
       return false;
@@ -542,7 +548,9 @@ export class Workspace implements IWorkspace {
           this.ignore_missing_db = true;
           return;
         } else if (result === update) {
-          this.workspace_provider.enableCompileCommandsGeneration();
+          if (!this.workspace_provider.enableCompileCommandsGeneration()) {
+            vscode.window.showWarningMessage("Failed to enable compile commands generation, see logs");
+          }
           ask_trigger_build = true;
         }
       }
@@ -591,7 +599,10 @@ export class Workspace implements IWorkspace {
   }
 
   public async getName(): Promise<string> {
-    let root_path = await this.getRootPath();
+    const root_path = await this.getRootPath();
+    if (root_path === undefined) {
+      throw Error("Failed to get root path of the current workspace");
+    }
     return path.basename(root_path.toString());
   }
 
@@ -639,7 +650,7 @@ export class Workspace implements IWorkspace {
     this.stopWatching(file);
     this.watchers.set(file, fs.watch(file, (eventType, filename) => {
       if (filename) {
-        console.log('Database file', file, 'changed');
+        console.log(`Database file ${file} changed: ${eventType}`);
         this.updateDatabase(file);
       }
     }));

@@ -1,4 +1,3 @@
-
 import * as vscode from 'vscode';
 import { IWorkspaceManager } from 'vscode-catkin-tools-api';
 import { CppToolsApi, getCppToolsApi, Version } from 'vscode-cpptools';
@@ -32,7 +31,7 @@ export class WorkspaceManager implements IWorkspaceManager {
         return;
       }
     }
-      this.test_controller = vscode.tests.createTestController('catkin-tools', 'catkin tools test controller');
+    this.test_controller = vscode.tests.createTestController('catkin-tools', 'catkin tools test controller');
   }
 
   public getWorkspace(workspace_folder: vscode.WorkspaceFolder): Workspace {
