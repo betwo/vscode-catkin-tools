@@ -21,8 +21,8 @@ export class TestParserGTest implements ITestParser {
         let test_fixtures = new Map<string, TestFixture>();
         let data = await fs.promises.readFile(source_file);
 
-        const gtest_regex_start = new RegExp(/\s*(TYPED_)TEST(_[PF])?\(/);
-        const gtest_regex = new RegExp(/\s*(TYPED_)TEST(_[PF])?\(([^,]+)\s*,\s*([^,]+)\)\s*/);
+        const gtest_regex_start = new RegExp(/\s*(TYPED_)?TEST(_[PF])?\(/);
+        const gtest_regex = new RegExp(/\s*(TYPED_)?TEST(_[PF])?\(([^,]+)\s*,\s*([^,]+)\)\s*/);
 
         let line_number = 0;
         const source_code = data.toString().split("\n");
@@ -33,7 +33,6 @@ export class TestParserGTest implements ITestParser {
             let line_length = 1;
             if (line.match(gtest_regex_start) !== null) {
                 current_line = line;
-                console.log(line);
                 while (current_line.indexOf('{') < 0 && raw_line_index < source_code.length) {
                     raw_line_index += 1;
                     line_length += 1;
