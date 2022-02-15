@@ -170,15 +170,30 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         return source_script;
     }
 
-    async enableCompileCommandsGeneration() {
+    async enableCompileCommandsGeneration(): Promise<boolean> {
+        await this.loadCatkinConfig();
         const cmake_opts = await this.getConfigEntry("Additional CMake Args");
         let args: string[] = [];
         if (cmake_opts !== "None") {
+            console.log(`Existing ops: ${cmake_opts}`);
             args = args.concat(cmake_opts.split(' '));
+        } else {
+            console.log(`No existing ops`);
         }
-        args.push('-DCMAKE_EXPORT_COMPILE_COMMANDS=ON');
-        runCatkinCommand(['config', '--cmake-args'].concat(args), await this.getRootPath());
-        this.loadCatkinConfig();
+
+        const enable_cmd = '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON';
+        if (args.indexOf(enable_cmd) < 0) {
+            args.push(enable_cmd);
+            try {
+                await runCatkinCommand(['config', '--cmake-args'].concat(args), await this.getRootPath());
+            } catch (e) {
+                console.error(`Failed to configure catkin: ${e}`);
+                return false;
+            }
+            await this.loadCatkinConfig();
+        }
+        return true;
+    }
     }
 
     public async checkProfile() {
