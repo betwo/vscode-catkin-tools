@@ -17,7 +17,7 @@ export class TestParserGTest implements ITestParser {
     }
 
     public async analyzeSourceFile(source_file: fs.PathLike): Promise<TestFixture[]> {
-        console.log(`Analyzing ${source_file} for gtest names`);
+        console.debug(`Analyzing ${source_file} for gtest names`);
         let test_fixtures = new Map<string, TestFixture>();
         let data = await fs.promises.readFile(source_file);
 

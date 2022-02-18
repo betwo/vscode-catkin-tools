@@ -34,7 +34,6 @@ export async function skimCmakeListsForTests(workspace_package: Package): Promis
 }
 
 export async function parsePackageForTests(workspace_package: Package): Promise<TestSuite> {
-    console.log(workspace_package.cmakelists_path);
     return queryCMakeFileApiCodeModel(workspace_package);
 }
 
@@ -69,7 +68,8 @@ async function queryCMakeFileApiCodeModel(workspace_package: Package): Promise<T
         await fs.promises.writeFile(query_file, query_txt);
         const source_command = workspace_package.workspace.workspace_provider.makeRosSourcecommand();
         const output = await runShellCommand(source_command + " && cmake .", build_space);
-        console.log(output.stdout);
+        console.debug("CMake Query result:");
+        console.debug(output.stdout);
     } catch (error) {
         console.error(error);
         return undefined;

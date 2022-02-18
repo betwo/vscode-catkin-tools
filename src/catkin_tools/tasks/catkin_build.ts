@@ -66,7 +66,6 @@ export async function getCatkinBuildTask(workspace: IWorkspace): Promise<vscode.
     let task = new vscode.Task(
       kind, workspace_root, taskName,
       catkin_tools_build_script, new vscode.CustomExecution(async (resolvedDefinition: vscode.TaskDefinition): Promise<vscode.Pseudoterminal> => {
-        console.log(resolvedDefinition);
         return new CatkinToolsTerminal(workspace,
           ['test', '--no-notify', '--this', '--force-color'],
           true, [['CTEST_OUTPUT_ON_FAILURE', '1']]);

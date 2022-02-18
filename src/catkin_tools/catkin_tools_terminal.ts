@@ -40,7 +40,6 @@ export class CatkinToolsTerminal implements vscode.Pseudoterminal {
                 // CTRL+c
                 if (this.process !== undefined && !this.process.killed) {
                     this.write_emitter.fire(`Canceling...\r\n`);
-                    console.log("User pressed CTRL+c");
                     this.terminate();
                 }
             }
@@ -79,7 +78,7 @@ export class CatkinToolsTerminal implements vscode.Pseudoterminal {
                     },
                     (out: string) => {
                         this.write_emitter.fire(out.replace(/\n/g, "\r\n"));
-                        console.log(out);
+                        console.debug(out);
                     },
                     (err: string) => {
                         this.write_emitter.fire(colorText(err.replace(/\n/g, "\r\n"), 1));

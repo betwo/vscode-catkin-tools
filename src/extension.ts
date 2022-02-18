@@ -18,17 +18,17 @@ export let api = new class implements API {
   test_mode_enabled = false;
 
   constructor() {
-    console.info(`Providing API for version: ${VERSION}`);
+    console.debug(`Providing API for version: ${VERSION}`);
     this.workspace_manager = new WorkspaceManager();
 
     vscode.tasks.onDidStartTask(e => {
-      console.log(`Task started: ${e.execution.task.name}`);
+      console.debug(`Task started: ${e.execution.task.name}`);
     });
     vscode.tasks.onDidEndTask(e => {
-      console.log(`Task ended: ${e.execution.task.name}`);
+      console.debug(`Task ended: ${e.execution.task.name}`);
     });
     vscode.tasks.onDidEndTaskProcess(e => {
-      console.log(`Task process ended: ${e.execution.task.name}, exit code: ${e.exitCode}`);
+      console.debug(`Task process ended: ${e.execution.task.name}, exit code: ${e.exitCode}`);
     });
   }
 
@@ -85,7 +85,7 @@ export let api = new class implements API {
   }
 
   async cleanWorkspace(workspace: IWorkspace): Promise<boolean> {
-    console.log(`Cleaning workspace ${await workspace.getName()}`);
+    console.debug(`Cleaning workspace ${await workspace.getName()}`);
     let clean_task = await workspace.workspace_provider.getCleanTask();
     if (clean_task === undefined) {
       return false;
@@ -95,7 +95,7 @@ export let api = new class implements API {
   }
 
   async buildWorkspace(workspace: IWorkspace): Promise<boolean> {
-    console.log(`Building workspace ${await workspace.getName()}`);
+    console.debug(`Building workspace ${await workspace.getName()}`);
     let build_task = await workspace.workspace_provider.getBuildTask();
     if (build_task === undefined) {
       console.error("Failed to get build task");
@@ -106,7 +106,7 @@ export let api = new class implements API {
   }
 
   async buildWorkspaceTests(workspace: IWorkspace): Promise<boolean> {
-    console.log(`Building workspace tests ${await workspace.getName()}`);
+    console.debug(`Building workspace tests ${await workspace.getName()}`);
     let build_task = await workspace.workspace_provider.getBuildTestsTask();
     if (build_task === undefined) {
       console.error("Failed to get build_test task");
@@ -130,6 +130,7 @@ export let api = new class implements API {
 
   setAutomaticTestMode() {
     this.test_mode_enabled = true;
+    console.debug = function() {};
   }
 };
 
@@ -273,8 +274,6 @@ async function scanPackageContaining(workspace: Workspace, uri: vscode.Uri) {
         packageScansPending.set(workspace_package.getName(), workspace_package);
         await workspace.test_adapter.reloadPackageIfChanged(workspace_package);
         packageScansPending.delete(workspace_package.getName());
-      } else {
-        console.log(`already scanning package ${workspace_package.getName()}`);
       }
     }
   }

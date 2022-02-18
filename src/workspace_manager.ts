@@ -216,7 +216,6 @@ export class WorkspaceManager implements IWorkspaceManager {
     }
     const active_profile = await workspace.workspace_provider.getActiveProfile();
     const profiles = await workspace.workspace_provider.getProfiles();
-    console.log(`catkin profiles: ${profiles.length}`);
 
     const profile_list = [];
     for (const profile of profiles) {

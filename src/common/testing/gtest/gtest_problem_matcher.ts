@@ -44,7 +44,6 @@ export function analyzeMessage(log: string[],
     diagnostics_collection: Map<string, vscode.Diagnostic[]>) {
 
     let failure_message = /^(\S+):(\d+).*$/.exec(log[0]);
-    console.log(failure_message);
     if (failure_message !== null) {
         let start = new vscode.Position(parseInt(failure_message[2]) - 1, 0);
         let end = new vscode.Position(parseInt(failure_message[2]) - 1, 1000);

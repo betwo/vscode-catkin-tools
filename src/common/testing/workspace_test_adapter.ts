@@ -91,7 +91,6 @@ export class WorkspaceTestAdapter {
                         continue;
                     }
                     accumulated_progress += progress_relative;
-                    console.log(workspace_package.name);
                     if (accumulated_progress > 1.0) {
                         let integer_progress = Math.floor(accumulated_progress);
                         accumulated_progress -= integer_progress;
@@ -224,11 +223,8 @@ export class WorkspaceTestAdapter {
     public async updatePackageTestsWith(suite: WorkspaceTestSuite) {
         if (suite.executables !== null) {
             for (let executable of suite.executables) {
-                console.log(`add executable ${executable.info.id}`);
-                console.log(executable);
                 this.executables.set(executable.info.id, executable);
                 for (let fixture of executable.fixtures) {
-                    console.log(`add test fixture ${fixture.info.id}`);
                     this.testfixtures.set(fixture.info.id, fixture);
                     for (let testcase of fixture.cases) {
                         this.testcases.set(testcase.info.id, testcase);
@@ -262,7 +258,7 @@ export class WorkspaceTestAdapter {
 
             return [suite, old_suite];
         } catch (error) {
-            console.log(`Error loading tests of package ${workspace_package.name}: ${error}`);
+            console.error(`Error loading tests of package ${workspace_package.name}: ${error}`);
         }
     }
 
@@ -304,17 +300,17 @@ export class WorkspaceTestAdapter {
             }
         } catch (err) {
             this.output_channel.appendLine(`Run failed: ${err}`);
-            console.log(`Run failed: ${err}`);
+            console.error(`Run failed: ${err}`);
         }
 
         test_run.end();
 
         if (result.reload_packages.length > 0) {
             for (let request of result.reload_packages) {
-                console.log(`Requested to reload ${request.test.info.id}`);
+                console.debug(`Requested to reload ${request.test.info.id}`);
                 let change_suite = await this.reloadPackageIfChanged(request.test.package);
                 if (change_suite !== undefined) {
-                    console.log(`Changed suite: ${change_suite.info.id}`);
+                    console.debug(`Changed suite: ${change_suite.info.id}`);
                     result.repeat_tests.push(this.getTestItem(change_suite.info.id));
                 }
             }
@@ -606,7 +602,7 @@ export class WorkspaceTestAdapter {
                     test_run.errored(this.getTestItem(id), test_result.message);
 
                 } else {
-                    console.log("Requested to run an empty suite, building and then retrying");
+                    console.debug("Requested to run an empty suite, building and then retrying");
                     return <TestRunResult>{
                         reload_packages: [<TestRunReloadRequest>{
                             test: suite
@@ -693,7 +689,6 @@ export class WorkspaceTestAdapter {
             return item;
         }
         suite.forEach(i => {
-            console.log(i);
             let r = this.getTestItemChild(id, i);
             if (r !== undefined) {
                 item = r;
@@ -1097,7 +1092,6 @@ export class WorkspaceTestAdapter {
             throw Error(`Cannot determine environment: ${error.stderr}`);
         }
 
-        console.log(environment);
         return environment;
     }
 

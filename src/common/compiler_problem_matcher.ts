@@ -26,7 +26,6 @@ function analyzeLines(
     for (let line in log) {
         let gcc_failure_message = /^(.*):(\d+):(\d+):\s+(warning|error|.*):\s+(.*)$/.exec(log[line]);
         if (gcc_failure_message !== null) {
-            console.log(gcc_failure_message);
             let start = new vscode.Position(parseInt(gcc_failure_message[2]) - 1, 0);
             let end = new vscode.Position(parseInt(gcc_failure_message[2]) - 1, 1000);
             let message = gcc_failure_message[5];
@@ -85,7 +84,6 @@ function analyzeLines(
 
         let cmake_failure_message = /^CMake\s+(Warning|Error)\s+at\s+(\S+):(\d+)\s*(.*):\s*$/.exec(log[line]);
         if (cmake_failure_message !== null) {
-            console.log(cmake_failure_message);
             let start = new vscode.Position(parseInt(cmake_failure_message[3]) - 1, 0);
             let end = new vscode.Position(parseInt(cmake_failure_message[3]) - 1, 1000);
             let message = log[parseInt(line) + 1].trim();

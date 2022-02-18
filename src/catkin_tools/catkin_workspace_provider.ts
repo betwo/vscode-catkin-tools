@@ -91,7 +91,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
             }
         }
 
-        console.log(`Searching default workspace in "/opt/ros/"`);
+        console.debug(`Searching default workspace in "/opt/ros/"`);
         const base_path = "/opt/ros/";
         if (fs.existsSync(base_path)) {
             const subdirs = await fs.promises.readdir(base_path);
@@ -188,10 +188,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         const cmake_opts = await this.getConfigEntry("Additional CMake Args");
         let args: string[] = [];
         if (cmake_opts !== "None") {
-            console.log(`Existing ops: ${cmake_opts}`);
             args = args.concat(cmake_opts.split(' '));
-        } else {
-            console.log(`No existing ops`);
         }
 
         const enable_cmd = '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON';
@@ -264,7 +261,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
     }
 
     private async updateProfile(profile) {
-        console.log(`PROFILE: Switching to ${profile}`);
+        console.debug(`Switching to catkin profile "${profile}"`);
         this.catkin_profile = profile;
         this.workspace_src_dir = null;
         this.workspace_build_dir = null;
@@ -291,7 +288,6 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         for (const line of output.stdout.split("\n")) {
             if (line.indexOf(":") > 0) {
                 const [key, val] = line.split(":").map(s => s.trim());
-                console.log(key, val);
                 this.catkin_config.set(key, val);
             }
         }

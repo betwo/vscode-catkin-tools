@@ -178,8 +178,6 @@ export class Package implements IPackage {
         if (line.indexOf("#") >= 0 && line.indexOf("include") > 0) {
           if (line.indexOf(include_relpath) > 0) {
             if (await async_filter(vscode.Uri.file(source.toString()))) {
-              console.log(source);
-              console.log(line);
               return true;
             }
           }
@@ -208,7 +206,6 @@ export class Package implements IPackage {
     if (!outline_only) {
       try {
         let output = await runCommand('ctest', ['-N', '-V'], [], this.build_space);
-        console.log(output.stdout);
         let current_executable: string = undefined;
         let current_test_type: TestType = undefined;
         let missing_exe = undefined;
@@ -326,7 +323,7 @@ export class Package implements IPackage {
           }
         }
       } catch (err) {
-        console.log(`Cannot call ctest for ${this.name}`);
+        console.error(`Cannot call ctest for ${this.name}`);
         throw err;
       }
     }
@@ -361,7 +358,7 @@ export class Package implements IPackage {
       try {
         gtest_build_targets = await parsePackageForTests(this);
       } catch (err) {
-        console.log(`Cannot determine gtest details: ${err}`);
+        console.error(`Cannot determine gtest details: ${err}`);
       }
     }
     if (gtest_build_targets === undefined) {
@@ -379,7 +376,7 @@ export class Package implements IPackage {
           matching_source_file = path.join(this.getAbsolutePath().toString(), gtest_build_target.package_relative_file_path.toString());
           matching_line = gtest_build_target.line;
         } else {
-          console.error(`No matching line for build target ${build_target.cmake_target}`);
+          console.debug(`No matching line for build target ${build_target.cmake_target}`);
         }
       }
 
@@ -446,10 +443,10 @@ export class Package implements IPackage {
                 matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
                 matching_line = existing_fixture.line;
               } else {
-                console.error(`No matching line for fixture ${current_test_suite}`);
-                console.log("Available fixtures:");
+                console.debug(`No matching line for fixture ${current_test_suite}`);
+                console.debug("Available fixtures:");
                 for (const f of gtest_build_targets.getFixtures()) {
-                  console.log(f);
+                  console.debug(f);
                 }
               }
               test_exec.fixtures.push({
@@ -495,7 +492,7 @@ export class Package implements IPackage {
                 matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
                 matching_line = existing_test_case.line;
               } else {
-                  console.error(`No matching line for test case ${test_name} in suite ${current_test_suite}`);
+                  console.debug(`No matching line for test case ${test_name} in suite ${current_test_suite}`);
               }
               let test_case: WorkspaceTestCase = {
                 package: this,
@@ -524,9 +521,9 @@ export class Package implements IPackage {
         } catch (err) {
           // if the target is not compiled, do not add filters
           if (err.error !== undefined) {
-            console.log(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
+            console.error(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
           } else {
-            console.log(`Cannot determine ${build_target.exec_path}'s tests: ${err}`);
+            console.error(`Cannot determine ${build_target.exec_path}'s tests: ${err}`);
           }
         }
       }

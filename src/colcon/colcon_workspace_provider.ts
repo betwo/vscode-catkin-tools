@@ -63,7 +63,7 @@ export class ColconWorkspaceProvider implements WorkspaceProvider {
             }
         }
 
-        console.log(`Searching default workspace in "/opt/ros/"`);
+        console.debug(`Searching default workspace in "/opt/ros/"`);
         const base_path = "/opt/ros/";
         if (fs.existsSync(base_path)) {
             const subdirs = await fs.promises.readdir(base_path);

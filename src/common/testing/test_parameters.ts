@@ -69,7 +69,6 @@ export class WorkspaceTestParameters {
                 let exe_string_parts = exe_string.split(" ");
                 for (let i = 0; i < exe_string_parts.length; ++i) {
                     let exe_string_prefix = exe_string_parts.slice(0, i + 1).join(" ");
-                    console.log(exe_string_prefix);
                     if (fs.existsSync(exe_string_prefix)) {
                         this.exe = exe_string_prefix;
                         this.args = this.args.concat(exe_string_parts.slice(i + 1), this.args);

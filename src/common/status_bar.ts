@@ -8,9 +8,7 @@ const status_bar_prefix = '';
 const status_bar_profile_prefix = 'catkin profile: ';
 
 function getStatusWidget(): vscode.StatusBarItem {
-    console.log("Requesting catkin status bar");
     if (status_bar_status === undefined) {
-        console.log("Creating catkin status bar");
         status_bar_status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
 
         status_bar_status.text = status_bar_prefix + 'initialized';

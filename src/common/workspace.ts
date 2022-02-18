@@ -183,13 +183,13 @@ export class Workspace implements IWorkspace {
     let checked_pkgs = [];
     const owner_package = this.getPackageContaining(file);
     if (owner_package !== undefined) {
-      console.log(`Package ${await owner_package.getRelativePath()} owns file ${file.toString()}.`);
+      console.debug(`Package ${await owner_package.getRelativePath()} owns file ${file.toString()}.`);
       const stop = await owner_package.iteratePossibleSourceFiles(file, async_filter);
       if (stop) {
         return true;
       }
       checked_pkgs.push(owner_package.getName());
-      console.log(`Package ${await owner_package.getRelativePath()} does not use file ${file.toString()}.`);
+      console.debug(`Package ${await owner_package.getRelativePath()} does not use file ${file.toString()}.`);
 
       const resursive_search = getExtensionConfiguration('recursiveHeaderParsingEnabled', false);
       const found_match = await this.iterateDependentPackages(owner_package, resursive_search, async (dependent_package: Package) => {
@@ -201,14 +201,14 @@ export class Workspace implements IWorkspace {
           checked_pkgs.push(dependent_package.getName());
         }
 
-        console.log(`No usage of ${file.toString()} found.`);
+        console.debug(`No usage of ${file.toString()} found.`);
         return false;
       });
       if (found_match) {
         return true;
       }
     }
-    console.log(`No dependee of ${file.fsPath.toString()} uses the file.`);
+    console.debug(`No dependee of ${file.fsPath.toString()} uses the file.`);
     return false;
   }
 
@@ -231,7 +231,7 @@ export class Workspace implements IWorkspace {
         checked_pkgs.add(dep_name);
         const dependency = this.getPackage(dep_name);
         if (dependency !== undefined) {
-          console.log(`Checking ${dependency.name}`);
+          console.debug(`Checking ${dependency.name}`);
           let stop = await async_filter(dependency);
           if (stop) {
             return true;
@@ -380,7 +380,6 @@ export class Workspace implements IWorkspace {
     let private_includes = false;
     let public_includes = false;
     for (var line of stdout.split('\n')) {
-      console.log(line);
       if (line.match('#include ".*starts here')) {
         private_includes = true;
         public_includes = false;
@@ -404,10 +403,10 @@ export class Workspace implements IWorkspace {
 
   private parseCompilerDefaultsCcache(caching_compiler: string, args: string[]) {
     if (args.length === 0) {
-      console.log(`Cannot determine defaults for compiler ${caching_compiler} without any further arguments}`);
+      console.error(`Cannot determine defaults for compiler ${caching_compiler} without any further arguments}`);
       return;
     }
-    console.log(`Defering default flags from cached compiler ${caching_compiler} to ${args[0]}`);
+    console.debug(`Defering default flags from cached compiler ${caching_compiler} to ${args[0]}`);
     this.parseCompilerDefaults(args[0], args.slice(1));
   }
 
@@ -433,9 +432,9 @@ export class Workspace implements IWorkspace {
   }
 
   private async updateDatabase(db_file: string): Promise<boolean> {
-    console.log('updating with file', db_file);
+    console.debug('updating with file', db_file);
     if (!fs.existsSync(db_file)) {
-      console.log(`${db_file} does not exist anymore`);
+      console.debug(`${db_file} does not exist anymore`);
       for (let [file, db] of this.file_to_compile_commands.entries()) {
         if (db === db_file) {
           this.file_to_command.delete(file);
@@ -459,7 +458,7 @@ export class Workspace implements IWorkspace {
       }
     }
     if (change) {
-      console.log('Signalling change in config');
+      console.debug('Signalling change in config');
       this.build_commands_changed.dispatch();
     }
     return change;
@@ -491,23 +490,23 @@ export class Workspace implements IWorkspace {
               if (fs.lstatSync(abs_file).isDirectory()) {
                 // new package created
                 this.startWatchingPackageBuildDir(abs_file);
-                console.log(`New package ${filename}`);
+                console.debug(`New package ${filename}`);
 
                 let package_xml = await this.locatePackageXML(filename);
                 let workspace_package = await this.loadPackage(package_xml);
                 if (workspace_package && workspace_package.has_tests) {
                   workspace_package.package_test_suite = await this.test_adapter.updatePackageTests(workspace_package, true);
                   this.test_adapter.updateSuiteSet();
-                  console.log(`New package ${workspace_package.name} found and ${workspace_package.package_test_suite.executables === null ?
+                  console.debug(`New package ${workspace_package.name} found and ${workspace_package.package_test_suite.executables === null ?
                     "unknown" :
                     workspace_package.package_test_suite.executables.length} tests added`);
                 } else {
-                  console.log(`New package ${workspace_package.name} but no package.xml found`);
+                  console.debug(`New package ${workspace_package.name} but no package.xml found`);
                 }
               }
             } else {
               // package cleaned
-              console.log('Package', filename, 'was cleaned');
+              console.debug('Package', filename, 'was cleaned');
               this.stopWatching(abs_file);
             }
           }
@@ -522,7 +521,7 @@ export class Workspace implements IWorkspace {
       }
       db_found = entries.length !== 0;
       if (!db_found) {
-        console.log("No compile_commands.json file found");
+        console.warn("No compile_commands.json file found");
       }
     }
     if (api.test_mode_enabled) {
@@ -622,11 +621,11 @@ export class Workspace implements IWorkspace {
   }
 
   private startWatchingPackageBuildDir(file: string) {
-    console.log('watching directory', file);
+    console.debug('watching directory', file);
     this.stopWatching(file);
     this.watchers.set(file, fs.watch(file, (eventType, filename) => {
       if (filename === 'compile_commands.json') {
-        console.log(
+        console.debug(
           'File', filename, 'in package', file, 'changed with', eventType);
         let db_file = file + '/' + filename;
         if (fs.existsSync(db_file)) {
@@ -638,7 +637,7 @@ export class Workspace implements IWorkspace {
 
   private stopWatching(file: string) {
     if (this.watchers.has(file)) {
-      console.log('stop watching', file);
+      console.debug('stop watching', file);
       this.watchers.get(file).close();
       this.watchers.delete(file);
     }
@@ -646,11 +645,11 @@ export class Workspace implements IWorkspace {
 
   private startWatchingCompileCommandsFile(file: string) {
     this.updateDatabase(file);
-    console.log('watching file', file);
+    console.debug('watching file', file);
     this.stopWatching(file);
     this.watchers.set(file, fs.watch(file, (eventType, filename) => {
       if (filename) {
-        console.log(`Database file ${file} changed: ${eventType}`);
+        console.debug(`Database file ${file} changed: ${eventType}`);
         this.updateDatabase(file);
       }
     }));
