@@ -7,6 +7,7 @@ import { runCommand, ShellOutput } from '../common/shell_command';
 export async function runCatkinCommand(
     args: string[],
     cwd: fs.PathLike,
+    retries?: number,
     additional_env_vars?: [string, string][],
     callback?: (process: child_process.ChildProcess) => any,
     out?: (lines: string) => void,
@@ -16,6 +17,9 @@ export async function runCatkinCommand(
         return await runCommand("catkin", args, [], cwd, additional_env_vars, callback, out, error);
     } catch (error) {
         console.error(error);
+        if (retries !== undefined && retries > 0) {
+            return await runCatkinCommand(args, cwd, retries - 1, additional_env_vars, callback, out, error);
+        }
         throw error;
     }
 }

@@ -72,7 +72,7 @@ export class CatkinToolsTerminal implements vscode.Pseudoterminal {
             }
 
             try {
-                const shell_output = await runCatkinCommand(this.flags, working_directory, this.additional_env_vars,
+                const shell_output = await runCatkinCommand(this.flags, working_directory, undefined, this.additional_env_vars,
                     (process) => {
                         this.process = process;
                     },

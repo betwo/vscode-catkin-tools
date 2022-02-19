@@ -282,7 +282,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
     }
 
     private async loadCatkinConfig(): Promise<void> {
-        const output = await runCatkinCommand(['config'], this.associated_workspace_for_tasks.uri.fsPath);
+        const output = await runCatkinCommand(['config'], this.associated_workspace_for_tasks.uri.fsPath, 2);
 
         this.catkin_config.clear();
         for (const line of output.stdout.split("\n")) {
