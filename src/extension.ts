@@ -130,7 +130,7 @@ export let api = new class implements API {
 
   setAutomaticTestMode() {
     this.test_mode_enabled = true;
-    console.debug = function() {};
+    // console.debug = function() {};
   }
 };
 

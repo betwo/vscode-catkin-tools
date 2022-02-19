@@ -2,17 +2,17 @@ import * as path from 'path';
 
 import { runTests } from '@vscode/test-electron';
 
-async function main() {
+export async function run_integration_tests() {
     try {
         // The folder containing the Extension Manifest package.json
         // Passed to `--extensionDevelopmentPath`
-        const extensionDevelopmentPath = path.resolve(__dirname, '../../');
+        const extensionDevelopmentPath = path.resolve(__dirname, '../../../');
 
         // The path to the extension test script
         // Passed to --extensionTestsPath
-        const extensionTestsPath = path.resolve(__dirname, './suite/index');
+        const extensionTestsPath = path.resolve(__dirname, './index');
 
-        const workspace_catkin_add_gtest = path.resolve(__dirname, '../../tests/workspaces/test_types/catkin_add_gtest');
+        const workspace_catkin_add_gtest = path.resolve(__dirname, '../../../tests/workspaces/test_types/catkin_add_gtest');
 
         // Download VS Code, unzip it and run the integration test
         await runTests({
@@ -32,5 +32,3 @@ async function main() {
         process.exit(1);
     }
 }
-
-main();
