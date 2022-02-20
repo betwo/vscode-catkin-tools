@@ -15,18 +15,20 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v1
         with:
-          node-version: 10.x
+          node-version: 16
       - name: Install API
         run: |
           cd api
-          npm install .
+          npm install
           npm run compile
           cd ..
       - name: Build
         run: |
-          npm install .
+          npm install
           npm install ./api
           npm run compile
+      - name: UnitTest
+        run: timeout -k 10s 600s npm run unittest
 
   integration-test:
     needs: build
@@ -40,3 +42,57 @@ jobs:
         with:
           submodules: recursive
       - run: timeout -k 10s 600s npm run integrationtest-headless
+
+  release-if-new-version:
+    needs:
+      - integration-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 16
+      - name: Extract Version Information
+        id: extract_information
+        run: |
+          sudo apt-get -y -q install jq
+          sudo npm -g install vsce
+          set -x
+          PUBLISHED_VERSION=$(vsce show betwo.b2-catkin-tools --json | jq -r '.versions[0].version')
+          CURRENT_VERSION=$(node -e "console.log(require('./package.json').version);")
+          echo '::echo::on'
+          echo "RC: ${CURRENT_VERSION} vs ${PUBLISHED_VERSION}"
+          echo "::set-output name=rc_version::$CURRENT_VERSION"
+          echo "::set-output name=published_version::$PUBLISHED_VERSION"
+          if [ "$CURRENT_VERSION" = "$PUBLISHED_VERSION" ]; then
+            echo "::set-output name=is_release_candidate::0";
+          else
+            echo "::set-output name=is_release_candidate::1";
+          fi
+      - name: print_information
+        run: |
+          set -x
+          echo "rc_version: ${{ steps.extract_information.outputs.rc_version }}"
+          echo "published_version: ${{ steps.extract_information.outputs.published_version }}"
+          echo "is_release_candidate: ${{ steps.extract_information.outputs.is_release_candidate }}"
+      - name: Install API
+        if: ${{ steps.extract_information.outputs.is_release_candidate }}
+        run: |
+          cd api
+          npm install
+          npm run compile
+          cd ..
+          npm install
+          npm install ./api
+          npm run compile
+      - name: Publish to Visual Studio Marketplace
+        uses: HaaLeo/publish-vscode-extension@v1
+        if: ${{ steps.extract_information.outputs.is_release_candidate }}
+        with:
+          pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
+          registryUrl: https://marketplace.visualstudio.com
+          preRelease: true
