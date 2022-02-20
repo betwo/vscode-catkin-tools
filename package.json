@@ -11,7 +11,7 @@
     "url": "https://github.com/betwo/vscode-catkin-tools"
   },
   "engines": {
-    "vscode": "^1.61.0"
+    "vscode": "^1.63.0"
   },
   "categories": [
     "Other"
@@ -26,7 +26,7 @@
   "activationEvents": [
     "*"
   ],
-  "main": "./out/extension",
+  "main": "./dist/extension",
   "contributes": {
     "taskDefinitions": [
       {
