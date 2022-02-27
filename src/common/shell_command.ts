@@ -82,7 +82,7 @@ export function runCommand(
         let environment_kv = {};
         if (environment.length !== 0) {
             for (const v of environment) {
-                environment_kv[v['name']] = v['value'];
+                environment_kv[v[0]] = v[1];
             }
         } else {
             for (const key in process.env) {
