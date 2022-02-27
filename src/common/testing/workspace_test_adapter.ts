@@ -329,7 +329,21 @@ export class WorkspaceTestAdapter {
         this.output_channel.appendLine(`Running test for package ${id}`);
 
         try {
-            return await this.runTestCommand(id, test_run, token);
+            if (id.startsWith('package_')) {
+                // full package test run -> run all individual tests
+                let suite: WorkspaceTestSuite = this.suites.get(id);
+                let all_succeeded = true;
+                for (const exe of suite.executables) {
+                    const result = await this.runTestCommand(exe.info.id, test_run, token);
+                    if (!result.success) {
+                        all_succeeded = false;
+                    }
+                }
+                return new TestRunReport(all_succeeded);
+
+            } else {
+                return await this.runTestCommand(id, test_run, token);
+            }
         } catch (err) {
             let item = this.getTestItem(id);
             if (test_run !== undefined) {
@@ -441,6 +455,7 @@ export class WorkspaceTestAdapter {
 
     private async runCommands(
         commands: WorkspaceTestParameters,
+        test_run: vscode.TestRun,
         token: vscode.CancellationToken,
         cwd: fs.PathLike): Promise<WorkspaceTestRunReport> {
         let result = new WorkspaceTestRunReport(WorkspaceTestRunReportKind.BuildFailed);
@@ -468,9 +483,7 @@ export class WorkspaceTestAdapter {
 
         if (commands.exe !== undefined) {
             try {
-                let test_output = await this.runExecutableCommand([commands.exe, commands.args], token, cwd);
-                this.output_channel.appendLine(`${test_output.stdout}`);
-                this.output_channel.appendLine(`${test_output.stderr}`);
+                await this.runExecutableCommand([commands.exe, commands.args], test_run, token, cwd);
                 result.state = WorkspaceTestRunReportKind.TestSucceeded;
 
             } catch (error_output) {
@@ -496,6 +509,7 @@ export class WorkspaceTestAdapter {
     }
 
     private async runExecutableCommand([exe, args]: [fs.PathLike, string[]],
+        test_run: vscode.TestRun,
         token: vscode.CancellationToken,
         cwd: fs.PathLike) {
 
@@ -508,6 +522,16 @@ export class WorkspaceTestAdapter {
                 token.onCancellationRequested(() => {
                     treekill(this.active_process.pid);
                 });
+            }
+        }, (out) => {
+            for (const line of out.split("\n")) {
+                test_run.appendOutput(`${line}\r\n`);
+                this.output_channel.appendLine(line);
+            }
+        }, (err) => {
+            for (const line of err.split("\n")) {
+                test_run.appendOutput(`${line}\r\n`);
+                this.output_channel.appendLine(line);
             }
         });
         const output = await output_promise;
@@ -576,13 +600,6 @@ export class WorkspaceTestAdapter {
             commands = new WorkspaceTestParameters(await this.makeBuildTestCommand(exe), exe.executable);
             test = exe;
 
-        } else if (id.startsWith('package_')) {
-            // full package test run
-            let suite: WorkspaceTestSuite = this.suites.get(id);
-            this.output_channel.appendLine(`Id ${id} maps to package ${suite.package.name}`);
-            commands = new WorkspaceTestParameters(await this.makeBuildTestCommand(suite), undefined);
-            test = suite;
-
         } else {
             throw Error(`Cannot handle test with id ${id}`);
         }
@@ -593,7 +610,9 @@ export class WorkspaceTestAdapter {
         }
 
         // run the test
-        let test_result: WorkspaceTestRunReport = await this.runCommands(commands, token, '/tmp');
+        let test_item = this.getTestItem(id);
+        test_run.started(test_item);
+        let test_result: WorkspaceTestRunReport = await this.runCommands(commands, test_run, token, '/tmp');
 
         if (test.type === 'gtest') {
             return await this.analyzeGtestResult(test_run, test, output_file, test_result.message.message.toString());
@@ -749,17 +768,17 @@ export class WorkspaceTestAdapter {
             dom = xml.parse(content_raw.toString(), options);
 
             // send the result for all matching ids
-            if (!this.sendGtestResultForTest(test_run, test, dom, test_output)) {
+            if (!this.sendGtestResultForTest(test_run, test, dom)) {
                 all_succeeded = false;
             }
             tests.forEach((sub_test) => {
-                if (!this.sendGtestResultForTest(test_run, sub_test, dom, test_output)) {
+                if (!this.sendGtestResultForTest(test_run, sub_test, dom)) {
                     all_succeeded = false;
                 }
             });
 
         } catch (error) {
-            test_output += `\n(Cannot read the test results results from ${output_file})`;
+            test_run.appendOutput(`(Cannot read the test results results from ${output_file})`);
             test_run.errored(this.getTestItem(test.info.id), new vscode.TestMessage(test_output));
             all_succeeded = false;
         }
@@ -850,8 +869,7 @@ export class WorkspaceTestAdapter {
     private sendGtestResultForTest(
         test_run: vscode.TestRun,
         test: WorkspaceTestInterface,
-        dom,
-        message: string)
+        dom)
         : boolean {
         let all_succeeded = true;
 
@@ -859,14 +877,28 @@ export class WorkspaceTestAdapter {
 
         if (test.filter === undefined || test.filter.endsWith('*')) {
             // this is the whole test executable
-            let node_suites = dom['testsuites'];
-            if (node_suites.attr['@_failures'] > 0 || node_suites.attr['@_errors'] > 0) {
-                test_run.failed(this.getTestItem(test.info.id), new vscode.TestMessage(message));
-                all_succeeded = false;
-            } else {
-                test_run.passed(this.getTestItem(test.info.id));
+            let node_suites = wrapArray(dom['testsuites']);
+            for (let node_suite of node_suites) {
+                let test_cases = wrapArray(node_suite['testsuite']);
+                for (let node_case of test_cases) {
+                    let testcases = wrapArray(node_case['testcase']);
+                    for (let test_case of testcases) {
+                        let failure = test_case['failure'];
+                        if (failure !== undefined) {
+                            test_run.failed(this.getTestItem(test.info.id), new vscode.TestMessage(failure['#text']));
+                            all_succeeded = false;
+                        } else {
+                            let error = test_case['error'];
+                            if (error !== undefined) {
+                                test_run.errored(this.getTestItem(test.info.id), new vscode.TestMessage(error['#text']));
+                                all_succeeded = false;
+                            } else {
+                                test_run.passed(this.getTestItem(test.info.id));
+                            }
+                        }
+                    }
+                }
             }
-
         } else {
             // this is one single test case
             let node_suites = wrapArray(dom['testsuites']['testsuite']);
