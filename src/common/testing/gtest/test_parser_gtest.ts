@@ -18,18 +18,22 @@ export class TestParserGTest implements ITestParser {
 
     public async analyzeSourceFile(source_file: fs.PathLike): Promise<TestFixture[]> {
         console.debug(`Analyzing ${source_file} for gtest names`);
-        let test_fixtures = new Map<string, TestFixture>();
         let data = await fs.promises.readFile(source_file);
+        return this.analyzeSource(data.toString());
+    }
 
+    public async analyzeSource(source: String): Promise<TestFixture[]> {
         const gtest_regex_start = new RegExp(/\s*(TYPED_)?TEST(_[PF])?\(/);
         const gtest_regex = new RegExp(/\s*(TYPED_)?TEST(_[PF])?\(([^,]+)\s*,\s*([^,]+)\)\s*/);
 
+        let test_fixtures = new Map<string, TestFixture>();
+
         let line_number = 0;
-        const source_code = data.toString().split("\n");
+        const source_code = source.split("\n");
         let current_line = "";
         for (let raw_line_index = 0; raw_line_index < source_code.length; ++raw_line_index) {
             const raw_line = source_code[raw_line_index];
-            const line = raw_line.trimLeft();
+            const line = raw_line.trimStart();
             let line_length = 1;
             if (line.match(gtest_regex_start) !== null) {
                 current_line = line;
