@@ -26,9 +26,8 @@ export async function run_integration_tests() {
                 // '--disable-extensions'
             ],
         });
-        process.exit(0);
     } catch (err) {
-        console.error('Failed to run tests');
+        console.error('Failed to run integration tests');
         process.exit(1);
     }
 }

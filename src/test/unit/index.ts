@@ -7,19 +7,23 @@ export function run(): Promise<void> {
 	const mocha = new Mocha({
 		ui: 'bdd',
 		color: true,
-		delay: true
+		delay: false
 	});
 
-	const testsRoot = path.resolve(__dirname, '..');
+	const projectRoot = path.resolve(__dirname, "..", "..");
+	// process.env.NODE_PATH = path.resolve(__dirname, "..", "..");
+	// require("module").Module._initPaths();
 
 	return new Promise((c, e) => {
-		glob('**/**.test.js', { cwd: testsRoot }, (err, files) => {
-			if (err) {
+		glob('**/**.test.js', { cwd: projectRoot }, (err, files: string[]) => {
+			// remove integration test files
+			files = files.filter(f => !f.startsWith('test/'));
+            if (err) {
 				return e(err);
 			}
 
 			// Add files to the test suite
-			files.forEach(f => mocha.addFile(path.resolve(testsRoot, f)));
+			files.forEach(f => mocha.addFile(path.resolve(projectRoot, f)));
 
 			try {
 				// Run the mocha test
