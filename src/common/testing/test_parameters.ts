@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 
-export enum WorkspaceTestRunResultKind {
+export enum WorkspaceTestRunReportKind {
     BuildFailed,
     TestFailed,
     TestSucceeded
 }
-export class WorkspaceTestRunResult {
+export class WorkspaceTestRunReport {
     public constructor(
-        public state: WorkspaceTestRunResultKind,
+        public state: WorkspaceTestRunReportKind,
         public message?: vscode.TestMessage,
         public error?: Error) {
         if (message === undefined) {
@@ -18,7 +18,7 @@ export class WorkspaceTestRunResult {
 
     public updateTestRunSuite(item: vscode.TestItem, test_run: vscode.TestRun) {
         switch (this.state) {
-            case WorkspaceTestRunResultKind.TestSucceeded:
+            case WorkspaceTestRunReportKind.TestSucceeded:
                 return test_run.passed(item);
             default:
                 return test_run.errored(item, this.message);
@@ -26,17 +26,17 @@ export class WorkspaceTestRunResult {
     }
     public updateTestRunTest(item: vscode.TestItem, test_run: vscode.TestRun) {
         switch (this.state) {
-            case WorkspaceTestRunResultKind.BuildFailed:
+            case WorkspaceTestRunReportKind.BuildFailed:
                 return test_run.errored(item, this.message);
-            case WorkspaceTestRunResultKind.TestFailed:
+            case WorkspaceTestRunReportKind.TestFailed:
                 return test_run.failed(item, this.message);
-            case WorkspaceTestRunResultKind.TestSucceeded:
+            case WorkspaceTestRunReportKind.TestSucceeded:
                 return test_run.passed(item);
         }
     }
     public toTestExplorerSuiteState() {
         switch (this.state) {
-            case WorkspaceTestRunResultKind.TestSucceeded:
+            case WorkspaceTestRunReportKind.TestSucceeded:
                 return 'completed';
             default:
                 return 'errored';
@@ -44,11 +44,11 @@ export class WorkspaceTestRunResult {
     }
     public toTestExplorerTestState() {
         switch (this.state) {
-            case WorkspaceTestRunResultKind.BuildFailed:
+            case WorkspaceTestRunReportKind.BuildFailed:
                 return 'errored';
-            case WorkspaceTestRunResultKind.TestFailed:
+            case WorkspaceTestRunReportKind.TestFailed:
                 return 'failed';
-            case WorkspaceTestRunResultKind.TestSucceeded:
+            case WorkspaceTestRunReportKind.TestSucceeded:
                 return 'passed';
         }
     }

@@ -10,7 +10,7 @@ import { SourceFileConfiguration } from 'vscode-cpptools';
 import { Package } from './package';
 import { WorkspaceTestAdapter } from './testing/workspace_test_adapter';
 import { getExtensionConfiguration } from './configuration';
-import { WorkspaceProvider, IWorkspace, WorkspaceTestSuite, TestRunResult, IPackage } from 'vscode-catkin-tools-api';
+import { WorkspaceProvider, IWorkspace, WorkspaceTestSuite, TestRunReport, IPackage } from 'vscode-catkin-tools-api';
 import { api } from '../extension';
 
 export class Workspace implements IWorkspace {
@@ -668,7 +668,7 @@ export class Workspace implements IWorkspace {
     return command;
   }
 
-  public async runTest(id: string): Promise<TestRunResult> {
+  public async runTest(id: string): Promise<TestRunReport> {
     let headless_test_run = new NoninteractiveTestRun();
     return this.test_adapter.runTest(id, headless_test_run);
   }

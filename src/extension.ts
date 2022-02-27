@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { VERSION, API, IWorkspaceManager, IWorkspace, ITestParser, TestRunResult, IPackage } from 'vscode-catkin-tools-api';
+import { VERSION, API, IWorkspaceManager, IWorkspace, ITestParser, TestRunReport, IPackage } from 'vscode-catkin-tools-api';
 import * as catkin_build from './catkin_tools/tasks/catkin_build';
 import * as colcon from './colcon/tasks/colcon_build';
 import { WorkspaceManager } from './workspace_manager';
