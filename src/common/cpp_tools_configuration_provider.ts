@@ -54,11 +54,11 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
             const output_path = merged_compile_commands_json_path.replace("${workspaceFolder}", folder.uri.fsPath);
             const wsfolder = this.getWorkspace(folder);
             if (wsfolder !== undefined) {
-              const commands = this.getWorkspace(folder).collectCompileCommands();
+              const commands = wsfolder.collectCompileCommands();
               console.debug(`Writing merged database in workspace ${output_path}`);
               await jsonfile.writeFile(output_path, commands, opts);
             } else {
-              vscode.window.showWarningMessage(`Cannot get catkin workspace for folder ${folder}`);
+              vscode.window.showWarningMessage(`Cannot get catkin workspace for folder ${folder.name}`);
             }
           }
         }

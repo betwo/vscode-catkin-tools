@@ -46,7 +46,11 @@ export class WorkspaceManager implements IWorkspaceManager {
         // Inform cpptools that a custom config provider will be able to service
         // the current workspace.
         this.cpp_tools_configuration_provider = new CppToolsConfigurationProvider(this.cpp_tools_api);
-        this.cpp_tools_api.registerCustomConfigurationProvider(this.cpp_tools_configuration_provider);
+
+        let config = vscode.workspace.getConfiguration('C_Cpp');
+        if (config['intelliSenseEngine'] !== undefined && config['intelliSenseEngine'] !== 'Disabled') {
+          this.cpp_tools_api.registerCustomConfigurationProvider(this.cpp_tools_configuration_provider);
+        }
       }
 
       let workspace: Workspace = this.getWorkspace(root);
