@@ -1,7 +1,9 @@
 FROM ros:noetic
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update -qq  && \
-    apt-get install -y -qq  ros-noetic-catkin npm  software-properties-common apt-transport-https wget sudo python3-catkin-tools  python3-colcon-ros libasound2 dbus dbus-x11 cmake && \
+    apt-get install -y -qq  ros-noetic-catkin curl  software-properties-common apt-transport-https wget sudo python3-catkin-tools  python3-colcon-ros libasound2 dbus dbus-x11 cmake && \
+    curl -sL https://deb.nodesource.com/setup_16.x | bash && \
+    apt-get install -y -qq nodejs && \
     apt-get remove -y whoopsie && \
     npm install -g typescript && \
     wget -qq  https://packages.microsoft.com/keys/microsoft.asc -O- | apt-key add - && \

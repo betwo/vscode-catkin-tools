@@ -17,7 +17,7 @@ export async function run_integration_tests() {
 
         // Download VS Code, unzip it and run the integration test
         await runTests({
-            version: '1.64.0', // pinned because 1.65.0 crashes randomly. TODO: bump in the future
+            // version: '1.64.0', // was pinned to 1.64.0 at some point, because 1.65.0 crashes randomly. TODO: bump in the future
             extensionDevelopmentPath,
             extensionTestsPath,
             launchArgs: [
