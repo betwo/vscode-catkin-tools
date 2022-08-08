@@ -28,7 +28,7 @@ jobs:
           npm install ./api
           npm run compile
       - name: UnitTest
-        run: timeout -k 10s 600s npm run unittest
+        run: timeout -k 10s 600s npm run unittest-headless
 
   integration-test:
     needs: build
