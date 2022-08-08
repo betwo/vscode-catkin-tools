@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { IWorkspace } from 'vscode-catkin-tools-api';
+import { logger } from './logging';
 
 export function analyze(
     workspace: IWorkspace,
@@ -77,7 +78,7 @@ function analyzeLines(
                         }
                     });
                 } else {
-                    console.debug("Unhandled line: ", log[line]);
+                    logger.debug("Unhandled line: ", log[line]);
                 }
             }
         }

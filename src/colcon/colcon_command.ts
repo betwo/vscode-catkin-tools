@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { logger } from '../common/logging';
 
 import { runCommand, ShellOutput } from '../common/shell_command';
 
@@ -7,7 +8,7 @@ export async function runColconCommand(args: string[], cwd: fs.PathLike): Promis
     try {
         return await runCommand("colcon", args, [], cwd);
     } catch (error) {
-        console.error(error);
+        logger.error(error);
         throw error;
     }
 }

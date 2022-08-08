@@ -9,6 +9,7 @@ import { Package } from "../package";
 import { runShellCommand } from '../shell_command';
 import { getExtensionConfiguration } from '../configuration';
 import { TestParserGTest } from './gtest/test_parser_gtest';
+import { logger } from '../logging';
 
 export let test_parsers: ITestParser[] = [new TestParserGTest()];
 
@@ -68,10 +69,10 @@ async function queryCMakeFileApiCodeModel(workspace_package: Package): Promise<T
         await fs.promises.writeFile(query_file, query_txt);
         const source_command = workspace_package.workspace.workspace_provider.makeRosSourcecommand();
         const output = await runShellCommand(source_command + " && cmake .", build_space);
-        console.debug("CMake Query result:");
-        console.debug(output.stdout);
+        logger.debug("CMake Query result:");
+        logger.debug(output.stdout);
     } catch (error) {
-        console.error(error);
+        logger.error(error);
         return undefined;
     }
 
@@ -104,7 +105,7 @@ async function queryCMakeFileApiCodeModel(workspace_package: Package): Promise<T
                                 await test_type.analyzeSourceFile(path.join(package_space.toString(), source.path))
                             ));
                         } catch (error) {
-                            console.error(`Cannot analyze ${source.path}'s test details: ${error}`);
+                            logger.error(`Cannot analyze ${source.path}'s test details: ${error}`);
                         }
                     }
                 }

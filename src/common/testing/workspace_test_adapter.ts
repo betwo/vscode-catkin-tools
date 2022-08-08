@@ -25,6 +25,7 @@ import * as gtest_problem_matcher from './gtest/gtest_problem_matcher';
 import * as compiler_problem_matcher from '../compiler_problem_matcher';
 import * as xml from 'fast-xml-parser';
 import * as treekill from 'tree-kill';
+import { logger } from '../../common/logging';
 
 /**
  * Implementation of the TestAdapter interface for workspace tests.
@@ -278,7 +279,7 @@ export class WorkspaceTestAdapter {
 
             return [suite, old_suite];
         } catch (error) {
-            console.error(`Error loading tests of package ${workspace_package.name}: ${error}`);
+            logger.error(`Error loading tests of package ${workspace_package.name}: ${error}`);
         }
     }
 
@@ -317,7 +318,7 @@ export class WorkspaceTestAdapter {
             }
         } catch (err) {
             this.output_channel.appendLine(`Run failed: ${err}`);
-            console.error(`Run failed: ${err}`);
+            logger.error(`Run failed: ${err}`);
         }
 
         test_run.end();
@@ -349,8 +350,8 @@ export class WorkspaceTestAdapter {
             if (test_run !== undefined) {
                 test_run.failed(item, err);
             } else {
-                console.error("Running test failed!!!");
-                console.error(err);
+                logger.error("Running test failed!!!");
+                logger.error(err);
             }
             return new TestRunReport(false);
         }
@@ -624,7 +625,7 @@ export class WorkspaceTestAdapter {
                     test_run.errored(this.getTestItem(id), test_result.message);
 
                 } else {
-                    console.debug("Requested to run an empty suite, building and then retrying");
+                    logger.debug("Requested to run an empty suite, building and then retrying");
                     return new TestRunReport(false);
                 }
             } else {
@@ -1011,7 +1012,7 @@ export class WorkspaceTestAdapter {
             try {
                 runShellCommand(command, await this.workspace.getRootPath());
             } catch (error) {
-                console.error(error.stderr);
+                logger.error(error.stderr);
                 throw Error(`Cannot rebuild test executable: ${error.stderr}`);
             }
 
@@ -1075,7 +1076,7 @@ export class WorkspaceTestAdapter {
                 return [name, value];
             });
         } catch (error) {
-            console.error(error.stderr);
+            logger.error(error.stderr);
             throw Error(`Cannot determine environment: ${error.stderr}`);
         }
 

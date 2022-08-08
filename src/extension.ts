@@ -7,6 +7,7 @@ import { WorkspaceManager } from './workspace_manager';
 import { Workspace } from './common/workspace';
 import { Package } from './common/package';
 import { test_parsers } from "./common/testing/cmake_test_parser";
+import { logger } from './common/logging';
 
 
 let catkin_task_provider: vscode.Disposable | undefined;
@@ -18,17 +19,17 @@ export let api = new class implements API {
   test_mode_enabled = false;
 
   constructor() {
-    console.debug(`Providing API for version: ${VERSION}`);
+    logger.debug(`Providing API for version: ${VERSION}`);
     this.workspace_manager = new WorkspaceManager();
 
     vscode.tasks.onDidStartTask(e => {
-      console.debug(`Task started: ${e.execution.task.name}`);
+      logger.debug(`Task started: ${e.execution.task.name}`);
     });
     vscode.tasks.onDidEndTask(e => {
-      console.debug(`Task ended: ${e.execution.task.name}`);
+      logger.debug(`Task ended: ${e.execution.task.name}`);
     });
     vscode.tasks.onDidEndTaskProcess(e => {
-      console.debug(`Task process ended: ${e.execution.task.name}, exit code: ${e.exitCode}`);
+      logger.debug(`Task process ended: ${e.execution.task.name}, exit code: ${e.exitCode}`);
     });
   }
 
@@ -85,7 +86,7 @@ export let api = new class implements API {
   }
 
   async cleanWorkspace(workspace: IWorkspace): Promise<boolean> {
-    console.debug(`Cleaning workspace ${await workspace.getName()}`);
+    logger.debug(`Cleaning workspace ${await workspace.getName()}`);
     let clean_task = await workspace.workspace_provider.getCleanTask();
     if (clean_task === undefined) {
       return false;
@@ -95,10 +96,10 @@ export let api = new class implements API {
   }
 
   async buildWorkspace(workspace: IWorkspace): Promise<boolean> {
-    console.debug(`Building workspace ${await workspace.getName()}`);
+    logger.debug(`Building workspace ${await workspace.getName()}`);
     let build_task = await workspace.workspace_provider.getBuildTask();
     if (build_task === undefined) {
-      console.error("Failed to get build task");
+      logger.error("Failed to get build task");
       return false;
     }
 
@@ -106,10 +107,10 @@ export let api = new class implements API {
   }
 
   async buildWorkspaceTests(workspace: IWorkspace): Promise<boolean> {
-    console.debug(`Building workspace tests ${await workspace.getName()}`);
+    logger.debug(`Building workspace tests ${await workspace.getName()}`);
     let build_task = await workspace.workspace_provider.getBuildTestsTask();
     if (build_task === undefined) {
-      console.error("Failed to get build_test task");
+      logger.error("Failed to get build_test task");
       return false;
     }
 
@@ -118,19 +119,19 @@ export let api = new class implements API {
 
   async buildPackage(pkg: IPackage): Promise<boolean> {
     // TODO: implement this using a custom executor
-    // console.log(`Building package ${pkg.getName()}`);
+    // logger.log(`Building package ${pkg.getName()}`);
     return false;
   }
 
   async buildPackageTests(pkg: IPackage): Promise<boolean> {
     // TODO: implement this using a custom executor
-    // console.log(`Building package tests ${pkg.getName()}`);
+    // logger.log(`Building package tests ${pkg.getName()}`);
     return false;
   }
 
   setAutomaticTestMode() {
     this.test_mode_enabled = true;
-    // console.debug = function() {};
+    // logger.debug = function() {};
   }
 };
 

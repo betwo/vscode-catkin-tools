@@ -5,6 +5,7 @@ import * as path from 'path';
 import { WorkspaceProvider } from "vscode-catkin-tools-api";
 import { runColconCommand } from "./colcon_command";
 import { getExtensionConfiguration } from '../common/configuration';
+import { logger } from '../common/logging';
 
 export class ColconWorkspaceProvider implements WorkspaceProvider {
     private catkin_config = new Map<string, string>();
@@ -63,7 +64,7 @@ export class ColconWorkspaceProvider implements WorkspaceProvider {
             }
         }
 
-        console.debug(`Searching default workspace in "/opt/ros/"`);
+        logger.debug(`Searching default workspace in "/opt/ros/"`);
         const base_path = "/opt/ros/";
         if (fs.existsSync(base_path)) {
             const subdirs = await fs.promises.readdir(base_path);

@@ -8,6 +8,7 @@ import { runCatkinCommand } from "./catkin_command";
 import { getShellExtension, ShellOutput } from '../common/shell_command';
 import { setProfileText } from '../common/status_bar';
 import { getExtensionConfiguration } from '../common/configuration';
+import { logger } from '../common/logging';
 
 export class CatkinWorkspaceProvider implements WorkspaceProvider {
     private catkin_config = new Map<string, string>();
@@ -91,7 +92,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
             }
         }
 
-        console.debug(`Searching default workspace in "/opt/ros/"`);
+        logger.debug(`Searching default workspace in "/opt/ros/"`);
         const base_path = "/opt/ros/";
         if (fs.existsSync(base_path)) {
             const subdirs = await fs.promises.readdir(base_path);
@@ -131,9 +132,9 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
             }
         }
         if (build_tasks !== undefined && build_tasks.length > 0) {
-            console.error("Failed to get catkin build task");
+            logger.error("Failed to get catkin build task");
             for (let task of build_tasks) {
-                console.error(`Available: ${task.name} != catkin_build: build`);
+                logger.error(`Available: ${task.name} != catkin_build: build`);
             }
         }
         return undefined;
@@ -197,7 +198,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
             try {
                 await runCatkinCommand(['config', '--cmake-args'].concat(args), await this.getRootPath());
             } catch (e) {
-                console.error(`Failed to configure catkin: ${e}`);
+                logger.error(`Failed to configure catkin: ${e}`);
                 return false;
             }
             await this.loadCatkinConfig();
@@ -230,7 +231,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         const root_path = await this.getRootPath();
         let profile_base_path = path.join(root_path.toString(), ".catkin_tools/profiles");
         if (!fs.existsSync(profile_base_path)) {
-            console.error(".catkin_tools was not found, cannot enumerate profiles");
+            logger.error(".catkin_tools was not found, cannot enumerate profiles");
             return [];
         }
 
@@ -261,7 +262,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
     }
 
     private async updateProfile(profile) {
-        console.debug(`Switching to catkin profile "${profile}"`);
+        logger.debug(`Switching to catkin profile "${profile}"`);
         this.catkin_profile = profile;
         this.workspace_src_dir = null;
         this.workspace_build_dir = null;
@@ -293,7 +294,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         }
 
         if (this.catkin_config.size === 0) {
-            console.error("Failed to get catkin config");
+            logger.error("Failed to get catkin config");
         }
     }
 

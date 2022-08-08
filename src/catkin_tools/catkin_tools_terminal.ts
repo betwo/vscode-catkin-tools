@@ -8,6 +8,7 @@ import { runCatkinCommand } from './catkin_command';
 import { assert } from 'console';
 import { IWorkspace } from 'vscode-catkin-tools-api';
 import * as compiler_problem_matcher from '../common/compiler_problem_matcher';
+import { logger } from '../common/logging';
 
 export class CatkinToolsTerminal implements vscode.Pseudoterminal {
     private write_emitter = new vscode.EventEmitter<string>();
@@ -78,26 +79,26 @@ export class CatkinToolsTerminal implements vscode.Pseudoterminal {
                     },
                     (out: string) => {
                         this.write_emitter.fire(out.replace(/\n/g, "\r\n"));
-                        console.debug(out);
+                        logger.debug(out);
                     },
                     (err: string) => {
                         this.write_emitter.fire(colorText(err.replace(/\n/g, "\r\n"), 1));
                         compiler_problem_matcher.analyze(this.workspace, err, this.diagnostics);
-                        console.error(err);
+                        logger.error(err);
                     });
                 this.process = undefined;
                 this.write_emitter.fire('complete.\r\n\r\n');
                 if (shell_output.error !== undefined) {
-                    console.error(`Subcommand failed with error:`);
-                    console.error(shell_output.error);
+                    logger.error(`Subcommand failed with error:`);
+                    logger.error(shell_output.error);
                     exit_code = -1;
                 } else {
                     exit_code = 0;
                 }
 
             } catch (error) {
-                console.error(`Subcommand threw with error: ${typeof (error)}`);
-                console.error(error.message);
+                logger.error(`Subcommand threw with error: ${typeof (error)}`);
+                logger.error(error.message);
                 if (error.exit_code !== undefined) {
                     exit_code = error.exit_code;
                 } else {

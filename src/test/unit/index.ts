@@ -2,6 +2,8 @@ import * as path from 'path';
 import * as Mocha from 'mocha';
 import * as glob from 'glob';
 
+import { logger } from '../../common/logging';
+
 export function run(): Promise<void> {
 	// Create the mocha test
 	const mocha = new Mocha({
@@ -35,7 +37,7 @@ export function run(): Promise<void> {
 					}
 				});
 			} catch (err) {
-				console.error(err);
+				logger.error(err);
 				e(err);
 			}
 		});

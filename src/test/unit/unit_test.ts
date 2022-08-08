@@ -1,6 +1,7 @@
 import * as path from 'path';
 
 import { runTests } from '@vscode/test-electron';
+import { logger } from '../../common/logging';
 
 export async function run_unit_tests() {
     try {
@@ -27,7 +28,7 @@ export async function run_unit_tests() {
             ],
         });
     } catch (err) {
-        console.error('Failed to run unit tests');
+        logger.error('Failed to run unit tests');
         process.exit(1);
     }
 }

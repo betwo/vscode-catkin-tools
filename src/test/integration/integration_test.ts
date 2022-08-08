@@ -1,6 +1,7 @@
 import * as path from 'path';
 
 import { runTests } from '@vscode/test-electron';
+import { logger } from '../../common/logging';
 
 export async function run_integration_tests() {
     try {
@@ -28,7 +29,7 @@ export async function run_integration_tests() {
             ],
         });
     } catch (err) {
-        console.error('Failed to run integration tests');
+        logger.error('Failed to run integration tests');
         process.exit(1);
     }
 }

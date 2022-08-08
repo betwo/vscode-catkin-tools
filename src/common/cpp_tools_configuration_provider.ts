@@ -5,6 +5,7 @@ import { setStatusText } from "./status_bar";
 import { Workspace } from './workspace';
 import { getExtensionConfiguration } from './configuration';
 import { api } from '../extension';
+import { logger } from './logging';
 
 // Worker class that implements a C++ configuration provider
 export class CppToolsConfigurationProvider implements CustomConfigurationProvider {
@@ -55,7 +56,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
             const wsfolder = this.getWorkspace(folder);
             if (wsfolder !== undefined) {
               const commands = wsfolder.collectCompileCommands();
-              console.debug(`Writing merged database in workspace ${output_path}`);
+              logger.debug(`Writing merged database in workspace ${output_path}`);
               await jsonfile.writeFile(output_path, commands, opts);
             } else {
               vscode.window.showWarningMessage(`Cannot get catkin workspace for folder ${folder.name}`);
@@ -75,7 +76,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
             }
           }
         }
-        console.debug(`Writing merged database in ${merged_compile_commands_json_path}`);
+        logger.debug(`Writing merged database in ${merged_compile_commands_json_path}`);
         await jsonfile.writeFile(merged_compile_commands_json_path, commands, opts);
       }
     }
@@ -86,22 +87,22 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
     token?: vscode.CancellationToken | undefined): Promise<boolean> {
     const vscode_workspace = vscode.workspace.getWorkspaceFolder(uri);
     if (vscode_workspace === undefined) {
-      console.error(`Cannot provide compile flags for ${uri.fsPath}, not contained in vscode folder`);
+      logger.error(`Cannot provide compile flags for ${uri.fsPath}, not contained in vscode folder`);
       return false;
     }
     let workspace = api.getWorkspace(vscode_workspace);
     if (!workspace) {
-      console.error(`Cannot provide compile flags for ${uri.fsPath}, not contained in any workspace`);
+      logger.error(`Cannot provide compile flags for ${uri.fsPath}, not contained in any workspace`);
       return false;
     }
 
     let workspace_package = workspace.getPackageContaining(uri);
     if (!workspace_package) {
-      console.error(`Cannot provide compile flags for ${uri.fsPath}, not contained in any package`);
+      logger.error(`Cannot provide compile flags for ${uri.fsPath}, not contained in any package`);
       return false;
     }
 
-    console.debug('Can provide compile flags for', uri.fsPath);
+    logger.debug('Can provide compile flags for', uri.fsPath);
     return true;
   }
   public async provideConfigurations(
@@ -119,7 +120,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
         vscode.window.showErrorMessage(`Tried to provide C++ configuration for a file '${file.fsPath}' not contained in any workspace`);
         continue;
       }
-      console.debug('Providing compile flags for', file.fsPath);
+      logger.debug('Providing compile flags for', file.fsPath);
       let commands = workspace.file_to_command.get(file.fsPath);
       if (commands !== undefined) {
         ret.push({
@@ -131,11 +132,11 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
       } else {
         let workspace_package = workspace.getPackageContaining(file);
         if (!workspace_package) {
-          console.error(`Cannot provide compile flags for ${file.fsPath}, not contained in any package`);
+          logger.error(`Cannot provide compile flags for ${file.fsPath}, not contained in any package`);
           return ret;
         }
         if (!workspace_package.isBuilt(await workspace.workspace_provider.getBuildDir())) {
-          console.error(`Cannot provide compile flags for ${file.fsPath}, package ${workspace_package.getName()} is not built`);
+          logger.error(`Cannot provide compile flags for ${file.fsPath}, package ${workspace_package.getName()} is not built`);
           return ret;
         }
 
@@ -161,7 +162,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
             setStatusText('(no usage of header file  found.');
           }
         } catch (error) {
-          console.error(error);
+          logger.error(error);
           setStatusText('(error during configuration search...)');
         }
       }

@@ -2,6 +2,7 @@ import * as child_process from 'child_process';
 import { assert } from 'console';
 import * as fs from 'fs';
 import { getExtensionConfiguration } from './configuration';
+import { logger } from './logging';
 
 export class ShellOutput {
     constructor(
@@ -35,7 +36,7 @@ export function runShellCommand(command: string, cwd: fs.PathLike, callback?: (p
 
     return new Promise<ShellOutput>((resolve, reject) => {
         let shell_command = `${shell} ${shell_args} -c '${command}'`;
-        console.debug(`Running ${shell} command ${shell_command}`);
+        logger.debug(`Running ${shell} command ${shell_command}`);
         let process = child_process.exec(shell_command, options, (error, stdout, stderr) => {
             const result = new ShellOutput(stdout, stderr, shell_command);
             if (error !== null) {
@@ -66,7 +67,7 @@ export function runCommand(
 
         if (cwd === undefined) {
             let result = new ShellOutput("", "", full_command);
-            console.error("Cannot run command, cwd is undefined");
+            logger.error("Cannot run command, cwd is undefined");
             result.error = new Error("Cannot run command, cwd is undefined");
 
             reject(result);
@@ -74,7 +75,7 @@ export function runCommand(
 
         if (!fs.existsSync(cwd.toString())) {
             let result = new ShellOutput("", "", full_command);
-            console.error(`Invalid working directory, working directory ${cwd} does not exist`);
+            logger.error(`Invalid working directory, working directory ${cwd} does not exist`);
             result.error = new Error(`Invalid working directory, working directory ${cwd} does not exist`);
             reject(result);
         }
@@ -102,12 +103,12 @@ export function runCommand(
             killSignal: "SIGTERM",
             env: environment_kv
         };
-        console.debug(`Running async command ${full_command}`);
+        logger.debug(`Running async command ${full_command}`);
         try {
             let pid = child_process.spawn(command, args, options);
             let stdout = "";
             let stderr = "";
-            console.debug(`Spawned async full command ${full_command} with pid ${pid.pid} in directory ${cwd.toString()}`);
+            logger.debug(`Spawned async full command ${full_command} with pid ${pid.pid} in directory ${cwd.toString()}`);
             pid.stdout.on('data', (data) => {
                 stdout += data;
                 if (out !== undefined) {
@@ -121,15 +122,15 @@ export function runCommand(
                 }
             });
             pid.on('error', (error) => {
-                console.error(error);
+                logger.error(error);
                 if (environment.length === 0) {
-                    console.error(`Command ${full_command} cannot be executed with process environment in ${cwd}`);
+                    logger.error(`Command ${full_command} cannot be executed with process environment in ${cwd}`);
                     for (const key in environment_kv) {
-                        console.error(`- ${key}: ${environment_kv[key]}`);
+                        logger.error(`- ${key}: ${environment_kv[key]}`);
                     }
-                    console.error();
+                    logger.error();
                 } else {
-                    console.error(`Command ${full_command} cannot be executed with custom environment in ${cwd}`);
+                    logger.error(`Command ${full_command} cannot be executed with custom environment in ${cwd}`);
                 }
 
                 const result = new ShellOutput("", "", full_command);
@@ -162,16 +163,16 @@ export function runCommand(
             pid.on('exit', (code) => {
                 if (code === null) {
                     // killed by a signal
-                    console.debug(`child process ${full_command} (pid  ${pid.pid}) killed with signal ${pid.signalCode}`);
+                    logger.debug(`child process ${full_command} (pid  ${pid.pid}) killed with signal ${pid.signalCode}`);
                     signal_code = pid.signalCode;
                 } else {
                     exit_code = code;
-                    console.debug(`child process ${full_command} (pid  ${pid.pid}) exited with exit code ${code}`);
+                    logger.debug(`child process ${full_command} (pid  ${pid.pid}) exited with exit code ${code}`);
                 }
                 maybe_finalize();
             });
             pid.on('close', () => {
-                console.debug(`child process ${full_command} (pid  ${pid.pid}) closed`);
+                logger.debug(`child process ${full_command} (pid  ${pid.pid}) closed`);
                 result = new ShellOutput(stdout, stderr, full_command);
                 maybe_finalize();
             });
@@ -179,10 +180,10 @@ export function runCommand(
                 callback(pid);
             }
         } catch (error) {
-            console.error(`child process ${full_command} failed with ${error}`);
+            logger.error(`child process ${full_command} failed with ${error}`);
             const result = new ShellOutput("", "", full_command);
             result.error = error;
-            console.error(error);
+            logger.error(error);
             reject(result);
         }
     });

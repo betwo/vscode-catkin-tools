@@ -26,7 +26,7 @@
   "activationEvents": [
     "*"
   ],
-  "main": "./dist/extension",
+  "main": "./out/extension",
   "contributes": {
     "taskDefinitions": [
       {
@@ -251,6 +251,7 @@
     "jsonfile": "^5.0.0",
     "signals": "^1.0.0",
     "tree-kill": "^1.2.2",
+    "tslog": "^3.3.3",
     "vscode-catkin-tools-api": "file:api",
     "vscode-cpptools": "^2.1.2",
     "vscode-jsonrpc": "^4.0.0"
