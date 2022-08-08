@@ -59,7 +59,7 @@ export class GoogleTestFixtureHandler extends AbstractGoogleTestHandler<GoogleTe
     }
 
     async updateFixture() {
-        logger.log("Update fixture");
+        logger.info("Update fixture");
         let still_existing: (GoogleTestCaseHandler | GoogleTestCaseInstanceHandler)[] = [];
         for (let child of this.test_fixture.children) {
             let handler = this.instances.get(child);

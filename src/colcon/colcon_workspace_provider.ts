@@ -134,7 +134,7 @@ export class ColconWorkspaceProvider implements WorkspaceProvider {
         return undefined;
     }
 
-    getDefaultRunTestTarget(): string {
+    getDefaultRunTestTargetName(): string {
         return 'test';
     }
 

@@ -1,142 +1,21 @@
 import * as vscode from 'vscode';
 
-import { VERSION, API, IWorkspaceManager, IWorkspace, ITestParser, TestRunReport, IPackage } from 'vscode-catkin-tools-api';
+import { API } from 'vscode-catkin-tools-api';
 import * as catkin_build from './catkin_tools/tasks/catkin_build';
 import * as colcon from './colcon/tasks/colcon_build';
-import { WorkspaceManager } from './workspace_manager';
 import { Workspace } from './common/workspace';
 import { Package } from './common/package';
-import { test_parsers } from "./common/testing/cmake_test_parser";
-import { logger } from './common/logging';
+import { InternalAPI } from './internal_api';
 
 
 let catkin_task_provider: vscode.Disposable | undefined;
 let colcon_task_provider: vscode.Disposable | undefined;
 let outputChannel: vscode.OutputChannel = null;
 
-export let api = new class implements API {
-  workspace_manager: WorkspaceManager;
-  test_mode_enabled = false;
-
-  constructor() {
-    logger.debug(`Providing API for version: ${VERSION}`);
-    this.workspace_manager = new WorkspaceManager();
-
-    vscode.tasks.onDidStartTask(e => {
-      logger.debug(`Task started: ${e.execution.task.name}`);
-    });
-    vscode.tasks.onDidEndTask(e => {
-      logger.debug(`Task ended: ${e.execution.task.name}`);
-    });
-    vscode.tasks.onDidEndTaskProcess(e => {
-      logger.debug(`Task process ended: ${e.execution.task.name}, exit code: ${e.exitCode}`);
-    });
-  }
-
-  async reload(): Promise<void> {
-    return api.getWorkspaceManager().reloadAllWorkspaces();
-  }
-
-  async registerWorkspace(context: vscode.ExtensionContext,
-    root: vscode.WorkspaceFolder,
-    output_channel: vscode.OutputChannel): Promise<void> {
-    return await this.workspace_manager.registerWorkspace(context, root, output_channel);
-  }
-
-  async unregisterWorkspace(context: vscode.ExtensionContext,
-    root: vscode.WorkspaceFolder): Promise<void> {
-    return await this.workspace_manager.unregisterWorkspace(context, root);
-  }
-
-  getWorkspaceManager(): IWorkspaceManager {
-    return this.workspace_manager;
-  }
-
-  getWorkspaces(): Map<vscode.WorkspaceFolder, IWorkspace> {
-    return this.workspace_manager.workspaces;
-  }
-
-  getWorkspace(workspace_folder: vscode.WorkspaceFolder) {
-    return this.workspace_manager.getWorkspace(workspace_folder);
-  }
-
-  registerTestParser(parser: ITestParser): vscode.Disposable {
-    test_parsers.push(parser);
-
-    let scope = this;
-    return {
-      dispose: function () {
-        const before = test_parsers.length;
-        scope.unregisterTestParser(parser);
-
-      }
-    };
-  }
-  unregisterTestParser(parser: ITestParser) {
-    for (let index = 0; index < test_parsers.length; ++index) {
-      if (test_parsers[index] === parser) {
-        test_parsers.splice(index, 1);
-        return;
-      }
-    }
-  }
-
-  async ensureWorkspaceInitialized(): Promise<void> {
-    return;
-  }
-
-  async cleanWorkspace(workspace: IWorkspace): Promise<boolean> {
-    logger.debug(`Cleaning workspace ${await workspace.getName()}`);
-    let clean_task = await workspace.workspace_provider.getCleanTask();
-    if (clean_task === undefined) {
-      return false;
-    }
-
-    return runTask(clean_task);
-  }
-
-  async buildWorkspace(workspace: IWorkspace): Promise<boolean> {
-    logger.debug(`Building workspace ${await workspace.getName()}`);
-    let build_task = await workspace.workspace_provider.getBuildTask();
-    if (build_task === undefined) {
-      logger.error("Failed to get build task");
-      return false;
-    }
-
-    return runTask(build_task);
-  }
-
-  async buildWorkspaceTests(workspace: IWorkspace): Promise<boolean> {
-    logger.debug(`Building workspace tests ${await workspace.getName()}`);
-    let build_task = await workspace.workspace_provider.getBuildTestsTask();
-    if (build_task === undefined) {
-      logger.error("Failed to get build_test task");
-      return false;
-    }
-
-    return runTask(build_task);
-  }
-
-  async buildPackage(pkg: IPackage): Promise<boolean> {
-    // TODO: implement this using a custom executor
-    // logger.log(`Building package ${pkg.getName()}`);
-    return false;
-  }
-
-  async buildPackageTests(pkg: IPackage): Promise<boolean> {
-    // TODO: implement this using a custom executor
-    // logger.log(`Building package tests ${pkg.getName()}`);
-    return false;
-  }
-
-  setAutomaticTestMode() {
-    this.test_mode_enabled = true;
-    // logger.debug = function() {};
-  }
-};
+export let api = new InternalAPI();
 
 
-async function runTask(task: vscode.Task): Promise<boolean> {
+export async function runTask(task: vscode.Task): Promise<boolean> {
   return new Promise<boolean>(async resolve => {
     let disposable = vscode.tasks.onDidEndTaskProcess(e => {
       if (e.execution.task === task) {
@@ -164,6 +43,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<API> {
     'extension.b2.catkin_tools.switch_profile', async () => {
       return api.getWorkspaceManager().switchProfile();
     }));
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'extension.b2.catkin_tools.reload_tests', async (item: vscode.TestItem) => {
+        if (!item) {
+          await vscode.window.showErrorMessage('No test selected');
+          return;
+        }
+        return api.getWorkspaceManager().reloadTestItem(item);
+      })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'extension.b2.catkin_tools.build_tests', async (item: vscode.TestItem) => {
+        if (!item) {
+          await vscode.window.showErrorMessage('No test selected');
+          return;
+        }
+        return api.getWorkspaceManager().buildTestItem(item);
+      })
+  );
+
 
   catkin_task_provider = vscode.tasks.registerTaskProvider('catkin_build', {
     provideTasks: async () => {
@@ -273,7 +175,7 @@ async function scanPackageContaining(workspace: Workspace, uri: vscode.Uri) {
     if (workspace_package.has_tests) {
       if (packageScansPending.get(workspace_package.getName()) === undefined) {
         packageScansPending.set(workspace_package.getName(), workspace_package);
-        await workspace.test_adapter.reloadPackageIfChanged(workspace_package);
+        await workspace.test_adapter.refreshPackage(workspace_package);
         packageScansPending.delete(workspace_package.getName());
       }
     }

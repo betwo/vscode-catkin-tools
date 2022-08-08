@@ -1,60 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-
-export enum WorkspaceTestRunReportKind {
-    BuildFailed,
-    TestFailed,
-    TestSucceeded
-}
-export class WorkspaceTestRunReport {
-    public constructor(
-        public state: WorkspaceTestRunReportKind,
-        public message?: vscode.TestMessage,
-        public error?: Error) {
-        if (message === undefined) {
-            this.message = new vscode.TestMessage("");
-        }
-    }
-
-    public updateTestRunSuite(item: vscode.TestItem, test_run: vscode.TestRun) {
-        switch (this.state) {
-            case WorkspaceTestRunReportKind.TestSucceeded:
-                return test_run.passed(item);
-            default:
-                return test_run.errored(item, this.message);
-        }
-    }
-    public updateTestRunTest(item: vscode.TestItem, test_run: vscode.TestRun) {
-        switch (this.state) {
-            case WorkspaceTestRunReportKind.BuildFailed:
-                return test_run.errored(item, this.message);
-            case WorkspaceTestRunReportKind.TestFailed:
-                return test_run.failed(item, this.message);
-            case WorkspaceTestRunReportKind.TestSucceeded:
-                return test_run.passed(item);
-        }
-    }
-    public toTestExplorerSuiteState() {
-        switch (this.state) {
-            case WorkspaceTestRunReportKind.TestSucceeded:
-                return 'completed';
-            default:
-                return 'errored';
-        }
-    }
-    public toTestExplorerTestState() {
-        switch (this.state) {
-            case WorkspaceTestRunReportKind.BuildFailed:
-                return 'errored';
-            case WorkspaceTestRunReportKind.TestFailed:
-                return 'failed';
-            case WorkspaceTestRunReportKind.TestSucceeded:
-                return 'passed';
-        }
-    }
-}
-
-export class WorkspaceTestParameters {
+export class WorkspaceTestCommandlineParameters {
     public constructor(
         public setup_shell_code: string,
         public exe: fs.PathLike,

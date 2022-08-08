@@ -1,7 +1,6 @@
 import * as path from 'path';
 import * as Mocha from 'mocha';
 import * as glob from 'glob';
-
 import { logger } from '../../common/logging';
 
 export function run(): Promise<void> {

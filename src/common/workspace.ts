@@ -10,7 +10,7 @@ import { SourceFileConfiguration } from 'vscode-cpptools';
 import { Package } from './package';
 import { WorkspaceTestAdapter } from './testing/workspace_test_adapter';
 import { getExtensionConfiguration } from './configuration';
-import { WorkspaceProvider, IWorkspace, WorkspaceTestSuite, TestRunReport, IPackage } from 'vscode-catkin-tools-api';
+import { WorkspaceProvider, IWorkspace, WorkspaceTestInterface, WorkspaceTestReport, IPackage } from 'vscode-catkin-tools-api';
 import { api } from '../extension';
 import { logger } from './logging';
 
@@ -87,6 +87,7 @@ export class Workspace implements IWorkspace {
 
       progress.report({ increment: 1, message: "Searching packages" });
       const package_xml_pattern = `${await this.workspace_provider.getSrcDir()}/**/package.xml`;
+      // TODO: respect CATKIN_IGNORE here
       const package_xml_files = await glob(
         [package_xml_pattern]
       );
@@ -145,9 +146,9 @@ export class Workspace implements IWorkspace {
 
   loadPackageTests(workspace_package: IPackage,
     outline_only: boolean,
-    build_dir?: String,
-    devel_dir?: String):
-    Promise<WorkspaceTestSuite> {
+    build_dir?: fs.PathLike,
+    devel_dir?: fs.PathLike
+  ): Promise<void> {
     return this.test_adapter.updatePackageTests(workspace_package, outline_only, build_dir, devel_dir);
   }
 
@@ -496,11 +497,11 @@ export class Workspace implements IWorkspace {
                 let package_xml = await this.locatePackageXML(filename);
                 let workspace_package = await this.loadPackage(package_xml);
                 if (workspace_package && workspace_package.has_tests) {
-                  workspace_package.package_test_suite = await this.test_adapter.updatePackageTests(workspace_package, true);
-                  this.test_adapter.updateSuiteSet();
-                  logger.debug(`New package ${workspace_package.name} found and ${workspace_package.package_test_suite.executables === null ?
+                  await this.test_adapter.updatePackageTests(workspace_package, true);
+                  // this.test_adapter.updateSuiteSet();
+                  logger.debug(`New package ${workspace_package.name} found and ${workspace_package.package_test_suite.children === null ?
                     "unknown" :
-                    workspace_package.package_test_suite.executables.length} tests added`);
+                    workspace_package.package_test_suite.children.length} tests added`);
                 } else {
                   logger.debug(`New package ${workspace_package.name} but no package.xml found`);
                 }
@@ -669,30 +670,8 @@ export class Workspace implements IWorkspace {
     return command;
   }
 
-  public async runTest(id: string): Promise<TestRunReport> {
-    let headless_test_run = new NoninteractiveTestRun();
-    return this.test_adapter.runTest(id, headless_test_run);
+  public async runTest(id: string, test_run: vscode.TestRun): Promise<WorkspaceTestReport> {
+    return this.test_adapter.runTestWithId(id, test_run);
   }
 }
 
-class NoninteractiveTestRun implements vscode.TestRun {
-  name: string = "headless";
-  token: vscode.CancellationToken;
-  isPersisted: boolean;
-  enqueued(test: vscode.TestItem): void {
-  }
-  started(test: vscode.TestItem): void {
-  }
-  skipped(test: vscode.TestItem): void {
-  }
-  failed(test: vscode.TestItem, message: vscode.TestMessage | readonly vscode.TestMessage[], duration?: number): void {
-  }
-  errored(test: vscode.TestItem, message: vscode.TestMessage | readonly vscode.TestMessage[], duration?: number): void {
-  }
-  passed(test: vscode.TestItem, duration?: number): void {
-  }
-  appendOutput(output: string): void {
-  }
-  end(): void {
-  }
-}

@@ -17,14 +17,15 @@ export async function run_unit_tests() {
 
         // Download VS Code, unzip it and run the integration test
         await runTests({
+            version: '1.64.0', // pinned because 1.65.0 crashes randomly. TODO: bump in the future
             extensionDevelopmentPath,
             extensionTestsPath,
             launchArgs: [
                 workspace_catkin_add_gtest,
                 "--disable-gpu", "--disable-gpu-compositing",
-                " --no-sandbox"
+                "--no-sandbox",
                 // This disables all extensions except the one being tested
-                // '--disable-extensions'
+                '--disable-extensions'
             ],
         });
     } catch (err) {

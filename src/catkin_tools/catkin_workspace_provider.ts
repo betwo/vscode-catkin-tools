@@ -168,7 +168,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         return undefined;
     }
 
-    getDefaultRunTestTarget(): string {
+    getDefaultRunTestTargetName(): string {
         return 'run_tests';
     }
 

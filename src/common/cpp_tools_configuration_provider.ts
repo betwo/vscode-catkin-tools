@@ -127,7 +127,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
           uri: file,
           configuration: workspace.getSourceFileConfiguration(commands)
         });
-        setStatusText('(' + workspace.file_to_compile_commands.get(file.fsPath) + ')')
+        setStatusText('(' + workspace.file_to_compile_commands.get(file.fsPath) + ')');
 
       } else {
         let workspace_package = workspace.getPackageContaining(file);

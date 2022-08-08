@@ -5,24 +5,21 @@ import * as glob from 'fast-glob';
 import * as xml from 'fast-xml-parser';
 import * as path from 'path';
 
-import { IPackage, TestType, TestSuite, IBuildTarget, WorkspaceTestCase, WorkspaceTestExecutable, WorkspaceTestSuite, WorkspaceTestFixture } from 'vscode-catkin-tools-api';
+import { IPackage, WorkspaceTestInterface, IBuildTarget, WorkspaceTestIdentifierTemplate, WorkspaceTestParameters, isTemplateEqual, WorkspaceTestInstance } from 'vscode-catkin-tools-api';
 
-import { runShellCommand, runCommand } from './shell_command';
 import { Workspace } from './workspace';
 import { parsePackageForTests, skimCmakeListsForTests } from './testing/cmake_test_parser';
 import { wrapArray } from './utils';
-import { logger } from './logging';
-
-export class BuildTarget implements IBuildTarget {
-
-  constructor(public cmake_target: string,
-    public label: string,
-    public exec_path: string,
-    public type: TestType) { }
-}
+import { getCTestTargets as getCTestTargetExecutables } from './testing/ctest_query';
+import { updateTestsFromExecutable } from './testing/gtest/test_binary_parser';
+import { logger } from '../common/logging';
+import { TestHandlerCatkinPackage } from './testing/test_handler_catkin_package';
+import { WorkspaceTestAdapter } from './testing/workspace_test_adapter';
 
 export class Package implements IPackage {
-  public build_space?: fs.PathLike;
+  public current_build_dir?: fs.PathLike;
+  public current_devel_dir?: fs.PathLike;
+  public current_build_space?: fs.PathLike;
 
   public name: string;
   public dependencies: string[];
@@ -31,14 +28,17 @@ export class Package implements IPackage {
 
   public has_tests: boolean;
   public tests_loaded: boolean;
-  public package_test_suite: WorkspaceTestSuite;
+  public package_test_suite: WorkspaceTestInterface;
+  public test_instance: WorkspaceTestInstance;
 
   public path: string;
   public relative_path: fs.PathLike;
   public absolute_path: fs.PathLike;
   public cmakelists_path: string;
 
-  private constructor(
+  public onTestSuiteModified = new vscode.EventEmitter<void>();
+
+  public constructor(
     public package_xml_path: fs.PathLike,
     public workspace: Workspace) {
 
@@ -157,8 +157,7 @@ export class Package implements IPackage {
 
   public isBuilt(build_dir: string): boolean {
     const build_space = path.join(build_dir, this.name);
-    const compile_commands = path.join(build_space, "compile_commands.json");
-    return fs.existsSync(compile_commands);
+    return fs.existsSync(build_space);
   }
 
   public async iteratePossibleSourceFiles(header_file: vscode.Uri, async_filter: (uri: vscode.Uri) => Promise<boolean>): Promise<boolean> {
@@ -188,385 +187,367 @@ export class Package implements IPackage {
   }
 
 
-  public async loadTests(build_dir: String, devel_dir: String, outline_only: boolean):
-    Promise<WorkspaceTestSuite> {
-    this.build_space = `${build_dir}/${this.name}`;
+  public async loadTests(build_dir: fs.PathLike, devel_dir: fs.PathLike, query_for_cases: boolean): Promise<WorkspaceTestInterface[]> {
+    this.current_build_dir = build_dir;
+    this.current_devel_dir = devel_dir;
+    this.current_build_space = `${build_dir}/${this.name}`;
 
     if (!this.has_tests) {
       throw Error("No tests in package");
     }
 
-    // discover build targets:
-    // ctest -N
-    //  ->
-    // _ctest_csapex_math_tests_gtest_csapex_math_tests
-    //                                `---------------`
-
     // find gtest build targets
-    let test_build_targets: BuildTarget[] = [];
-    if (!outline_only) {
-      try {
-        let output = await runCommand('ctest', ['-N', '-V'], [], this.build_space);
-        let current_executable: string = undefined;
-        let current_test_type: TestType = undefined;
-        let missing_exe = undefined;
-        for (let line of output.stdout.split('\n')) {
+    let test_build_targets: IBuildTarget[] = await getCTestTargetExecutables(build_dir, this.name, query_for_cases);
+    this.updatePackageImpl(test_build_targets);
 
-          let test_command = line.match(/[0-9]+: Test command:\s+(.*)$/);
-          if (test_command !== null) {
-            if (line.indexOf('catkin_generated') > 0) {
-              const catkin_test_wrapper = line.match(/[0-9]+: Test command:\s+.*env_cached.sh\s*.*"([^"]+\s+--gtest_output=[^"]+)".*/);
-              const rostest_wrapper = line.match(/[0-9]+: Test command:\s+(.*env_cached.sh.*cmake\/test\/run_tests.py.*bin\/rostest.*)/);
-              if (catkin_test_wrapper !== null) {
-                current_executable = catkin_test_wrapper[1];
-                current_test_type = 'gtest';
-              } else if (rostest_wrapper !== null) {
-                current_executable = rostest_wrapper[1];
-                current_test_type = 'generic';
-              } else {
-                current_executable = test_command[1];
-                current_test_type = 'unknown';
-              }
-            } else if (line.indexOf('ament_cmake_test') > 0) {
-              let ament_gtest_wrapper = line.match(/[0-9]+: Test command:.*"--command"\s+"([^"]+)"\s+"(--gtest_output=[^"]+)".*/);
-              if (ament_gtest_wrapper !== null) {
-                current_executable = ament_gtest_wrapper[1];
-                current_test_type = 'gtest';
-              } else {
-                let ament_xunit_test_wrapper = line.match(/[0-9]+: Test command:.*"--command"\s+"([^"]+)"\s+"--xunit-file"\s+"([^"]+)".*/);
-                if (ament_xunit_test_wrapper !== null) {
-                  current_executable = ament_xunit_test_wrapper[1];
-                  current_test_type = 'gtest';
-                } else {
-                  current_executable = test_command[1];
-                  current_test_type = 'unknown';
-                }
-              }
-            } else {
-              let gtest_output = line.match(/[0-9]+: Test command:\s+"([^"]+\s+--gtest_output=[^"]+)".*/);
-              if (gtest_output !== null) {
-                current_executable = gtest_output[1];
-                current_test_type = 'gtest';
-              } else {
-                current_executable = test_command[1];
-                current_test_type = 'unknown';
-              }
-            }
-            continue;
-          }
-          // GTest target test
-          let gtest_match = line.match(/ Test\s+#.*gtest_(.*)/);
-          if (gtest_match) {
-            if (current_executable === undefined) {
-              continue;
-            }
-            let target: BuildTarget = {
-              cmake_target: gtest_match[1],
-              label: gtest_match[1],
-              exec_path: current_executable,
-              type: current_test_type
-            };
-            test_build_targets.push(target);
-          } else {
-            if (line.indexOf('catkin_generated') > 0) {
-              continue;
-            } else if (line.indexOf('ament_cmake_test') > 0) {
-              continue;
-            }
-            // general CTest target test
-            let missing_exec_match = line.match(/Could not find executable\s+([^\s]+)/);
-            if (missing_exec_match) {
-              missing_exe = missing_exec_match[1];
-            } else {
-              let ctest_match = line.match(/\s+Test\s+#[0-9]+:\s+([^\s]+)/);
-              if (ctest_match) {
-                if (current_executable === undefined) {
-                  continue;
-                }
-                let target = ctest_match[1];
-                if (target.length > 1 && target !== 'cmake') {
-                  let cmd = current_executable;
-                  if (missing_exe !== undefined) {
-                    cmd = missing_exe + " " + cmd;
-                  }
-
-                  // determine executable
-                  // trip quotes
-                  let stripped_exe = current_executable.replace(/"/g, "");
-                  // strip --gtest_output if present
-                  stripped_exe = stripped_exe.replace(/--gtest_output\S+/g, "");
-                  // then take the first argument when splitting with whitespace
-                  let exe = path.basename(stripped_exe.split(/\s/)[0]);
-                  if (exe.length === 0) {
-                    // assume that the executable has the same name as the cmake target
-                    exe = target;
-                  }
-                  let label = exe;
-                  if (cmd.indexOf('bin/rostest') > 0) {
-                    const rostest_wrapper = cmd.match(/.*"\s*[^\s]+\/test_([^\s]+)\.test["\s]*/);
-                    if (rostest_wrapper !== null) {
-                      label = rostest_wrapper[1];
-                      exe = rostest_wrapper[1];
-                    } else {
-                      label = target;
-                    }
-                  }
-                  test_build_targets.push({
-                    cmake_target: exe,
-                    label: label,
-                    exec_path: cmd,
-                    type: current_test_type
-                  });
-                }
-                missing_exe = undefined;
-              }
-            }
-          }
-        }
-      } catch (err) {
-        logger.error(`Cannot call ctest for ${this.name}`);
-        throw err;
-      }
+    // generate a list of all tests in this target
+    let changed_executables: WorkspaceTestInterface[] = [];
+    await this.updateTestExecutableFromSource(query_for_cases, false, false);
+    for (let build_target of test_build_targets) {
+      const changed = await updateTestsFromExecutable(build_target, this, query_for_cases);
+      changed_executables = changed_executables.concat(changed);
     }
 
-    // create the test suite
-    let pkg_suite: WorkspaceTestSuite = {
-      type: 'suite',
-      package: this,
-      build_space: this.build_space,
-      build_target: this.workspace.workspace_provider.getDefaultRunTestTarget(),
-      global_build_dir: build_dir,
-      global_devel_dir: devel_dir,
-      filter: undefined,
-      test_build_targets: test_build_targets,
-      info: {
-        type: test_build_targets.length === 0 ? 'test' : 'suite',
-        id: `package_${this.name}`,
-        debuggable: false,
-        label: this.name,
-        file: this.cmakelists_path,
-        children: [],
-        description: test_build_targets.length === 0 ? "(unloaded)" : "",
-        tooltip: test_build_targets.length === 0 ?
-          `Unloaded package test for ${this.name}. Run to load the test.` :
-          `Package test for ${this.name}.`,
-      },
-      executables: null
-    };
+    if (query_for_cases) {
+      this.tests_loaded = true;
+    }
 
-    let gtest_build_targets: TestSuite;
-    if (!outline_only) {
+    if (this.test_instance === undefined) {
+      this.test_instance = this.workspace.test_adapter.createTestInstance(this.package_test_suite, {});
+      this.test_instance.handler = new TestHandlerCatkinPackage(this, [], this.test_instance, this.workspace.test_adapter);
+
+      this.workspace.test_adapter.registerTestHandler(
+        this.workspace.test_adapter.workspace_test_handler,
+        this.test_instance.handler,
+        this.test_instance
+      );
+    }
+    await this.test_instance.handler?.updateTestItem();
+    if (changed_executables.length > 0) {
+      this.onTestSuiteModified.fire();
+    }
+
+    return changed_executables;
+  }
+
+  public async updateTestExecutableFromSource(query_for_cases: boolean,
+    only_update_existing: boolean,
+    is_partial_update: boolean): Promise<WorkspaceTestInterface[]> {
+    let changed_tests = [];
+
+    if (query_for_cases) {
       try {
-        gtest_build_targets = await parsePackageForTests(this);
+        const parsed_test_executables = await parsePackageForTests(this);
+        for (const parsed_executable of parsed_test_executables) {
+          let [test_exec, exec_was_changed] = await this.updateTestExecutable(parsed_executable, only_update_existing, is_partial_update);
+          if (exec_was_changed) {
+            changed_tests.push(test_exec);
+          }
+        }
       } catch (err) {
         logger.error(`Cannot determine gtest details: ${err}`);
       }
     }
-    if (gtest_build_targets === undefined) {
-      // default to an empty suite
-      gtest_build_targets = new TestSuite([]);
-    }
 
-    // generate a list of all tests in this target
-    for (let build_target of test_build_targets) {
-      let matching_source_file: string;
-      let matching_line: number;
-      if (!outline_only) {
-        let gtest_build_target = gtest_build_targets.getBuildTarget(build_target.cmake_target);
-        if (gtest_build_target !== undefined) {
-          matching_source_file = path.join(this.getAbsolutePath().toString(), gtest_build_target.package_relative_file_path.toString());
-          matching_line = gtest_build_target.line;
-        } else {
-          logger.debug(`No matching line for build target ${build_target.cmake_target}`);
-        }
-      }
+    return changed_tests;
+  }
 
-      // create the executable
-      let test_exec: WorkspaceTestExecutable = {
-        type: build_target.type,
-        package: this,
-        build_space: this.build_space,
-        build_target: build_target.cmake_target,
-        global_build_dir: build_dir,
-        global_devel_dir: devel_dir,
-        executable: build_target.exec_path,
-        filter: build_target.type === 'generic' ? undefined : "*",
-        info: {
-          type: 'suite',
-          id: `exec_${build_target.cmake_target}`,
-          label: build_target.label,
-          children: [],
-          tooltip: `Executable test ${build_target.cmake_target}.`,
-          file: matching_source_file,
-          line: matching_line
-        },
-        fixtures: []
-      };
+  public async updateTestExecutable(
+    parsed_executable: WorkspaceTestInterface,
+    only_update_existing: boolean,
+    is_partial_update: boolean
+  ): Promise<[WorkspaceTestInterface, boolean]> {
+    let [test_exec, exec_was_changed] = this.updateTestExecutableImpl(parsed_executable.id, parsed_executable.build_target, parsed_executable.file, parsed_executable.line);
 
-      if (!outline_only) {
-        try {
-          // try to extract test names, if the target is compiled
-          let cmd = await this.workspace.makeCommand(`${build_target.exec_path} --gtest_list_tests`);
-          let output = await runShellCommand(cmd, this.build_space);
-          let current_fixture_label: string = null;
-          let current_test_suite: string = null;
-          for (let line of output.stdout.split('\n')) {
-            let fixture_match = line.match(/^([^\s]+)\.\s*(#.*)?$/);
-            if (fixture_match) {
-              current_fixture_label = fixture_match[1];
-              let current_instance_label = undefined;
-              if (current_fixture_label.indexOf('/') > 0) {
-                // This is an instanced test of the form  <module_name>/<test_name>
-                // For now we ignore the module name
-                // TODO: support multiple instance of a test module
-                current_instance_label = current_fixture_label.substr(current_fixture_label.indexOf('/') + 1);
-                current_test_suite = current_fixture_label.substr(0, current_fixture_label.indexOf('/'));
-              } else {
-                current_test_suite = current_fixture_label;
-              }
-
-              if (current_test_suite.indexOf('/') > 0) {
-                // This is an instanced and typed test of the form  <module_name>/<test_name>/<instance_name>
-                // For now we ignore the instance_name
-                current_test_suite = current_test_suite.substr(0, current_test_suite.indexOf('/'));
-              }
-
-              let description = undefined;
-              if (fixture_match[2] !== undefined) {
-                // we have a comment in the line
-                description = fixture_match[2].substring(1).trim();
-              }
-
-              let matching_source_file: string;
-              let matching_line: number;
-              let [existing_fixture, source_file, _] = gtest_build_targets.getFixture(current_test_suite);
-              if (existing_fixture !== undefined) {
-                matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
-                matching_line = existing_fixture.line;
-              } else {
-                logger.debug(`No matching line for fixture ${current_test_suite}`);
-                logger.debug("Available fixtures:");
-                for (const f of gtest_build_targets.getFixtures()) {
-                  logger.debug(f);
-                }
-              }
-              test_exec.fixtures.push({
-                type: 'gtest',
-                package: this,
-                build_space: this.build_space,
-                build_target: build_target.cmake_target,
-                global_build_dir: build_dir,
-                global_devel_dir: devel_dir,
-                executable: build_target.exec_path,
-                filter: build_target.type === 'generic' ? undefined : `${current_fixture_label}.*`,
-                info: {
-                  type: 'suite',
-                  id: `fixture_${build_target.cmake_target}_${current_fixture_label}`,
-                  label: current_fixture_label,
-                  description: description,
-                  children: [],
-                  tooltip: `Test fixture ${build_target.cmake_target}::${current_fixture_label}.`,
-                  file: matching_source_file,
-                  line: matching_line
-                },
-                cases: []
-              });
-              test_exec.info.children.push(test_exec.fixtures[test_exec.fixtures.length - 1].info);
-
-            } else if (current_fixture_label !== null && line.length > 0) {
-              let test_label = line.substr(2);
-              let test_name = test_label;
-              let test_description = undefined;
-              if (test_label.indexOf("#") > 0) {
-                // This is an instanced test of the form  <test_name>/<instance>#<parameters>
-                let parts = test_label.split("#");
-                test_label = parts[0].trim();
-                test_description = parts[1].trim();
-                const test_parts = parts[0].split('/');
-                test_name = test_parts[0].trim();
-              }
-
-              let matching_source_file: string;
-              let matching_line: number;
-              let [existing_test_case, _, source_file, __] = gtest_build_targets.getTestCase(current_test_suite, test_name);
-              if (existing_test_case !== undefined) {
-                matching_source_file = path.join(this.getAbsolutePath().toString(), source_file.package_relative_file_path.toString());
-                matching_line = existing_test_case.line;
-              } else {
-                  logger.debug(`No matching line for test case ${test_name} in suite ${current_test_suite}`);
-              }
-              let test_case: WorkspaceTestCase = {
-                package: this,
-                build_space: this.build_space,
-                build_target: build_target.cmake_target,
-                global_build_dir: build_dir,
-                global_devel_dir: devel_dir,
-                executable: build_target.exec_path,
-                filter: build_target.type === 'generic' ? undefined : `${current_fixture_label}.${test_label}`,
-                type: build_target.type,
-                info: {
-                  type: 'test',
-                  id: `test_${build_target.cmake_target}_${current_fixture_label}_${test_label}`,
-                  description: test_description,
-                  label: `${current_fixture_label}::${test_label}`,
-                  tooltip: `Test case ${build_target.cmake_target}::${current_fixture_label}::${test_label}.`,
-                  file: matching_source_file,
-                  line: matching_line
-                }
-              };
-              let fixture = test_exec.fixtures[test_exec.fixtures.length - 1];
-              fixture.cases.push(test_case);
-              fixture.info.children.push(fixture.cases[fixture.cases.length - 1].info);
+    for (const existing_executable of this.package_test_suite.children) {
+      if (isTemplateEqual(existing_executable.id, parsed_executable.id)) {
+        if (!is_partial_update) {
+          // remove all fixtures that don't exist anymore
+          for (const existing_fixture of existing_executable.children) {
+            const entry = parsed_executable.children.find(parsed_fixture => isTemplateEqual(parsed_fixture.id, existing_fixture.id));
+            if (entry === undefined) {
+              logger.silly(`Fixture ${existing_fixture.id} was removed`);
             }
           }
-        } catch (err) {
-          // if the target is not compiled, do not add filters
-          if (err.error !== undefined) {
-            logger.error(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
-          } else {
-            logger.error(`Cannot determine ${build_target.exec_path}'s tests: ${err}`);
-          }
+        }
+        // update all other fixtures
+        for (const parsed_fixture of parsed_executable.children) {
+          let build_target = parsed_executable.build_target !== undefined ? parsed_executable.build_target : existing_executable.build_target;
+          this.updateTestFixture(existing_executable, parsed_fixture, build_target, only_update_existing, is_partial_update);
+        }
+        break;
+      }
+    }
+
+    return [test_exec, exec_was_changed];
+  }
+
+  public updateTestFixture(
+    test_executable: WorkspaceTestInterface,
+    partial_test_ifc: WorkspaceTestInterface,
+    build_target: IBuildTarget,
+    only_update_existing: boolean,
+    is_partial_update: boolean
+  ) {
+    // first update the fixture, without updating children
+    let updated_fixture = this.updateTestFixtureImpl(
+      test_executable,
+      partial_test_ifc.id,
+      build_target,
+      partial_test_ifc.file,
+      partial_test_ifc.line,
+      partial_test_ifc.is_parameterized,
+      partial_test_ifc.instances,
+      only_update_existing
+    );
+
+    if (updated_fixture === undefined) {
+      return undefined;
+    }
+
+    let [existing_fixture, fixture_changed] = updated_fixture;
+
+    if (!is_partial_update) {
+      // remove all fixtures that don't exist anymore
+      let removed_cases: WorkspaceTestInterface[] = [];
+      for (const existing_case of existing_fixture.children) {
+        const entry = partial_test_ifc.children.find(parsed_case => isTemplateEqual(parsed_case.id, existing_case.id));
+        if (entry === undefined) {
+          logger.silly(`Case ${existing_case.id} was removed`);
+          removed_cases.push(existing_case);
         }
       }
-      if (test_exec.fixtures.length === 0) {
-        let test_case: WorkspaceTestFixture = {
-          type: build_target.type,
-          package: this,
-          build_space: this.build_space,
-          build_target: build_target.cmake_target,
-          global_build_dir: build_dir,
-          global_devel_dir: devel_dir,
-          executable: build_target.exec_path,
-          cases: [],
-          filter: build_target.type === 'generic' ? undefined : `*`,
-          info: {
-            type: 'suite',
-            id: `fixture_unknown_${build_target.cmake_target}`,
-            label: "Run All Tests",
-            children: [],
-            description: "(no information about test cases)",
-            tooltip: `Unknown fixture. Run to detect tests.`,
-          }
-        };
-        test_exec.fixtures.push(test_case);
-        test_exec.info.children.push(test_case.info);
-      }
-
-      if (pkg_suite.executables === null) {
-        pkg_suite.executables = [];
-      }
-      pkg_suite.executables.push(test_exec);
-      if (pkg_suite.info.type === 'suite') {
-        pkg_suite.info.children.push(test_exec.info);
+      if (removed_cases.length > 0) {
+        let isCaseRemoved = (testcase: WorkspaceTestInterface) => removed_cases.indexOf(testcase) >= 0;
+        existing_fixture.children = existing_fixture.children.filter(testcase => !isCaseRemoved(testcase));
       }
     }
 
-    if (!outline_only) {
-      this.tests_loaded = true;
+    // update the children now
+    for (const existing_fixture of test_executable.children) {
+      if (isTemplateEqual(existing_fixture.id, partial_test_ifc.id)) {
+        for (const parsed_case of partial_test_ifc.children) {
+          this.updateTestCase(existing_fixture, parsed_case);
+        }
+        break;
+      }
     }
 
-    this.package_test_suite = pkg_suite;
-
-    return pkg_suite;
+    return updated_fixture;
   }
+
+  public updateTestCase(
+    test_ifc: WorkspaceTestInterface,
+    partial_test_ifc: WorkspaceTestInterface,
+    only_update_existing: boolean = false
+  ) {
+    return this.updateTestCaseImpl(
+      test_ifc,
+      partial_test_ifc.id,
+      partial_test_ifc.build_target !== undefined ? partial_test_ifc.build_target : test_ifc.build_target,
+      partial_test_ifc.file,
+      partial_test_ifc.line,
+      partial_test_ifc.is_parameterized,
+      partial_test_ifc.instances,
+      only_update_existing
+    );
+  }
+
+
+  updatePackageImpl(
+    test_build_targets: IBuildTarget[]
+  ): boolean {
+    const test_id = new WorkspaceTestIdentifierTemplate(`package_${this.name}`);
+    const build_target: IBuildTarget = {
+      cmake_target: this.workspace.workspace_provider.getDefaultRunTestTargetName(),
+      label: this.workspace.workspace_provider.getDefaultRunTestTargetName(),
+      exec_path: undefined,
+      type: "suite"
+    };
+    const new_values = {
+      package: this,
+      build_space: this.current_build_space,
+      build_target: build_target,
+      id: test_id,
+      debuggable: false,
+      label: this.name,
+      file: this.cmakelists_path,
+      description: "📦",
+    };
+
+    if (this.package_test_suite === undefined) {
+      this.package_test_suite = {
+        type: 'suite',
+        children: [],
+        resolvable: test_build_targets.length === 0,
+        is_parameterized: false,
+        ...new_values
+      };
+    } else {
+      let changed = false;
+      for (let k in new_values) {
+        if (this.package_test_suite[k] !== new_values[k]) {
+          this.package_test_suite[k] = new_values[k];
+          changed = true;
+        }
+      }
+      return changed;
+    }
+  }
+
+  updateTestExecutableImpl(
+    test_id: WorkspaceTestIdentifierTemplate,
+    build_target: IBuildTarget,
+    source_file: string,
+    line_number: number,
+    only_update_existing: boolean = false
+  ): [WorkspaceTestInterface, boolean] {
+    const new_values = {
+      type: build_target?.type,
+      package: this,
+      build_space: this.current_build_space,
+      build_target: build_target,
+      executable: build_target?.exec_path,
+      id: test_id,
+      file: source_file,
+      line: line_number,
+    };
+
+    for (let old_entry of this.package_test_suite.children) {
+      if (isTemplateEqual(old_entry.id, test_id)) {
+        let changed = this.updateObject(old_entry, new_values);
+        return [old_entry, changed];
+      }
+    }
+
+    if (only_update_existing) {
+      return undefined;
+    }
+
+    let executable: WorkspaceTestInterface = {
+      children: [],
+      is_parameterized: false,
+      resolvable: true,
+      ...new_values
+    };
+
+    this.package_test_suite.children.push(executable);
+
+    return [executable, true];
+  }
+
+  updateTestFixtureImpl(
+    executable: WorkspaceTestInterface,
+    test_id: WorkspaceTestIdentifierTemplate,
+    build_target: IBuildTarget,
+    source_file: string,
+    line_number: number,
+    is_parameterized: boolean,
+    instances: WorkspaceTestParameters[],
+    only_update_existing: boolean = false
+  ): [WorkspaceTestInterface, boolean] {
+    const new_values = {
+      package: this,
+      build_space: this.current_build_space,
+      build_target: build_target,
+      executable: build_target?.exec_path,
+      id: test_id,
+      file: source_file,
+      line: line_number,
+      is_parameterized: is_parameterized,
+      instances: instances,
+    };
+
+    for (let old_entry of executable.children) {
+      if (isTemplateEqual(old_entry.id, test_id)) {
+        // logger.silly("Update existing fixture", old_entry.id);
+        let changed = this.updateObject(old_entry, new_values);
+        return [old_entry, true];
+      }
+    }
+
+    if (only_update_existing) {
+      return undefined;
+    }
+
+    let fixture: WorkspaceTestInterface = {
+      type: 'gtest',
+      children: [],
+      resolvable: false,
+      ...new_values
+    };
+
+    executable.children.push(fixture);
+
+    return [fixture, true];
+  }
+
+  updateTestCaseImpl(
+    test_ifc: WorkspaceTestInterface,
+    test_id: WorkspaceTestIdentifierTemplate,
+    build_target: IBuildTarget,
+    source_file: string,
+    line_number: number,
+    is_parameterized: boolean,
+    instances: WorkspaceTestParameters[],
+    only_update_existing: boolean = false
+  ): [WorkspaceTestInterface, boolean] {
+    const new_values = {
+      package: this,
+      build_space: this.current_build_space,
+      build_target: build_target,
+      executable: build_target?.exec_path,
+      type: build_target?.type,
+      id: test_id,
+      file: source_file,
+      line: line_number,
+      is_parameterized: is_parameterized,
+      instances: instances,
+    };
+
+    for (let old_entry of test_ifc.children) {
+      if (isTemplateEqual(old_entry.id, test_id)) {
+        let changed = this.updateObject(old_entry, new_values);
+        return [old_entry, changed];
+      }
+    }
+
+    if (only_update_existing) {
+      return undefined;
+    }
+
+    let test_case: WorkspaceTestInterface = {
+      resolvable: false,
+      children: [],
+      ...new_values
+    };
+
+    test_ifc.children.push(test_case);
+
+    return [test_case, true];
+  }
+
+
+  updateObject(old_values: any, new_values: any): boolean {
+    let changed = false;
+    for (let key in new_values) {
+      if (new_values[key] !== undefined && old_values[key] !== new_values[key]) {
+        if (Array.isArray(old_values[key])) {
+          if (old_values[key] !== new_values[key]) {
+            old_values[key] = new_values[key];
+            changed = true;
+          }
+        } else if (typeof old_values[key] === 'object') {
+          if (this.updateObject(old_values[key], new_values[key])) {
+            changed = true;
+          }
+        } else {
+          old_values[key] = new_values[key];
+        }
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
 }
