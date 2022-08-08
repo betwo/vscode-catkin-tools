@@ -18,6 +18,8 @@ export class CatkinToolsTerminal implements vscode.Pseudoterminal {
 
     private process: child_process.ChildProcess;
     public diagnostics: vscode.DiagnosticCollection;
+    private command_failed: boolean;
+    private exit_code: number;
 
     constructor(private workspace: IWorkspace,
         private flags: string[],
@@ -36,6 +38,10 @@ export class CatkinToolsTerminal implements vscode.Pseudoterminal {
 
     handleInput(data: string): void {
         if (data.length === 1) {
+            if (this.command_failed === true) {
+                this.terminate();
+                return;
+            }
             const ascii_code = data.charCodeAt(0);
             if (ascii_code === 3) {
                 // CTRL+c
@@ -49,16 +55,18 @@ export class CatkinToolsTerminal implements vscode.Pseudoterminal {
 
     private terminate() {
         if (this.process !== undefined && !this.process.killed) {
-            this.write_emitter.fire(`Sending kill signal...\r\n`);
+            this.write_emitter.fire(`Sending SIGINT signal...\r\n`);
             const pid = this.process.pid;
             tree_kill(pid, 'SIGINT');
+        } else {
+            this.close_emitter.fire(this.exit_code);
         }
     }
 
     private async triggerBuild(): Promise<void> {
         return new Promise<void>(async (resolve, reject) => {
             assert(this.workspace.isInitialized());
-            let exit_code = undefined;
+            this.exit_code = undefined;
             let working_directory: fs.PathLike;
             if (this.use_current_file_as_work_directory) {
                 if (vscode.window.activeTextEditor === undefined) {
@@ -79,7 +87,7 @@ export class CatkinToolsTerminal implements vscode.Pseudoterminal {
                     },
                     (out: string) => {
                         this.write_emitter.fire(out.replace(/\n/g, "\r\n"));
-                        logger.debug(out);
+                        logger.silly(out);
                     },
                     (err: string) => {
                         this.write_emitter.fire(colorText(err.replace(/\n/g, "\r\n"), 1));
@@ -91,25 +99,34 @@ export class CatkinToolsTerminal implements vscode.Pseudoterminal {
                 if (shell_output.error !== undefined) {
                     logger.error(`Subcommand failed with error:`);
                     logger.error(shell_output.error);
-                    exit_code = -1;
+                    this.exit_code = -1;
+                    this.process = undefined;
                 } else {
-                    exit_code = 0;
+                    this.exit_code = 0;
                 }
 
             } catch (error) {
                 logger.error(`Subcommand threw with error: ${typeof (error)}`);
                 logger.error(error.message);
                 if (error.exit_code !== undefined) {
-                    exit_code = error.exit_code;
+                    this.exit_code = error.exit_code;
                 } else {
-                    exit_code = -2;
+                    this.exit_code = -2;
                 }
-                this.write_emitter.fire('failed.\r\n\r\n');
+                this.process = undefined;
+                this.write_emitter.fire('Command execution failed.\r\n\r\n');
                 this.write_emitter.fire(colorText(error.stderr.replace(/\n/g, "\r\n"), 1));
             }
 
-            this.close_emitter.fire(exit_code);
-            resolve();
+            if (this.exit_code === 0) {
+                setTimeout(() => {
+                    this.close_emitter.fire(this.exit_code);
+                    resolve();
+                }, 2000);
+            } else {
+                this.command_failed = true;
+                this.write_emitter.fire('Command failed. Press any key to exit.\r\n\r\n');
+            }
         });
     }
 }
