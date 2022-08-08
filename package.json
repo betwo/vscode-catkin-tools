@@ -14,7 +14,8 @@
     "vscode": "^1.63.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Testing"
   ],
   "keywords": [
     "catkin-tools",
@@ -35,6 +36,10 @@
           "task": {
             "type": "string",
             "description": "The catkin build task to run {build, build current package, run current package tests} "
+          },
+          "package": {
+            "type": "string",
+            "description": "(optional) The package to build."
           }
         }
       },
@@ -121,8 +126,32 @@
       {
         "command": "extension.b2.catkin_tools.switch_profile",
         "title": "Change active catkin_tools profile"
+      },
+      {
+        "command": "extension.b2.catkin_tools.build_tests",
+        "title": "Build tests in package",
+        "category": "Test",
+        "icon": "$(package)"
+      },
+      {
+        "command": "extension.b2.catkin_tools.reload_tests",
+        "title": "Reload tests in package",
+        "category": "Test",
+        "icon": "$(refresh)"
       }
     ],
+    "menus": {
+      "testing/item/context": [
+        {
+          "command": "extension.b2.catkin_tools.build_tests",
+          "group": "inline"
+        },
+        {
+          "command": "extension.b2.catkin_tools.reload_tests",
+          "group": "inline"
+        }
+      ]
+    },
     "problemMatchers": [
       {
         "name": "catkin-gcc",

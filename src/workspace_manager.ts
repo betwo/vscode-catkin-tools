@@ -11,6 +11,7 @@ import * as catkin_tools_workspace from "./catkin_tools/catkin_tools_workspace";
 import * as colcon_workspace from "./colcon/colcon_workspace";
 import { ColconWorkspaceProvider } from './colcon/colcon_workspace_provider';
 import { WorkspaceTestAdapter } from './common/testing/workspace_test_adapter';
+import { api } from './extension';
 
 
 export class WorkspaceManager implements IWorkspaceManager {
@@ -79,7 +80,8 @@ export class WorkspaceManager implements IWorkspaceManager {
                 root.uri.fsPath,
                 this.test_controller,
                 workspace,
-                output_channel
+                output_channel,
+                api
               );
 
               workspace.test_adapter.load();
@@ -238,5 +240,24 @@ export class WorkspaceManager implements IWorkspaceManager {
     } else {
       vscode.window.showErrorMessage(`Failed to list profiles`);
     }
+  }
+
+  public async buildTestItem(query_test_item: vscode.TestItem): Promise<boolean> {
+    for (let [_, workspace] of this.workspaces) {
+      if (workspace.test_adapter.hasTestItem(query_test_item)) {
+        const test_item = workspace.test_adapter.getEquivalentTestItem(query_test_item);
+        return await workspace.test_adapter.buildTestItem(test_item);
+      }
+    }
+    return false;
+  }
+
+  public async reloadTestItem(test_item: vscode.TestItem): Promise<boolean> {
+    for (let [_, workspace] of this.workspaces) {
+      if (workspace.test_adapter.hasTestItem(test_item)) {
+        return await workspace.test_adapter.reloadTestItem(test_item);
+      }
+    }
+    return false;
   }
 }

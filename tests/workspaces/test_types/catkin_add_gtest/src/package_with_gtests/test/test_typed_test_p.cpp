@@ -21,3 +21,6 @@ REGISTER_TYPED_TEST_SUITE_P(TypedTestP, DoesBlah, HasPropertyA);
 
 using MyTypes = ::testing::Types<char, int, unsigned int>;
 INSTANTIATE_TYPED_TEST_SUITE_P(InstanceP, TypedTestP, MyTypes);
+
+using MyOtherTypes = ::testing::Types<float, double>;
+INSTANTIATE_TYPED_TEST_SUITE_P(OtherInstanceP, TypedTestP, MyOtherTypes);

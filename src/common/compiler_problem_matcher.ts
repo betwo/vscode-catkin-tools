@@ -6,7 +6,7 @@ export function analyze(
     workspace: IWorkspace,
     error_output,
     diagnostics_collection: vscode.DiagnosticCollection
-) {
+) : Map<string, vscode.Diagnostic[]> {
     let diags = new Map<string, vscode.Diagnostic[]>();
 
     analyzeLines(workspace, error_output.split('\n'), diags);
@@ -15,6 +15,8 @@ export function analyze(
         let uri = vscode.Uri.file(it[0]);
         diagnostics_collection.set(uri, it[1]);
     }
+
+    return diags;
 }
 
 
@@ -109,14 +111,4 @@ function updateDiagnosticDatabase(diagnostics_collection: Map<string, vscode.Dia
         const diagnostics: vscode.Diagnostic[] = diagnostics_collection.get(key);
         diagnostics.push(diagnostic);
     }
-}
-
-function parseContinuedDiagnostic(log: string[], line: number) {
-    let message = '';
-    while (line < log.length) {
-        message += log[line] + '\n';
-        line++;
-    }
-
-    return message;
 }

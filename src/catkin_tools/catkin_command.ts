@@ -14,6 +14,11 @@ export async function runCatkinCommand(
     error?: (lines: string) => void
 ): Promise<ShellOutput> {
     try {
+        if (args[0] === "build" || args[0] === "test") {
+            if (args.indexOf('--force-color') < 0) {
+                args.splice(1, 0, '--force-color');
+            }
+        }
         return await runCommand("catkin", args, [], cwd, additional_env_vars, callback, out, error);
     } catch (error) {
         logger.error(error);

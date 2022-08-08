@@ -74,12 +74,6 @@ TYPED_TEST(TypedTestWithMapping, HasPropertyA)
             let mockup_workspace = new Workspace(mockup_workspace_provider, undefined);
 
             let pkg = new Package("package.xml", mockup_workspace);
-            // pkg.getPackageTestSuite().executables.push(executable);
-            logger.silly("INITIALIZE");
-            for (const source_fixture of source_fixtures) {
-                logger.silly(">>", source_fixture.id);
-                // pkg.updateTestFixturePartial(executable, source_fixture);
-            }
 
             expect(executable.children.length).to.equal(1);
             expect(executable.children[0].children.length).to.equal(2);

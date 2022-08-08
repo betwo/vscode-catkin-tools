@@ -163,11 +163,11 @@ export function runCommand(
             pid.on('exit', (code) => {
                 if (code === null) {
                     // killed by a signal
-                    logger.debug(`child process ${full_command} (pid  ${pid.pid}) killed with signal ${pid.signalCode}`);
+                    logger.silly(`child process ${full_command} (pid  ${pid.pid}) killed with signal ${pid.signalCode}`);
                     signal_code = pid.signalCode;
                 } else {
                     exit_code = code;
-                    logger.debug(`child process ${full_command} (pid  ${pid.pid}) exited with exit code ${code}`);
+                    logger.silly(`child process ${full_command} (pid  ${pid.pid}) exited with exit code ${code}`);
                 }
                 maybe_finalize();
             });

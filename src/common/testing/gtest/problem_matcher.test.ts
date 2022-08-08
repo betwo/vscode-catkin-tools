@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { expect } from 'chai';
-import { analyze } from './gtest_problem_matcher';
+import { analyze } from './problem_matcher';
 import * as vscode from 'vscode';
 import * as xml from 'fast-xml-parser';
 

@@ -23,7 +23,7 @@ export async function run_integration_tests() {
             launchArgs: [
                 workspace_catkin_add_gtest,
                 "--disable-gpu", "--disable-gpu-compositing",
-                "--no-sandbox"
+                "--no-sandbox",
                 // This disables all extensions except the one being tested
                 // '--disable-extensions'
             ],

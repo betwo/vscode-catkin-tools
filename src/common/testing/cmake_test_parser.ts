@@ -3,12 +3,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as jsonfile from 'jsonfile';
 
-import { TestSuite, TestBuildTarget, TestSource, ITestParser } from 'vscode-catkin-tools-api';
+import { ITestParser, WorkspaceTestInterface, WorkspaceTestIdentifierTemplate, IPackage } from 'vscode-catkin-tools-api';
 
 import { Package } from "../package";
 import { runShellCommand } from '../shell_command';
 import { getExtensionConfiguration } from '../configuration';
-import { TestParserGTest } from './gtest/test_parser_gtest';
+import { TestParserGTest } from './gtest/test_source_parser';
 import { logger } from '../logging';
 
 export let test_parsers: ITestParser[] = [new TestParserGTest()];
@@ -34,7 +34,7 @@ export async function skimCmakeListsForTests(workspace_package: Package): Promis
     return false;
 }
 
-export async function parsePackageForTests(workspace_package: Package): Promise<TestSuite> {
+export async function parsePackageForTests(workspace_package: IPackage): Promise<WorkspaceTestInterface[]> {
     return queryCMakeFileApiCodeModel(workspace_package);
 }
 
@@ -56,9 +56,9 @@ async function* iterateTestTargets(cmake_file: fs.PathLike) {
     }
 }
 
-async function queryCMakeFileApiCodeModel(workspace_package: Package): Promise<TestSuite> {
+async function queryCMakeFileApiCodeModel(workspace_package: IPackage): Promise<WorkspaceTestInterface[]> {
     const package_space = workspace_package.getAbsolutePath();
-    const build_space = workspace_package.build_space.toString();
+    const build_space = workspace_package.current_build_space.toString();
     const api_dir = path.join(build_space, ".cmake", "api", "v1");
     const query_dir = path.join(api_dir, "query", "client-workspace-vscode");
     try {
@@ -84,26 +84,34 @@ async function queryCMakeFileApiCodeModel(workspace_package: Package): Promise<T
         test_regexes.push(new RegExp(`.*(${expr})`));
     }
 
-    let build_targets = new Map<string, TestBuildTarget>();
+    let test_executables = new Map<string, WorkspaceTestInterface>();
     for (const file_name of files) {
         if (file_name.startsWith("target")) {
             const file_path = path.join(reply_dir, file_name);
             const target = await jsonfile.readFile(file_path);
 
-            for(let test_type of test_parsers) {
+            for (let test_type of test_parsers) {
                 if (test_type.matches(target)) {
                     for (const source of target.sources) {
                         try {
-                            let build_target = build_targets.get(target.name);
-                            if (build_target === undefined) {
-                                const line_number = traceLineNumber(target, test_regexes);
-                                build_target = new TestBuildTarget(target.name, path.join(target.paths.source, "CMakeLists.txt"), line_number);
-                                build_targets.set(target.name, build_target);
+                            const fixtures = await test_type.analyzeSourceFile(target.name, path.join(package_space.toString(), source.path));
+                            let test_executable: WorkspaceTestInterface = test_executables.get(target.name);
+                            if (test_executable !== undefined) {
+                                for (const fixture of fixtures) {
+                                    test_executable.children.push(fixture);
+                                }
+                            } else {
+                                const line_number = traceLineNumber(target);
+                                test_executable = {
+                                    type: 'suite',
+                                    id: new WorkspaceTestIdentifierTemplate(`exec_${target.name}`),
+                                    is_parameterized: false,
+                                    file: path.join(workspace_package.absolute_path.toString(), target.paths.source, "CMakeLists.txt"),
+                                    line: line_number,
+                                    children: fixtures,
+                                };
+                                test_executables.set(target.name, test_executable);
                             }
-                            build_target.test_sources.push(new TestSource(
-                                source.path,
-                                await test_type.analyzeSourceFile(path.join(package_space.toString(), source.path))
-                            ));
                         } catch (error) {
                             logger.error(`Cannot analyze ${source.path}'s test details: ${error}`);
                         }
@@ -114,19 +122,22 @@ async function queryCMakeFileApiCodeModel(workspace_package: Package): Promise<T
         }
     }
 
-    return new TestSuite(Array.from(build_targets.values()));
+    return Array.from(test_executables.values());
 }
 
-function traceLineNumber(target, test_regexes: RegExp[]) {
+function traceLineNumber(target: any) {
+    let bottom_most_cmake_lists_index: number;
+    for(const i in target.backtraceGraph.files) {
+        const file = target.backtraceGraph.files[i];
+        if(file.endsWith("CMakeLists.txt")) {
+            bottom_most_cmake_lists_index = parseInt(i);
+            break;
+        }
+    }
     const graph = target.backtraceGraph;
     for (const node of graph.nodes) {
-        if (node.command !== undefined) {
-            const command = graph.commands[node.command];
-            for (let test_regex of test_regexes) {
-                if (command.match(test_regex) !== null) {
-                    return node.line - 1;
-                }
-            }
+        if (node.command !== undefined && parseInt(node.file) === bottom_most_cmake_lists_index) {
+            return node.line - 1;
         }
 
     }

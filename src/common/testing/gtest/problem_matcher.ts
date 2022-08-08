@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { logger } from '../../logging';
 
 function readXmlAttrAsArray(dom: any, name: string) {
     let node = dom[name];
@@ -26,7 +27,7 @@ export function analyze(dom,
                     try {
                         analyzeMessage(failure['#text'].split('\n'), diags);
                     } catch (e) {
-                        console.error(`Failed to analyze: ${e}`);
+                        logger.error(`Failed to analyze: ${e}`);
                     }
 
                 }
