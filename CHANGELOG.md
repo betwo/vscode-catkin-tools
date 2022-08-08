@@ -198,3 +198,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.2.0] - 2021-06-30
 ### Added
 - Extracted public API for other extensions to access catkin information
+
+## [4.3.0] - 2022-08-09
+### Changed
+- Began rewriting of test handling logic in order to migrate to vscode native testing
+
+### Fixed
+- Fixed CLI coloring issues
