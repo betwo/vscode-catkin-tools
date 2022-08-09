@@ -101,7 +101,7 @@ export class TestHandlerCatkinPackage extends TestHandlerComposite {
                 err => err.split("\n").forEach(line => test_run.appendOutput(`${line}\r\n`))
             );
 
-            await runCatkinCommand(["build", pkg.getName(), "--make-args", "tests"],
+            await runCatkinCommand(["build", pkg.getName(), "--no-deps", "--make-args", "tests"],
                 cwd,
                 undefined,
                 undefined,
