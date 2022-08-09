@@ -17,10 +17,13 @@ export async function updateTestsFromExecutable(
   const executable_line_number = undefined;
 
   let changed_tests = [];
-  let [test_exec, exec_was_changed]: [WorkspaceTestInterface, boolean] = pkg.updateTestExecutableImpl(
+  const update = pkg.updateTestExecutableImpl(
     test_id, build_target, executable_source_file, executable_line_number, true);
-  if(exec_was_changed) {
-    changed_tests.push(test_exec);
+  if (update !== undefined) {
+    let [test_exec, exec_was_changed]: [WorkspaceTestInterface, boolean] = update;
+    if (exec_was_changed) {
+      changed_tests.push(test_exec);
+    }
   }
 
   if (query_for_cases) {

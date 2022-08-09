@@ -257,7 +257,12 @@ export class Package implements IPackage {
     only_update_existing: boolean,
     is_partial_update: boolean
   ): Promise<[WorkspaceTestInterface, boolean]> {
-    let [test_exec, exec_was_changed] = this.updateTestExecutableImpl(parsed_executable.id, parsed_executable.build_target, parsed_executable.file, parsed_executable.line);
+    const update = this.updateTestExecutableImpl(parsed_executable.id, parsed_executable.build_target, parsed_executable.file, parsed_executable.line);
+    if (update === undefined) {
+      return;
+    }
+
+    const [test_exec, exec_was_changed] = update;
 
     for (const existing_executable of this.package_test_suite.children) {
       if (isTemplateEqual(existing_executable.id, parsed_executable.id)) {
@@ -401,7 +406,7 @@ export class Package implements IPackage {
     source_file: string,
     line_number: number,
     only_update_existing: boolean = false
-  ): [WorkspaceTestInterface, boolean] {
+  ): [WorkspaceTestInterface, boolean] | undefined {
     const new_values = {
       type: build_target?.type,
       package: this,
