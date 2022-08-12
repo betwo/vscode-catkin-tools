@@ -122,7 +122,7 @@ export class WorkspaceManager implements IWorkspaceManager {
     if (config['completion'] !== undefined && config['completion']['enable']) {
       let ack: string = 'Ok';
       let msg =
-        'You seem to have clang.autocomplete enabled. This interferes with catkin-tools auto completion.\n' +
+        'You seem to have clang.completion enabled. This interferes with catkin-tools auto completion.\n' +
         'To disable it, change the setting "clang.completion.enable" to false.';
       vscode.window.showInformationMessage(msg, ack);
     }
@@ -142,7 +142,7 @@ export class WorkspaceManager implements IWorkspaceManager {
     if (config['completion'] !== undefined && config['completion']['enable']) {
       let ack: string = 'Ok';
       let msg =
-        'You seem to have clang.autocomplete enabled. This interferes with catkin-tools auto completion.\n' +
+        'You seem to have clang.completion enabled. This interferes with catkin-tools auto completion.\n' +
         'To disable it, change the setting "clang.completion.enable" to false.';
       vscode.window.showInformationMessage(msg, ack);
     }
