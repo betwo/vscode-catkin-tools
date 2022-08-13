@@ -68,14 +68,14 @@ export class GoogleTestCaseHandler extends AbstractGoogleTestHandler<undefined> 
         return `${fixture_filter}.${filter}`;
     }
 
-    override handleTestCaseResult(classname: string, name: string, test_run: vscode.TestRun, failure?: string, error?: string) : boolean {
+    override handleTestCaseResult(classname: string, name: string, test_run: vscode.TestRun, failures?: string[], error?: string) : boolean {
         if (classname !== this.class_name || name !== this.test_name) {
             return false;
         }
 
         let all_succeeded = true;
-        if (failure !== undefined) {
-            test_run.failed(this.item(), new vscode.TestMessage(failure));
+        if (failures !== undefined) {
+            test_run.failed(this.item(), failures.map(msg => new vscode.TestMessage(msg)));
             all_succeeded = false;
         } else {
             if (error !== undefined) {
@@ -86,7 +86,7 @@ export class GoogleTestCaseHandler extends AbstractGoogleTestHandler<undefined> 
             }
         }
 
-        super.handleTestCaseResult(classname, name, test_run, failure, error);
+        super.handleTestCaseResult(classname, name, test_run, failures, error);
 
         return all_succeeded;
     }

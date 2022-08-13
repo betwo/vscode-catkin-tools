@@ -411,7 +411,12 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
                     logger.silly("test_case:", test_case);
                     const class_name = test_case.attr['@_classname'];
                     const name = test_case.attr['@_name'];
-                    if (!this.handleTestCaseResult(class_name, name, test_run, test_case['failure']?.['#text'], test_case['error']?.['#text'])) {
+                    let failures: string[] = undefined;
+                    if (test_case['failure'] !== undefined) {
+                        let f = wrapArray(test_case['failure']);
+                        failures = f.map(failure => failure['#text']);
+                    }
+                    if (!this.handleTestCaseResult(class_name, name, test_run, failures, test_case['error']?.['#text'])) {
                         all_succeeded = false;
                     }
                 }
@@ -431,7 +436,7 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
         return all_succeeded;
     }
 
-    handleTestCaseResult(classname: string, name: string, test_run: vscode.TestRun, failure?: string, error?: string): boolean {
+    handleTestCaseResult(classname: string, name: string, test_run: vscode.TestRun, failure?: string[], error?: string): boolean {
         let all_succeeded = true;
         for (const child of this.children) {
             if (!child.handleTestCaseResult(classname, name, test_run, failure, error)) {

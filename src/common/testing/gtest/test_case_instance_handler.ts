@@ -79,7 +79,7 @@ export class GoogleTestCaseInstanceHandler extends AbstractGoogleTestHandler<Goo
         // throw new Error('Method not implemented.');
     }
 
-    handleTestCaseResult(classname: string, name: string, test_run: vscode.TestRun, failure?: string, error?: string): boolean {
+    handleTestCaseResult(classname: string, name: string, test_run: vscode.TestRun, failure?: string[], error?: string): boolean {
         let all_succeeded = true;
         for (const child of this.children) {
             if (!child.handleTestCaseResult(classname, name, test_run, failure, error)) {
