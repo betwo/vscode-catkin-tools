@@ -30,7 +30,8 @@ export async function updateTestsFromExecutable(
     try {
       // try to extract test names, if the target is compiled
       const cmd = await pkg.workspace.makeCommand(`${build_target.exec_path} --gtest_list_tests`);
-      const output = await runShellCommand(cmd, pkg.current_build_space);
+      const environment = await pkg.workspace.getRuntimeEnvironment();
+      const output = await runShellCommand(cmd, environment, pkg.current_build_space);
 
       const parsed_executable = parseGTestBinaryOutput(output.stdout, build_target);
 

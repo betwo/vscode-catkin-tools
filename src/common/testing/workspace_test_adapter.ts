@@ -516,16 +516,24 @@ export class WorkspaceTestAdapter {
             return new WorkspaceTestReport(true);
         }
 
-        const working_dir = await this.workspace.getBuildDir();
-        const test_environment = await this.getRuntimeEnvironment();
-
         try {
+            const working_dir = await this.workspace.getBuildDir();
+            const test_environment = await this.workspace.getRuntimeEnvironment();
+
             let runner: WorkspaceTestHandler = this.createTestRunHandler(tests_to_run);
             return await runner.run(test_run, token, this.diagnostics, test_environment, working_dir);
 
         } catch (error) {
-            logger.error("Failed to run test:", error);
-            logger.error(error.stack);
+            test_run.appendOutput('Test handler did not handle error:\r\n');
+            test_run.appendOutput(`${error.message} \r\n`);
+            test_run.appendOutput(error.stack);
+            let message: vscode.TestMessage[] = [
+                `Test handler did not handle error:`,
+                error.message,
+            ];
+            for (let test of tests_to_run) {
+                test_run.errored(test.item(), message);
+            }
             return new WorkspaceTestReport(false);
 
         } finally {
@@ -568,7 +576,7 @@ export class WorkspaceTestAdapter {
             } else {
                 // start the debugging session
                 let environment_variables = [];
-                for (const [k, v] of await this.getRuntimeEnvironment()) {
+                for (const [k, v] of await this.workspace.getRuntimeEnvironment()) {
                     environment_variables.push({
                         name: k,
                         value: v
@@ -596,23 +604,6 @@ export class WorkspaceTestAdapter {
         } else {
             return filter;
         }
-    }
-
-    private async getRuntimeEnvironment(): Promise<[string, string][]> {
-        let environment: [string, string][] = [];
-        let env_command = await this.workspace.makeCommand(`env`);
-        try {
-            let env_output = await runShellCommand(env_command, await this.workspace.getRootPath());
-            environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
-                let [name, value] = env_entry.split("=");
-                return [name, value];
-            });
-        } catch (error) {
-            logger.error(error.stderr);
-            throw Error(`Cannot determine environment: ${error.stderr}`);
-        }
-
-        return environment;
     }
 
     public cancel(): void {

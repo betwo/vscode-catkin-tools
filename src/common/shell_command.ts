@@ -22,34 +22,28 @@ export function getShellExtension(): string {
     return getExtensionConfiguration('shell');
 }
 
-export function getShellArgs(shell: string): string {
-    return (shell === 'bash' || shell === 'sh') ? "--norc" : "";
+export function getShellArgs(shell: string): string[] {
+    return (shell === 'bash' || shell === 'sh') ? ["--norc"] : [];
 }
 
-export function runShellCommand(command: string, cwd: fs.PathLike, callback?: (process: child_process.ChildProcess) => any): Thenable<ShellOutput> {
+export function runShellCommand(
+    command: string,
+    environment: [string, string][],
+    cwd: fs.PathLike,
+    callback?: (process: child_process.ChildProcess) => any,
+    out?: (lines: string) => void,
+    error?: (lines: string) => void
+): Thenable<ShellOutput> {
     let options: child_process.ExecOptions = {
         cwd: cwd.toString(),
         maxBuffer: 1024 * 1024
     };
     const shell = getShell();
-    const shell_args = getShellArgs(shell);
+    const shell_args = getShellArgs(shell).concat(["-c", command]);
 
-    return new Promise<ShellOutput>((resolve, reject) => {
-        let shell_command = `${shell} ${shell_args} -c '${command}'`;
-        logger.debug(`Running ${shell} command ${shell_command}`);
-        let process = child_process.exec(shell_command, options, (error, stdout, stderr) => {
-            const result = new ShellOutput(stdout, stderr, shell_command);
-            if (error !== null) {
-                result.error = error;
-                reject(result);
-            } else {
-                resolve(result);
-            }
-        });
-        if (callback) {
-            callback(process);
-        }
-    });
+    const additional_env_vars: [string, string][] = [];
+
+    return runCommand(shell, shell_args, environment, cwd, additional_env_vars, callback, out, error);
 }
 
 export function runCommand(

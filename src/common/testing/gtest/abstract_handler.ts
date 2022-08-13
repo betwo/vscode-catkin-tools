@@ -21,6 +21,7 @@ import * as treekill from 'tree-kill';
 import { Package } from '../../package';
 import { WorkspaceTestAdapter } from '../workspace_test_adapter';
 import { logger } from '../../logging';
+import { getExtensionConfiguration } from '../../configuration';
 
 
 
@@ -256,12 +257,32 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
         cwd: fs.PathLike
     ): Promise<WorkspaceTestRunReport> {
         try {
-            test_run.appendOutput("Building tests");
-            test_run.appendOutput(commands.setup_shell_code);
-            let build_output = await this.runShellCommand(commands.setup_shell_code, test_run, token, cwd);
-
-            build_output.stdout.split("\n").forEach(line => test_run.appendOutput(`${line}\r\n`));
-            build_output.stderr.split("\n").forEach(line => test_run.appendOutput(`${line}\r\n`));
+            const show_build_output_in_tests = getExtensionConfiguration('testCompileOutputEnabled', false);
+            test_run.appendOutput("Building tests:\r\n");
+            if (show_build_output_in_tests) {
+                test_run.appendOutput("Shell setup:\r\n");
+                test_run.appendOutput(commands.setup_shell_code);
+            } else {
+                test_run.appendOutput(" (enable show_build_output_in_tests to see the output):\r\n");
+            }
+            let outCallback = undefined;
+            let errCallback = undefined;
+            if (show_build_output_in_tests) {
+                outCallback = (out) => {
+                    out.split("\n").forEach(line => test_run.appendOutput(`${line}\r\n`));
+                };
+                errCallback = (err) => {
+                    err.split("\n").forEach(line => test_run.appendOutput(`${line}\r\n`));
+                };
+            }
+            await this.runShellCommand(
+                commands.setup_shell_code,
+                test_run,
+                token,
+                cwd,
+                outCallback,
+                errCallback
+            );
 
             return new WorkspaceTestRunReport(WorkspaceTestRunReportKind.TestSucceeded);
 
@@ -316,18 +337,25 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
     private async runShellCommand(command: string,
         test_run: vscode.TestRun,
         token: vscode.CancellationToken,
-        cwd: fs.PathLike
+        cwd: fs.PathLike,
+        out?: (lines: string) => void,
+        error?: (lines: string) => void
     ): Promise<ShellOutput> {
 
-        let output_promise = runShellCommand(command, cwd, (process) => {
-            this.active_process = process;
+        const environment: [string, string][] = await this.workspace.getRuntimeEnvironment();
+        let output_promise = runShellCommand(command,
+            environment,
+            cwd,
+            (process) => {
+                this.active_process = process;
 
-            if (token !== undefined) {
-                token.onCancellationRequested(() => {
-                    treekill(this.active_process.pid);
-                });
-            }
-        });
+                if (token !== undefined) {
+                    token.onCancellationRequested(() => {
+                        treekill(this.active_process.pid);
+                    });
+                }
+            },
+            out, error);
         const output = await output_promise;
         this.active_process = undefined;
         return output;

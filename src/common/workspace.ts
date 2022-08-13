@@ -13,6 +13,7 @@ import { getExtensionConfiguration } from './configuration';
 import { WorkspaceProvider, IWorkspace, WorkspaceTestInterface, WorkspaceTestReport, IPackage } from 'vscode-catkin-tools-api';
 import { api } from '../extension';
 import { logger } from './logging';
+import { runShellCommand } from './shell_command';
 
 export class Workspace implements IWorkspace {
   public compile_commands: Map<string, JSON> = new Map<string, JSON>();
@@ -620,6 +621,23 @@ export class Workspace implements IWorkspace {
     }
     const devel_dir = await this.workspace_provider.getDevelDir();
     return devel_dir + `/setup.${shell_type}`;
+  }
+
+  public async getRuntimeEnvironment(): Promise<[string, string][]> {
+    let environment: [string, string][] = [];
+    let env_command = await this.makeCommand(`env`);
+    try {
+      let env_output = await runShellCommand(env_command, environment, await this.getRootPath());
+      environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
+        let [name, value] = env_entry.split("=");
+        return [name, value];
+      });
+    } catch (error) {
+      logger.error(error.stderr);
+      throw Error(`Cannot determine environment: ${error.stderr}`);
+    }
+
+    return environment;
   }
 
   private startWatchingPackageBuildDir(file: string) {

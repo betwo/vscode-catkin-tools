@@ -68,7 +68,7 @@ async function queryCMakeFileApiCodeModel(workspace_package: IPackage): Promise<
         const query_file = path.join(query_dir, "query.json");
         await fs.promises.writeFile(query_file, query_txt);
         const source_command = workspace_package.workspace.workspace_provider.makeRosSourcecommand();
-        const output = await runShellCommand(source_command + " && cmake .", build_space);
+        const output = await runShellCommand(source_command + " && cmake .", [], build_space);
         logger.debug("CMake Query result:");
         logger.debug(output.stdout);
     } catch (error) {
@@ -127,9 +127,9 @@ async function queryCMakeFileApiCodeModel(workspace_package: IPackage): Promise<
 
 function traceLineNumber(target: any) {
     let bottom_most_cmake_lists_index: number;
-    for(const i in target.backtraceGraph.files) {
+    for (const i in target.backtraceGraph.files) {
         const file = target.backtraceGraph.files[i];
-        if(file.endsWith("CMakeLists.txt")) {
+        if (file.endsWith("CMakeLists.txt")) {
             bottom_most_cmake_lists_index = parseInt(i);
             break;
         }
