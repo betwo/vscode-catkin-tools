@@ -462,7 +462,7 @@ export class WorkspaceTestAdapter {
             });
 
             if (request.include !== undefined) {
-                this.output_channel.appendLine(`Running test(s): ${request.include.join(', ')}`);
+                this.output_channel.appendLine(`Running test(s): ${request.include.map(item => item?.label).join(', ')}`);
             } else {
                 this.output_channel.appendLine(`Running all tests`);
             }
@@ -577,7 +577,7 @@ export class WorkspaceTestAdapter {
                 for (const [k, v] of await this.workspace.getRuntimeEnvironment()) {
                     environment_variables.push({
                         name: k,
-                        value: v
+                        value: this.escapeDollarSigns(v)
                     });
                 }
 
@@ -586,6 +586,13 @@ export class WorkspaceTestAdapter {
         }
     }
 
+    private escapeDollarSigns(v: string) {
+        if (v.indexOf("$") >= 0) {
+            return v.replace(/\$/g, "");
+        } else {
+            return v;
+        }
+    }
 
     public getTestInstance(id: string): WorkspaceTestInstance | undefined {
         return this.id_to_test.get(id);
