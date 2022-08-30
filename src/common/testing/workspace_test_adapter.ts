@@ -11,13 +11,11 @@ import {
 } from 'vscode-catkin-tools-api';
 import * as fs from 'fs';
 import { Workspace } from '../workspace';
-import { runShellCommand } from '../shell_command';
 import { TestHandlerCollection } from "./test_handler_collection";
 import { TestHandlerComposite } from "./test_handler_composite";
 import * as treekill from 'tree-kill';
 import { InternalAPI } from '../../internal_api';
 import { logger } from '../logging';
-import { TestHandlerCatkinPackage } from './test_handler_catkin_package';
 
 export class NullCancellationToken implements vscode.CancellationToken {
     isCancellationRequested = false;
@@ -177,8 +175,8 @@ export class WorkspaceTestAdapter {
     }
 
     public async reloadTestItem(test_item: vscode.TestItem): Promise<boolean> {
-        const test = this.getTestForItem(test_item);
-        await this.loadPackageTests(test.package, false);
+        const handler = this.getTestHandlerForItem(test_item);
+        await handler.reload();
         return true;
     }
 
@@ -286,16 +284,6 @@ export class WorkspaceTestAdapter {
         }
 
         try {
-            const changed_tests = await workspace_package.loadTests(build_dir, devel_dir, !outline_only);
-
-            for (let changed_test of changed_tests) {
-                for (let [item, handler] of this.item_to_test_runner) {
-                    if (handler.test() === changed_test) {
-                        await handler.reload();
-                    }
-                }
-            }
-
             if (this.workspace_test_interface === undefined) {
                 const root_test_id = await this.workspace.getName();
                 this.workspace_test_interface = {
@@ -318,6 +306,16 @@ export class WorkspaceTestAdapter {
 
                 this.registerTestHandler(undefined, this.workspace_test_handler, workspace_test_instance);
                 workspace_package.workspace.onTestsSetChanged.fire(true);
+            }
+
+            const changed_tests = await workspace_package.loadTests(build_dir, devel_dir, !outline_only);
+
+            for (let changed_test of changed_tests) {
+                for (let [item, handler] of this.item_to_test_runner) {
+                    if (handler.test() === changed_test) {
+                        await handler.reload();
+                    }
+                }
             }
 
         } catch (error) {

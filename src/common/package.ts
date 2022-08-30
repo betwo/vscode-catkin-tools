@@ -14,7 +14,6 @@ import { getCTestTargets as getCTestTargetExecutables } from './testing/ctest_qu
 import { updateTestsFromExecutable } from './testing/gtest/test_binary_parser';
 import { logger } from '../common/logging';
 import { TestHandlerCatkinPackage } from './testing/test_handler_catkin_package';
-import { WorkspaceTestAdapter } from './testing/workspace_test_adapter';
 
 export class Package implements IPackage {
   public current_build_dir?: fs.PathLike;
@@ -196,16 +195,21 @@ export class Package implements IPackage {
       throw Error("No tests in package");
     }
 
+    let changed_tests: WorkspaceTestInterface[] = [];
+
     // find gtest build targets
     let test_build_targets: IBuildTarget[] = await getCTestTargetExecutables(build_dir, this.name, query_for_cases);
     this.updatePackageImpl(test_build_targets);
-
-    // generate a list of all tests in this target
-    let changed_executables: WorkspaceTestInterface[] = [];
-    await this.updateTestExecutableFromSource(query_for_cases, false, false);
     for (let build_target of test_build_targets) {
       const changed = await updateTestsFromExecutable(build_target, this, query_for_cases);
-      changed_executables = changed_executables.concat(changed);
+      changed_tests = changed_tests.concat(changed);
+    }
+
+    // generate a list of all tests in this target
+    let source_tests = await this.updateTestExecutableFromSource(query_for_cases, false, false);
+    logger.info(source_tests);
+    if (!query_for_cases) {
+      changed_tests = changed_tests.concat(source_tests);
     }
 
     if (query_for_cases) {
@@ -223,11 +227,11 @@ export class Package implements IPackage {
       );
     }
     await this.test_instance.handler?.updateTestItem();
-    if (changed_executables.length > 0) {
+    if (changed_tests.length > 0) {
       this.onTestSuiteModified.fire();
     }
 
-    return changed_executables;
+    return changed_tests;
   }
 
   public async updateTestExecutableFromSource(query_for_cases: boolean,
@@ -239,9 +243,9 @@ export class Package implements IPackage {
       try {
         const parsed_test_executables = await parsePackageForTests(this);
         for (const parsed_executable of parsed_test_executables) {
-          let [test_exec, exec_was_changed] = await this.updateTestExecutable(parsed_executable, only_update_existing, is_partial_update);
+          let [test_ifc, exec_was_changed] = await this.updateTestExecutable(parsed_executable, only_update_existing, is_partial_update);
           if (exec_was_changed) {
-            changed_tests.push(test_exec);
+            changed_tests.push(test_ifc);
           }
         }
       } catch (err) {

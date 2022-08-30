@@ -52,6 +52,9 @@ export class TestHandlerComposite implements WorkspaceTestHandler {
     }
 
     async reload(): Promise<void> {
+        for(let child of this.children) {
+            await child.reload();
+        }
         return;
     }
 
@@ -64,7 +67,7 @@ export class TestHandlerComposite implements WorkspaceTestHandler {
     }
 
     item(): vscode.TestItem {
-        return this.test_instance.item;
+        return this.test_instance?.item;
     }
 
     async enqueue(test_run: vscode.TestRun): Promise<void> {
