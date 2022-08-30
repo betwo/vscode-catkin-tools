@@ -2,6 +2,7 @@ import * as glob from 'fast-glob';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as jsonfile from 'jsonfile';
+import * as vscode from 'vscode';
 
 import { ITestParser, WorkspaceTestInterface, WorkspaceTestIdentifierTemplate, IPackage } from 'vscode-catkin-tools-api';
 
@@ -82,6 +83,24 @@ async function queryCMakeFileApiCodeModel(workspace_package: IPackage): Promise<
     }
 
     const reply_dir = path.join(api_dir, "reply");
+
+    if(!fs.existsSync(reply_dir)) {
+        const output: ShellOutput | Error = await runShellCommand("cmake --version", [], build_space);
+        if(output instanceof ShellOutput) {
+            const lines = output.stdout.split("\n");
+            const version = /cmake version (\d+).(\d+).(\d+)/.exec(lines[0]);
+            if(parseInt(version[1]) >= 3 && parseInt(version[2]) >= 14  && parseInt(version[3]) >= 0) {
+                logger.fatal("CMake version is new enough, but still did not provide API results...");
+            } else {
+                logger.error("CMake version is too old.");
+                vscode.window.showErrorMessage(`Test enumeration with cmake version ${version[1]}.${version[2]}.${version[3]} is not supported. Please update to >= 3.14.0!`);
+                return undefined;
+            }
+        }
+        logger.error("CMake File API did not reply, cannot determine binary information");
+        return;
+    }
+
     const files = await fs.promises.readdir(reply_dir);
 
     let test_regexes: RegExp[] = [];
