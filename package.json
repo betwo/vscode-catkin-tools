@@ -110,6 +110,11 @@
             "type": "boolean",
             "default": false,
             "description": "If true, parse recursive package dependencies for header file resolution (experimental)."
+          },
+          "catkin_tools.colconSupportEnabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, try to use colcon as build backend if possible (experimental)."
           }
         }
       }

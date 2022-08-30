@@ -52,6 +52,8 @@ This way, arbitrary catkin profiles are supported.
 
 Note: colcon support is rudimentary and needs some setup:
 For a colcon workspace, we expected a `colcon.meta` file to exist in the workspace `src` directory.
+Then, set the option `colconSupportEnabled` to `true` to enable colcon support.
+(Colcon can also build pure catkin workspaces, which is why for now we have this feature toggle.)
 
 ### CMAKE_EXPORT_COMPILE_COMMANDS
 
