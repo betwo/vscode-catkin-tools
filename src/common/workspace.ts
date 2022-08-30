@@ -56,9 +56,6 @@ export class Workspace implements IWorkspace {
       title: `Loading ${this.workspace_provider.getWorkspaceType()} workspace '${await this.getName()}'`,
       cancellable: false
     }, async (progress, token) => {
-      this.workspace_provider.reload();
-
-      this.output_channel.appendLine(`Reload ${await this.getName()}`);
 
       progress.report({ increment: 0, message: "Clearing caches" });
 
@@ -74,7 +71,31 @@ export class Workspace implements IWorkspace {
 
       this.packages.clear();
 
+      progress.report({ increment: 0, message: "Initializing workspace" });
+
+      if (!await this.workspace_provider.isInitialized()) {
+        const ignore = {
+          title: "Abort"
+        };
+        const init = {
+          title: "Initialize workspace with default ros version"
+        };
+        let result = await vscode.window.showWarningMessage(
+          `This workspace is not initialized.`,
+          {},
+          ignore, init);
+        if (result === ignore) {
+          return;
+        } else if (result === init) {
+          this.workspace_provider.initialize([await this.workspace_provider.getDefaultRosWorkspace()]);
+        }
+      }
+
+      this.workspace_provider.reload();
+
       this.build_commands_changed.dispatch();
+
+      this.output_channel.appendLine(`Reload ${await this.getName()}`);
 
       try {
         await this.loadAndWatchCompileCommands();
@@ -627,8 +648,8 @@ export class Workspace implements IWorkspace {
     let environment: [string, string][] = [];
     let env_command = await this.makeCommand(`env`);
     const env_output: ShellOutput | Error = await runShellCommand(env_command, environment, await this.getRootPath());
-    if(env_output instanceof Error) {
-      if(env_output instanceof MissingExecutableError) {
+    if (env_output instanceof Error) {
+      if (env_output instanceof MissingExecutableError) {
         throw Error(`Cannot determine environment, shell cannot be created: ${env_output.executable}`);
       } else {
         throw Error(`Cannot determine environment: ${env_output.message}`);

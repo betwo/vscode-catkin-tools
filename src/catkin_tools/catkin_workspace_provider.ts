@@ -216,8 +216,8 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
         return await this.enableCompileCommandsGeneration();
     }
     async isInitialized(): Promise<boolean> {
-        const root = await this.getRootPath();
-        return fs.existsSync(`${root}/.catkin_tools`);
+        const extended_workspace = await this.getConfigEntry("Extending");
+        return extended_workspace !== undefined && extended_workspace !== "None";
     }
 
     public async checkProfile() {
