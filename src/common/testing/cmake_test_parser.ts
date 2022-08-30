@@ -6,7 +6,7 @@ import * as jsonfile from 'jsonfile';
 import { ITestParser, WorkspaceTestInterface, WorkspaceTestIdentifierTemplate, IPackage } from 'vscode-catkin-tools-api';
 
 import { Package } from "../package";
-import { runShellCommand } from '../shell_command';
+import { runShellCommand, ShellOutput } from '../shell_command';
 import { getExtensionConfiguration } from '../configuration';
 import { TestParserGTest } from './gtest/test_source_parser';
 import { logger } from '../logging';
@@ -68,9 +68,14 @@ async function queryCMakeFileApiCodeModel(workspace_package: IPackage): Promise<
         const query_file = path.join(query_dir, "query.json");
         await fs.promises.writeFile(query_file, query_txt);
         const source_command = workspace_package.workspace.workspace_provider.makeRosSourcecommand();
-        const output = await runShellCommand(source_command + " && cmake .", [], build_space);
-        logger.debug("CMake Query result:");
-        logger.debug(output.stdout);
+        const output: ShellOutput | Error = await runShellCommand(source_command + " && cmake .", [], build_space);
+        if (output instanceof Error) {
+            logger.error(output);
+            return undefined;
+        } else {
+            logger.debug("CMake Query result:");
+            logger.debug(output.stdout);
+        }
     } catch (error) {
         logger.error(error);
         return undefined;

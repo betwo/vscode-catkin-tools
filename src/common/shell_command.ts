@@ -3,6 +3,7 @@ import { assert } from 'console';
 import * as fs from 'fs';
 import { getExtensionConfiguration } from './configuration';
 import { logger } from './logging';
+import * as vscode from 'vscode';
 
 export class ShellOutput {
     constructor(
@@ -13,6 +14,15 @@ export class ShellOutput {
     ) {
     }
 }
+export class MissingExecutableError extends Error {
+    constructor(public executable: string) {
+        super(executable);
+
+        // Set the prototype explicitly.
+        Object.setPrototypeOf(this, MissingExecutableError.prototype);
+    }
+}
+
 
 export function getShell(): string {
     return getExtensionConfiguration('shell');
@@ -26,27 +36,33 @@ export function getShellArgs(shell: string): string[] {
     return (shell === 'bash' || shell === 'sh') ? ["--norc"] : [];
 }
 
-export function runShellCommand(
+export async function runShellCommand(
     command: string,
     environment: [string, string][],
     cwd: fs.PathLike,
     callback?: (process: child_process.ChildProcess) => any,
     out?: (lines: string) => void,
     error?: (lines: string) => void
-): Thenable<ShellOutput> {
-    let options: child_process.ExecOptions = {
-        cwd: cwd.toString(),
-        maxBuffer: 1024 * 1024
-    };
+): Promise<ShellOutput | Error> {
     const shell = getShell();
     const shell_args = getShellArgs(shell).concat(["-c", command]);
-
     const additional_env_vars: [string, string][] = [];
 
-    return runCommand(shell, shell_args, environment, cwd, additional_env_vars, callback, out, error);
+    try {
+        return await runCommand(shell, shell_args, environment, cwd, additional_env_vars, callback, out, error);
+
+    } catch (error) {
+        logger.error(`Failed to run command with shell '${shell}'`);
+        logger.error(error);
+        if (error?.error?.code === "ENOENT") {
+            vscode.window.showErrorMessage(`Cannot create shell of type '${shell}'. Please change configuration or install the shell.`);
+            return new MissingExecutableError(shell);
+        }
+        return error;
+    }
 }
 
-export function runCommand(
+export async function runCommand(
     command: string,
     args: string[],
     environment: [string, string][],
@@ -55,7 +71,7 @@ export function runCommand(
     callback?: (process: child_process.ChildProcess) => any,
     out?: (lines: string) => void,
     error?: (lines: string) => void
-): Thenable<ShellOutput> {
+): Promise<ShellOutput> {
     return new Promise<ShellOutput>((resolve, reject) => {
         let full_command = `${command} ${args.join(" ")}`;
 

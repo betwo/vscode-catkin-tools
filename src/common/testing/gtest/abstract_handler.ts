@@ -340,7 +340,7 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
         cwd: fs.PathLike,
         out?: (lines: string) => void,
         error?: (lines: string) => void
-    ): Promise<ShellOutput> {
+    ): Promise<ShellOutput | Error> {
 
         const environment: [string, string][] = await this.workspace.getRuntimeEnvironment();
         let output_promise = runShellCommand(command,

@@ -3,7 +3,7 @@ import * as path from 'path';
 import { IBuildTarget, WorkspaceTestInterface, WorkspaceTestIdentifierTemplate, WorkspaceTestParameters, WorkspaceFixtureParameters } from "vscode-catkin-tools-api";
 import { logger } from '../../logging';
 import { Package } from '../../package';
-import { runShellCommand } from '../../shell_command';
+import { runShellCommand, ShellOutput } from '../../shell_command';
 
 export async function updateTestsFromExecutable(
   build_target: IBuildTarget,
@@ -27,24 +27,22 @@ export async function updateTestsFromExecutable(
   }
 
   if (query_for_cases) {
-    try {
-      // try to extract test names, if the target is compiled
-      const cmd = await pkg.workspace.makeCommand(`${build_target.exec_path} --gtest_list_tests`);
-      const environment = await pkg.workspace.getRuntimeEnvironment();
-      const output = await runShellCommand(cmd, environment, pkg.current_build_space);
-
-      const parsed_executable = parseGTestBinaryOutput(output.stdout, build_target);
-
-      pkg.updateTestExecutable(parsed_executable, true, true);
-
-    } catch (err) {
+    // try to extract test names, if the target is compiled
+    const cmd = await pkg.workspace.makeCommand(`${build_target.exec_path} --gtest_list_tests`);
+    const environment = await pkg.workspace.getRuntimeEnvironment();
+    const output: ShellOutput | Error = await runShellCommand(cmd, environment, pkg.current_build_space);
+    if (output instanceof Error) {
       // if the target is not compiled, do not add filters
-      if (err.error !== undefined) {
-        logger.error(`Cannot determine ${build_target.exec_path}'s tests: ${err.error.message}`);
+      if (output.message !== undefined) {
+        logger.error(`Cannot determine ${build_target.exec_path}'s tests: ${output.message}`);
       } else {
-        logger.error(`Cannot determine ${build_target.exec_path}'s tests: ${err}`);
+        logger.error(`Cannot determine ${build_target.exec_path}'s tests: ${output}`);
       }
+    } else {
+      const parsed_executable = parseGTestBinaryOutput(output.stdout, build_target);
+      pkg.updateTestExecutable(parsed_executable, true, true);
     }
+
   }
   return changed_tests;
 }

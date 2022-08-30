@@ -13,7 +13,7 @@ import { getExtensionConfiguration } from './configuration';
 import { WorkspaceProvider, IWorkspace, WorkspaceTestInterface, WorkspaceTestReport, IPackage } from 'vscode-catkin-tools-api';
 import { api } from '../extension';
 import { logger } from './logging';
-import { runShellCommand } from './shell_command';
+import { MissingExecutableError, runShellCommand, ShellOutput } from './shell_command';
 
 export class Workspace implements IWorkspace {
   public compile_commands: Map<string, JSON> = new Map<string, JSON>();
@@ -626,16 +626,18 @@ export class Workspace implements IWorkspace {
   public async getRuntimeEnvironment(): Promise<[string, string][]> {
     let environment: [string, string][] = [];
     let env_command = await this.makeCommand(`env`);
-    try {
-      let env_output = await runShellCommand(env_command, environment, await this.getRootPath());
-      environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
-        let [name, value] = env_entry.split("=");
-        return [name, value];
-      });
-    } catch (error) {
-      logger.error(error.stderr);
-      throw Error(`Cannot determine environment: ${error.stderr}`);
+    const env_output: ShellOutput | Error = await runShellCommand(env_command, environment, await this.getRootPath());
+    if(env_output instanceof Error) {
+      if(env_output instanceof MissingExecutableError) {
+        throw Error(`Cannot determine environment, shell cannot be created: ${env_output.executable}`);
+      } else {
+        throw Error(`Cannot determine environment: ${env_output.message}`);
+      }
     }
+    environment = env_output.stdout.split("\n").filter((v) => v.indexOf("=") > 0).map((env_entry) => {
+      let [name, value] = env_entry.split("=");
+      return [name, value];
+    });
 
     return environment;
   }
