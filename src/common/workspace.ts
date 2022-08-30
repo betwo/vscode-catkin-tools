@@ -74,21 +74,30 @@ export class Workspace implements IWorkspace {
       progress.report({ increment: 0, message: "Initializing workspace" });
 
       if (!await this.workspace_provider.isInitialized()) {
+        logger.info("Workspace is not initialized");
         const ignore = {
           title: "Abort"
         };
         const init = {
           title: "Initialize workspace with default ros version"
         };
-        let result = await vscode.window.showWarningMessage(
-          `This workspace is not initialized.`,
-          {},
-          ignore, init);
+        let result;
+        if (isAutomaticMode()) {
+          result = init;
+        } else {
+          result = await vscode.window.showWarningMessage(
+            `This workspace is not initialized.`,
+            {},
+            ignore, init);
+        }
+
         if (result === ignore) {
           return;
         } else if (result === init) {
           this.workspace_provider.initialize([await this.workspace_provider.getDefaultRosWorkspace()]);
         }
+      } else {
+        logger.info("Workspace is initialized");
       }
 
       this.workspace_provider.reload();
@@ -714,5 +723,10 @@ export class Workspace implements IWorkspace {
   public async runTest(id: string, test_run: vscode.TestRun): Promise<WorkspaceTestReport> {
     return this.test_adapter.runTestWithId(id, test_run);
   }
+}
+
+function isAutomaticMode() {
+  const mode = process.env["test_mode"];
+  return mode !== undefined && mode === "headless";
 }
 

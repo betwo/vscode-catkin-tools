@@ -27,6 +27,9 @@ export async function run_integration_tests() {
                 // This disables all extensions except the one being tested
                 // '--disable-extensions'
             ],
+            extensionTestsEnv: {
+                test_mode: "headless"
+            }
         });
     } catch (err) {
         logger.error('Failed to run integration tests');

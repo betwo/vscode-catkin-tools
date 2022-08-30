@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { logger } from './logging';
 
 
 let status_bar_status: vscode.StatusBarItem = undefined;
@@ -35,6 +36,7 @@ function getProfileWidget(): vscode.StatusBarItem {
 export function setStatusText(text: String) {
     let status = getStatusWidget();
     status.text = status_bar_prefix + text;
+    logger.info(status.text);
 }
 
 export function setProfileText(text: String) {

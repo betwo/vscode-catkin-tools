@@ -12,6 +12,7 @@ import * as colcon_workspace from "./colcon/colcon_workspace";
 import { ColconWorkspaceProvider } from './colcon/colcon_workspace_provider';
 import { WorkspaceTestAdapter } from './common/testing/workspace_test_adapter';
 import { api } from './extension';
+import { logger } from './common/logging';
 
 
 export class WorkspaceManager implements IWorkspaceManager {
@@ -40,8 +41,10 @@ export class WorkspaceManager implements IWorkspaceManager {
   }
 
   public async registerWorkspace(context: vscode.ExtensionContext, root: vscode.WorkspaceFolder, output_channel: vscode.OutputChannel) {
+    logger.info(`Checking if workspace ${root.uri.fsPath} should be registered`);
     const is_catkin_tools = await catkin_tools_workspace.isCatkinWorkspace(root);
     const is_colcon = await colcon_workspace.isColconWorkspace(root);
+    logger.info(`${root.uri.fsPath}: catkin: ${is_catkin_tools}, colcon: ${is_colcon}`);
     if (is_catkin_tools || is_colcon) {
       if (this.cpp_tools_configuration_provider === undefined) {
         // Inform cpptools that a custom config provider will be able to service
@@ -64,10 +67,13 @@ export class WorkspaceManager implements IWorkspaceManager {
         } else {
           workspace = await this.initializeColconWorkspace(context, root, output_channel);
         }
-        output_channel.appendLine(`Adding new workspace ${root.uri.fsPath}`);
 
         if (workspace !== undefined) {
+          output_channel.appendLine(`Adding new workspace ${root.uri.fsPath}`);
+          logger.info(`Adding new workspace ${root.uri.fsPath}`);
+
           workspace.onWorkspaceInitialized.event((initialized) => {
+            logger.info(`workspace ${root.uri.fsPath} triggered onWorkspaceInitialized`);
             if (this.cpp_tools_configuration_provider) {
               this.cpp_tools_configuration_provider.addWorkspace(root, workspace);
               this.cpp_tools_api.notifyReady(this.cpp_tools_configuration_provider);
@@ -92,15 +98,18 @@ export class WorkspaceManager implements IWorkspaceManager {
           workspace.onTestsSetChanged.event((changed) => {
             this.onWorkspacesChanged.fire();
           });
+          setStatusText(`reloading workspace ${await workspace.getName()}`);
           await workspace.reload();
           setStatusText(`workspace ${await workspace.getName()} initialized`);
         }
 
       } else {
         output_channel.appendLine(`Reusing workspace ${await workspace.getRootPath()} for folder ${root.uri.fsPath}`);
+        logger.info(`Reusing workspace ${await workspace.getRootPath()} for folder ${root.uri.fsPath}`);
       }
     } else {
       output_channel.appendLine(`Folder ${root.uri.fsPath} is not a catkin workspace.`);
+      logger.info(`Folder ${root.uri.fsPath} is not a catkin workspace.`);
     }
   }
 
