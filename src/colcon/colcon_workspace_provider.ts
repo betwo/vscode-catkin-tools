@@ -51,7 +51,7 @@ export class ColconWorkspaceProvider implements WorkspaceProvider {
         return this.workspace_install_dir;
     }
     async getDefaultRosWorkspace(): Promise<string> {
-        const default_search_paths = getExtensionConfiguration('defaultRosWorkspaces');
+        const default_search_paths = getExtensionConfiguration<string>('defaultRosWorkspaces');
         if (default_search_paths.length !== 0) {
             for (const candidate of default_search_paths) {
                 if (fs.existsSync(candidate)) {
@@ -149,7 +149,7 @@ export class ColconWorkspaceProvider implements WorkspaceProvider {
         return source_script;
     }
 
-    async enableCompileCommandsGeneration() : Promise<boolean> {
+    async enableCompileCommandsGeneration(): Promise<boolean> {
         const cmake_opts = await this.getConfigEntry("Additional CMake Args");
         runColconCommand(['config', '--cmake-args', `${cmake_opts} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`], await this.getRootPath());
         this.loadColconConfig();

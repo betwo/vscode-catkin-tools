@@ -16,7 +16,7 @@ export let test_parsers: ITestParser[] = [new TestParserGTest()];
 
 export async function skimCmakeListsForTests(workspace_package: Package): Promise<boolean> {
     let test_regexes: RegExp[] = [];
-    for (let expr of getExtensionConfiguration('gtestMacroRegex')) {
+    for (let expr of getExtensionConfiguration<string[]>('gtestMacroRegex')) {
         test_regexes.push(new RegExp(`.*(${expr})`));
     }
 
@@ -41,7 +41,7 @@ export async function parsePackageForTests(workspace_package: IPackage): Promise
 
 async function* iterateTestTargets(cmake_file: fs.PathLike) {
     let test_regexes: RegExp[] = [];
-    for (let expr of getExtensionConfiguration('gtestMacroRegex')) {
+    for (let expr of getExtensionConfiguration<string[]>('gtestMacroRegex')) {
         test_regexes.push(new RegExp(`.*(${expr})`));
     }
 
@@ -84,12 +84,12 @@ async function queryCMakeFileApiCodeModel(workspace_package: IPackage): Promise<
 
     const reply_dir = path.join(api_dir, "reply");
 
-    if(!fs.existsSync(reply_dir)) {
+    if (!fs.existsSync(reply_dir)) {
         const output: ShellOutput | Error = await runShellCommand("cmake --version", [], build_space);
-        if(output instanceof ShellOutput) {
+        if (output instanceof ShellOutput) {
             const lines = output.stdout.split("\n");
             const version = /cmake version (\d+).(\d+).(\d+)/.exec(lines[0]);
-            if(parseInt(version[1]) >= 3 && parseInt(version[2]) >= 14  && parseInt(version[3]) >= 0) {
+            if (parseInt(version[1]) >= 3 && parseInt(version[2]) >= 14 && parseInt(version[3]) >= 0) {
                 logger.fatal("CMake version is new enough, but still did not provide API results...");
             } else {
                 logger.error("CMake version is too old.");
@@ -104,7 +104,7 @@ async function queryCMakeFileApiCodeModel(workspace_package: IPackage): Promise<
     const files = await fs.promises.readdir(reply_dir);
 
     let test_regexes: RegExp[] = [];
-    for (let expr of getExtensionConfiguration('gtestMacroRegex')) {
+    for (let expr of getExtensionConfiguration<string[]>('gtestMacroRegex')) {
         test_regexes.push(new RegExp(`.*(${expr})`));
     }
 

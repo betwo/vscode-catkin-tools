@@ -79,7 +79,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
     }
 
     async getDefaultRosWorkspace(): Promise<string> {
-        const default_search_paths = getExtensionConfiguration('defaultRosWorkspaces');
+        const default_search_paths = getExtensionConfiguration<string>('defaultRosWorkspaces');
         if (default_search_paths.length !== 0) {
             for (const candidate of default_search_paths) {
                 if (fs.existsSync(candidate)) {
