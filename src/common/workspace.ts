@@ -669,6 +669,14 @@ export class Workspace implements IWorkspace {
       return [name, value];
     });
 
+    for (let e of getExtensionConfiguration<string[]>('additionalEnvironmentVariables')) {
+      const parts = e.split("=", 2);
+      if (parts.length === 2) {
+        const [name, value] = parts;
+        environment.push([name, value]);
+      }
+    }
+
     return environment;
   }
 

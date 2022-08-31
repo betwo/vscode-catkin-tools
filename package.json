@@ -115,6 +115,11 @@
             "type": "boolean",
             "default": false,
             "description": "If true, try to use colcon as build backend if possible (experimental)."
+          },
+          "catkin_tools.additionalEnvironmentVariables": {
+            "type": "array",
+            "default": [],
+            "description": "Environment varibles that are injected before running catkin commands. Must be of the form 'KEY=VALUE'"
           }
         }
       }
