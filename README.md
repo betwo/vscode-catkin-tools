@@ -1,7 +1,7 @@
 # catkin-tools support for VS Code
 
-[![Licence](https://img.shields.io/github/license/betwo/vscode-catkin-tools.svg)](https://github.com/betwo/vscode-catkin-tools)
-[![VS Code Marketplace](https://vsmarketplacebadges.dev/version-short/betwo.b2-catkin-tools.svg) ![Rating](https://vsmarketplacebadges.dev/rating-short/betwo.b2-catkin-tools.svg) ![Downloads](https://vsmarketplacebadges.dev/downloads-short/betwo.b2-catkin-tools.svg) ![Installs](https://vsmarketplacebadges.dev/installs-short/betwo.b2-catkin-tools.svg)](https://marketplace.visualstudio.com/items?itemName=betwo.b2-catkin-tools)
+[![Licence](https://img.shields.io/github/license/betwo/vscode-catkin-tools.png)](https://github.com/betwo/vscode-catkin-tools)
+[![VS Code Marketplace](https://vsmarketplacebadges.dev/version-short/betwo.b2-catkin-tools.png) ![Rating](https://vsmarketplacebadges.dev/rating-short/betwo.b2-catkin-tools.png) ![Downloads](https://vsmarketplacebadges.dev/downloads-short/betwo.b2-catkin-tools.png) ![Installs](https://vsmarketplacebadges.dev/installs-short/betwo.b2-catkin-tools.png)](https://marketplace.visualstudio.com/items?itemName=betwo.b2-catkin-tools)
 
 This extension makes it easier to work with [catkin-tools](https://github.com/catkin/catkin_tools).
 To some extent, it also allows the usage of [colcon](https://github.com/colcon) as the build tool to use.
