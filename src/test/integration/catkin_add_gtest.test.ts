@@ -38,7 +38,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 
 				build_dir = await workspace.getBuildDir();
 				devel_dir = await workspace.getDevelDir();
-				expect(workspace.packages.size).to.equal(4);
+				expect(workspace.packages.size).to.equal(5);
 
 				const pkg_a = workspace.packages.get("package_a");
 				const pkg_wo_tests = workspace.packages.get("package_wo_tests");
