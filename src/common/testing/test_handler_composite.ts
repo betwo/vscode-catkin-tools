@@ -43,7 +43,6 @@ export class TestHandlerComposite implements WorkspaceTestHandler {
                 new vscode.Position(test_interface.line, 0),
                 new vscode.Position(test_interface.line, 100));
         }
-        logger.info(`OLD LINE: ${test_item?.range?.start}`);
     }
 
 

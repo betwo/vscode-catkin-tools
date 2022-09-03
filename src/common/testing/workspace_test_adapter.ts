@@ -404,9 +404,7 @@ export class WorkspaceTestAdapter {
     ): void {
         logger.info(`Register test with id ${test.item.id}`);
         if (parent !== undefined) {
-            logger.silly(`ADD CHILD ${test.item.id}`);
             parent.addChild(handler);
-            logger.silly(parent.test().id.evaluate({}), parent.test().children.length);
         }
         this.item_to_test_runner.set(test.item, handler);
         this.item_to_test.set(test.item, test);

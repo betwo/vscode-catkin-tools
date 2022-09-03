@@ -36,7 +36,6 @@ export class TestHandlerCatkinPackage extends TestHandlerComposite {
         }
         this.workspace = adapter.workspace;
 
-
         pkg.onTestSuiteModified.event(async () => {
             await this.updateWithInstance();
         });

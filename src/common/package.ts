@@ -225,6 +225,7 @@ export class Package implements IPackage {
         this.test_instance.handler,
         this.test_instance
       );
+      await this.test_instance.handler?.reload();
     }
     await this.test_instance.handler?.updateTestItem();
     if (changed_tests.length > 0) {
