@@ -22,7 +22,7 @@ export async function getCatkinBuildTask(workspace: IWorkspace): Promise<vscode.
     let task = new vscode.Task(
       kind, workspace_root, taskName,
       catkin_tools_build_script, new vscode.CustomExecution(async (): Promise<vscode.Pseudoterminal> => {
-        return new CatkinToolsTerminal(workspace, ['build', '--no-notify']);
+        return new CatkinToolsTerminal(workspace, ['build']);
       }));
     task.group = vscode.TaskGroup.Build;
     result.push(task);
@@ -33,7 +33,7 @@ export async function getCatkinBuildTask(workspace: IWorkspace): Promise<vscode.
     let task = new vscode.Task(
       kind, workspace_root, taskName,
       catkin_tools_build_script, new vscode.CustomExecution(async (): Promise<vscode.Pseudoterminal> => {
-        return new CatkinToolsTerminal(workspace, ['build', '--no-notify', '--make-args', 'tests']);
+        return new CatkinToolsTerminal(workspace, ['build', '--make-args', 'tests']);
       }));
     task.group = vscode.TaskGroup.Build;
     result.push(task);
@@ -55,7 +55,7 @@ export async function getCatkinBuildTask(workspace: IWorkspace): Promise<vscode.
     let task = new vscode.Task(
       kind, workspace_root, taskName,
       catkin_tools_build_script, new vscode.CustomExecution(async (): Promise<vscode.Pseudoterminal> => {
-        return new CatkinToolsTerminal(workspace, ['build', '--no-notify', '--this', '-v', '--no-deps'], true);
+        return new CatkinToolsTerminal(workspace, ['build', '--this', '-v', '--no-deps'], true);
       }));
     task.group = vscode.TaskGroup.Build;
     result.push(task);
@@ -67,7 +67,7 @@ export async function getCatkinBuildTask(workspace: IWorkspace): Promise<vscode.
       kind, workspace_root, taskName,
       catkin_tools_build_script, new vscode.CustomExecution(async (resolvedDefinition: vscode.TaskDefinition): Promise<vscode.Pseudoterminal> => {
         return new CatkinToolsTerminal(workspace,
-          ['test', '--no-notify', '--this'],
+          ['test', '--this'],
           true, [['CTEST_OUTPUT_ON_FAILURE', '1']]);
       }));
     task.group = vscode.TaskGroup.Build;

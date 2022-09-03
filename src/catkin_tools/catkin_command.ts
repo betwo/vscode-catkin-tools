@@ -18,6 +18,9 @@ export async function runCatkinCommand(
             if (args.indexOf('--force-color') < 0) {
                 args.splice(1, 0, '--force-color');
             }
+            if (args.indexOf('--no-notify') < 0) {
+                args.splice(1, 0, '--no-notify');
+            }
         }
         return await runCommand("catkin", args, [], cwd, additional_env_vars, callback, out, error);
     } catch (error) {
