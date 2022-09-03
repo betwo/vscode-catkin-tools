@@ -52,10 +52,10 @@ export class GoogleTestCaseHandler extends AbstractGoogleTestHandler<undefined> 
 
     getTestCaseFilter(): string {
         let filter = this.test_instance.test.id.test;
-        if(this.parameters.instance !== undefined) {
+        if (this.parameters.instance !== undefined) {
             filter = `${this.parameters.instance}/${filter}`;
         }
-        if(this.parameters.generator !== undefined) {
+        if (this.parameters.generator !== undefined) {
             filter = `${filter}/${this.parameters.generator}`;
         }
         return filter;
@@ -68,27 +68,22 @@ export class GoogleTestCaseHandler extends AbstractGoogleTestHandler<undefined> 
         return `${fixture_filter}.${filter}`;
     }
 
-    override handleTestCaseResult(classname: string, name: string, test_run: vscode.TestRun, failures?: string[], error?: string) : boolean {
+    override handleTestCaseResult(classname: string, name: string, test_run: vscode.TestRun, failures?: string[], error?: string): boolean {
         if (classname !== this.class_name || name !== this.test_name) {
             return false;
         }
 
-        let all_succeeded = true;
         if (failures !== undefined) {
             test_run.failed(this.item(), failures.map(msg => new vscode.TestMessage(msg)));
-            all_succeeded = false;
         } else {
             if (error !== undefined) {
                 test_run.errored(this.item(), new vscode.TestMessage(error));
-                all_succeeded = false;
             } else {
                 test_run.passed(this.item());
             }
         }
 
-        super.handleTestCaseResult(classname, name, test_run, failures, error);
-
-        return all_succeeded;
+        return true;
     }
 
     enumerateTests(run_tests_individually: boolean, tests: WorkspaceTestInstance[]) {

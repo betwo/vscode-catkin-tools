@@ -118,20 +118,14 @@ export class GoogleTestFixtureHandler extends AbstractGoogleTestHandler<GoogleTe
             return false;
         }
 
-        let all_succeeded = true;
         if (errors > 0) {
             test_run.errored(this.item(), new vscode.TestMessage(`${errors} test(s) errored`));
-            all_succeeded = false;
         } else if (failures > 0) {
             test_run.failed(this.item(), new vscode.TestMessage(`${failures} test(s) failed`));
-            all_succeeded = false;
         } else {
             test_run.passed(this.item());
         }
-        if (!super.handleTestFixtureResult(classname, test_run, failures, errors)) {
-            all_succeeded = false;
-        }
-        return all_succeeded;
+        return true;
     }
 
     enumerateTests(run_tests_individually: boolean, tests: WorkspaceTestInstance[]) {

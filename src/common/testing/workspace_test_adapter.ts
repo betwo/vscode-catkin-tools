@@ -468,7 +468,10 @@ export class WorkspaceTestAdapter {
             }
 
             const tests_to_run = this.enumerateTests(request);
-            await this.performTestRun(tests_to_run, test_run, token);
+            const result = await this.performTestRun(tests_to_run, test_run, token);
+            if(!result.succeeded()) {
+                logger.warn("At least one test did not pass.");
+            }
         }
     }
 
@@ -518,8 +521,8 @@ export class WorkspaceTestAdapter {
             const working_dir = await this.workspace.getBuildDir();
             const test_environment = await this.workspace.getRuntimeEnvironment();
 
-            let runner: WorkspaceTestHandler = this.createTestRunHandler(tests_to_run);
-            return await runner.run(test_run, token, this.diagnostics, test_environment, working_dir);
+            let handler: WorkspaceTestHandler = this.createTestRunHandler(tests_to_run);
+            return await handler.run(test_run, token, this.diagnostics, test_environment, working_dir);
 
         } catch (error) {
             test_run.appendOutput('Test handler did not handle error:\r\n');

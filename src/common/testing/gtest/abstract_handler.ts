@@ -23,7 +23,10 @@ import { WorkspaceTestAdapter } from '../workspace_test_adapter';
 import { logger } from '../../logging';
 import { getExtensionConfiguration } from '../../configuration';
 
-
+type GtestAnalysisResult =
+    "AllHandled" |
+    "CannotReadOutput" |
+    "UnmatchedTestCase";
 
 export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogleTestHandler<any> | undefined> implements WorkspaceTestHandler {
     private active_process: child_process.ChildProcess;
@@ -138,7 +141,17 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
             this.setDefaultArguments(commands.args);
             const output_file = await this.prepareGTestOutputFile(this.test_instance.test, commands);
             const test_result = await this.runCommands(commands, test_run, token, diagnostics, environment, cwd);
-            await this.analyzeGtestResult(test_run, diagnostics, output_file, test_result.message.message.toString());
+            const all_handled = await this.analyzeGtestResult(test_run, diagnostics, output_file, test_result.message.message.toString());
+            if (all_handled === "AllHandled") {
+                return new WorkspaceTestReport(test_result.succeeded());
+            }
+            logger.info(`Not all results were handled (${all_handled}), retry after reloading tests.`);
+            await this.reload();
+            const all_results_handled = await this.analyzeGtestResult(test_run, diagnostics, output_file, test_result.message.message.toString());
+            if (all_results_handled === "AllHandled") {
+                logger.info(`Not all results were handled (${all_handled}) after reloading tests.`);
+                return new WorkspaceTestReport(test_result.succeeded());
+            }
             return new WorkspaceTestReport(test_result.succeeded());
 
         } catch (error) {
@@ -386,7 +399,8 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
     private async analyzeGtestResult(test_run: vscode.TestRun,
         diagnostics: vscode.DiagnosticCollection,
         output_file: string,
-        test_output: string): Promise<boolean> {
+        test_output: string
+    ): Promise<GtestAnalysisResult> {
         let dom = undefined;
         try {
             let options = {
@@ -397,13 +411,12 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
             dom = xml.parse(content_raw.toString(), options);
 
             // send the result for all matching ids
-            const all_succeeded = this.readTestResults(test_run, diagnostics, dom);
-            return all_succeeded;
+            return this.readTestResults(test_run, diagnostics, dom);
 
         } catch (error) {
             test_run.appendOutput(`(Cannot read the test results results from ${output_file})`);
             test_run.errored(this.test_instance.item, new vscode.TestMessage(test_output));
-            return false;
+            return "CannotReadOutput";
         }
     }
 
@@ -412,8 +425,8 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
         test_run: vscode.TestRun,
         diagnostics: vscode.DiagnosticCollection,
         dom
-    ): boolean {
-        let all_succeeded = true;
+    ): GtestAnalysisResult {
+        let all_cases_handled = true;
 
         gtest_problem_matcher.analyze(dom, diagnostics);
 
@@ -431,7 +444,7 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
                 const failures = parseInt(node_case.attr['@_failures']);
                 const errors = parseInt(node_case.attr['@_errors']);
                 if (!this.handleTestFixtureResult(fixture_name, test_run, failures, errors)) {
-                    all_succeeded = false;
+                    all_cases_handled = false;
                 }
 
                 const testcases = wrapArray(node_case['testcase']);
@@ -445,33 +458,35 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
                         failures = f.map(failure => failure['#text']);
                     }
                     if (!this.handleTestCaseResult(class_name, name, test_run, failures, test_case['error']?.['#text'])) {
-                        all_succeeded = false;
+                        all_cases_handled = false;
                     }
                 }
             }
         }
 
-        return all_succeeded;
+        if (!all_cases_handled) {
+            return "UnmatchedTestCase";
+        } else {
+            return "AllHandled";
+        }
     }
 
     handleTestFixtureResult(classname: string, test_run: vscode.TestRun, failures: number, errors: number): boolean {
-        let all_succeeded = true;
         for (const child of this.children) {
-            if (!child.handleTestFixtureResult(classname, test_run, failures, errors)) {
-                all_succeeded = false;
+            if (child.handleTestFixtureResult(classname, test_run, failures, errors)) {
+                return true;
             }
         }
-        return all_succeeded;
+        return false;
     }
 
     handleTestCaseResult(classname: string, name: string, test_run: vscode.TestRun, failure?: string[], error?: string): boolean {
-        let all_succeeded = true;
         for (const child of this.children) {
-            if (!child.handleTestCaseResult(classname, name, test_run, failure, error)) {
-                all_succeeded = false;
+            if (child.handleTestCaseResult(classname, name, test_run, failure, error)) {
+                return true;
             }
         }
-        return all_succeeded;
+        return false;
     }
 
     public getFixtureFilter(): string {

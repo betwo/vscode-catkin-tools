@@ -80,13 +80,12 @@ export class GoogleTestCaseInstanceHandler extends AbstractGoogleTestHandler<Goo
     }
 
     handleTestCaseResult(classname: string, name: string, test_run: vscode.TestRun, failure?: string[], error?: string): boolean {
-        let all_succeeded = true;
         for (const child of this.children) {
-            if (!child.handleTestCaseResult(classname, name, test_run, failure, error)) {
-                all_succeeded = false;
+            if (child.handleTestCaseResult(classname, name, test_run, failure, error)) {
+                return true;
             }
         }
-        return all_succeeded;
+        return false;
     }
 
     async makeCommands(): Promise<WorkspaceTestCommandlineParameters> {
