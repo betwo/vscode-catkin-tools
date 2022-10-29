@@ -159,7 +159,7 @@ export class CppToolsConfigurationProvider implements CustomConfigurationProvide
             }
           });
           if (!found) {
-            setStatusText('(no usage of header file  found.');
+            setStatusText('(no usage of header file found.)');
           }
         } catch (error) {
           logger.error(error);
