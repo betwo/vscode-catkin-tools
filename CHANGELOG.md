@@ -205,3 +205,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed CLI coloring issues
+
+## [4.4.0] - 2022-10-29
+
+### Changed
+- Full release of the previous pre-release
+
+### Fixed
+- Minor fixes in unit test handling
