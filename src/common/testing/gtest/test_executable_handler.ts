@@ -30,10 +30,10 @@ export class GoogleTestExecutableHandler extends AbstractGoogleTestHandler<Googl
         super(test_interface, parameters, parent, pkg, workspace, adapter);
 
         this.test_executable = this.test_instance.test;
-        this.updateExecutable();
+        this.updateExecutable(false);
     }
 
-    async reload(): Promise<void> {
+    async reload(query_for_cases: boolean): Promise<void> {
         // update from source first
         const catkin_pkg = this.test_interface.package as Package;
 
@@ -46,18 +46,18 @@ export class GoogleTestExecutableHandler extends AbstractGoogleTestHandler<Googl
             true
         );
         if(changes_in_source.length > 0 || changes_in_binary.length > 0) {
-            await this.updateExecutable();
+            await this.updateExecutable(query_for_cases);
         }
-        await super.reload();
+        await super.reload(query_for_cases);
     }
 
-    async updateExecutable() {
+    async updateExecutable(query_for_cases: boolean) {
         for (let child of this.test_executable.children) {
             let handler = this.fixtures.get(child);
             if (handler === undefined) {
                 this.createChildHandler(child);
             } else {
-                await handler.reload();
+                await handler.reload(query_for_cases);
             }
         }
     }

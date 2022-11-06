@@ -176,7 +176,7 @@ export class WorkspaceTestAdapter {
 
     public async reloadTestItem(test_item: vscode.TestItem): Promise<boolean> {
         const handler = this.getTestHandlerForItem(test_item);
-        await handler.reload();
+        await handler.reload(true);
         return true;
     }
 
@@ -255,7 +255,12 @@ export class WorkspaceTestAdapter {
                 item.busy = false;
                 return;
             }
-            await this.updatePackageTests(pkg, false);
+            if (item.id.startsWith("package_")) {
+                await this.updatePackageTests(pkg, false);
+            } else {
+                let handler = this.getTestHandlerForItem(item);
+                await handler.reload(true);
+            }
 
             item.error = undefined;
             item.busy = false;
@@ -310,12 +315,17 @@ export class WorkspaceTestAdapter {
 
             const changed_tests = await workspace_package.loadTests(build_dir, devel_dir, !outline_only);
 
-            for (let changed_test of changed_tests) {
-                for (let [item, handler] of this.item_to_test_runner) {
+            let handlers_to_update = [];
+            for (let [item, handler] of this.item_to_test_runner) {
+                for (let changed_test of changed_tests) {
                     if (handler.test() === changed_test) {
-                        await handler.reload();
+                        handlers_to_update.push(handler);
                     }
                 }
+            }
+            logger.info(`Need to update ${handlers_to_update.length} handlers`);
+            for (let handler of handlers_to_update) {
+                await handler.reload(!outline_only);
             }
 
         } catch (error) {
@@ -467,7 +477,7 @@ export class WorkspaceTestAdapter {
 
             const tests_to_run = this.enumerateTests(request);
             const result = await this.performTestRun(tests_to_run, test_run, token);
-            if(!result.succeeded()) {
+            if (!result.succeeded()) {
                 logger.warn("At least one test did not pass.");
             }
         }
@@ -599,8 +609,8 @@ export class WorkspaceTestAdapter {
         return this.id_to_test.get(id);
     }
 
-    public async refreshPackage(workspace_package: IPackage) {
-        await this.loadPackageTests(workspace_package, false);
+    public async refreshPackage(workspace_package: IPackage, query_for_cases: boolean) {
+        await this.loadPackageTests(workspace_package, !query_for_cases);
     }
 
     private escapeFilter(filter: String) {

@@ -1,9 +1,9 @@
-import * as path from 'path';
-
 import { IBuildTarget, WorkspaceTestInterface, WorkspaceTestIdentifierTemplate, WorkspaceTestParameters, WorkspaceFixtureParameters } from "vscode-catkin-tools-api";
 import { logger } from '../../logging';
 import { Package } from '../../package';
 import { runShellCommand, ShellOutput } from '../../shell_command';
+
+import * as fs from 'fs';
 
 export async function updateTestsFromExecutable(
   build_target: IBuildTarget,

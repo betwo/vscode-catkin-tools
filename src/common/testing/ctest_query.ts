@@ -9,7 +9,6 @@ import { logger } from '../logging';
 
 export async function getCTestTargets(build_dir: fs.PathLike, name: String, query_for_cases: boolean): Promise<IBuildTarget[]> {
     let build_space = `${build_dir}/${name}`;
-
     // discover build targets:
     // ctest -N
     //  ->
@@ -18,6 +17,10 @@ export async function getCTestTargets(build_dir: fs.PathLike, name: String, quer
 
     // find gtest build targets
     let test_build_targets: IBuildTarget[] = [];
+    if(!fs.existsSync(build_space)) {
+        return test_build_targets;
+    }
+
     if (query_for_cases) {
         try {
             let output = await runCommand('ctest', ['-N', '-V'], [], build_space);

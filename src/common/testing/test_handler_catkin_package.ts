@@ -58,7 +58,7 @@ export class TestHandlerCatkinPackage extends TestHandlerComposite {
         logger.silly(executable.id.evaluate({}));
         let handler = this.tests.get(executable);
         if (handler !== undefined) {
-            await handler.reload();
+            await handler.reload(true);
         } else {
             const pkg = this.test_instance.test.package;
             let child_parameters = { ...this.test_instance.parameters }; // TODO: is this all that is needed?
@@ -68,18 +68,14 @@ export class TestHandlerCatkinPackage extends TestHandlerComposite {
         }
     }
 
-    dispose(): void {
-        // FIXME:
-        logger.info("TODO: dispose of catkin package");
-    }
+    dispose(): void {}
     async loadTests(build_dir: fs.PathLike, devel_dir: fs.PathLike, query_for_cases: boolean): Promise<void> {
         await this.pkg.loadTests(build_dir, devel_dir, query_for_cases);
-        await super.reload();
+        await super.reload(query_for_cases);
     }
 
-    async reload(): Promise<void> {
-        logger.info("TODO: reload of catkin package");
-        await this.loadTests(await this.workspace.getBuildDir(), await this.workspace.getDevelDir(), true);
+    async reload(query_for_cases: boolean): Promise<void> {
+        await this.loadTests(await this.workspace.getBuildDir(), await this.workspace.getDevelDir(), query_for_cases);
     }
 
     async compile(
