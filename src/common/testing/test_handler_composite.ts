@@ -50,9 +50,9 @@ export class TestHandlerComposite implements WorkspaceTestHandler {
         return;
     }
 
-    async reload(): Promise<void> {
+    async reload(query_for_cases: boolean): Promise<void> {
         for(let child of this.children) {
-            await child.reload();
+            await child.reload(query_for_cases);
         }
         return;
     }

@@ -100,7 +100,7 @@ export class Workspace implements IWorkspace {
         logger.info("Workspace is initialized");
       }
 
-      this.workspace_provider.reload();
+      this.workspace_provider.reload(false);
 
       this.build_commands_changed.dispatch();
 
@@ -527,14 +527,16 @@ export class Workspace implements IWorkspace {
 
                 let package_xml = await this.locatePackageXML(filename);
                 let workspace_package = await this.loadPackage(package_xml);
-                if (workspace_package && workspace_package.has_tests) {
-                  await this.test_adapter.updatePackageTests(workspace_package, true);
-                  // this.test_adapter.updateSuiteSet();
-                  logger.debug(`New package ${workspace_package.name} found and ${workspace_package.package_test_suite.children === null ?
-                    "unknown" :
-                    workspace_package.package_test_suite.children.length} tests added`);
-                } else {
-                  logger.debug(`New package ${workspace_package.name} but no package.xml found`);
+                if (workspace_package !== undefined && workspace_package !== null) {
+                  if (workspace_package.has_tests) {
+                    await this.test_adapter.updatePackageTests(workspace_package, true);
+                    // this.test_adapter.updateSuiteSet();
+                    logger.debug(`New package ${workspace_package.name} found and ${workspace_package.package_test_suite.children === null ?
+                      "unknown" :
+                      workspace_package.package_test_suite.children.length} tests added`);
+                  } else {
+                    logger.debug(`New package ${workspace_package.name} but no package.xml found`);
+                  }
                 }
               }
             } else {

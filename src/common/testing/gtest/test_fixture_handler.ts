@@ -38,12 +38,12 @@ export class GoogleTestFixtureHandler extends AbstractGoogleTestHandler<GoogleTe
         //     this.removeChildHandler(child);
         // });
 
-        this.updateFixture();
+        this.updateFixture(false);
     }
 
-    async reload(): Promise<void> {
-        await this.updateFixture();
-        await super.reload();
+    async reload(query_for_cases: boolean): Promise<void> {
+        await this.updateFixture(query_for_cases);
+        await super.reload(query_for_cases);
     }
 
 
@@ -58,14 +58,14 @@ export class GoogleTestFixtureHandler extends AbstractGoogleTestHandler<GoogleTe
         return handler;
     }
 
-    async updateFixture() {
+    async updateFixture(query_for_cases: boolean) {
         let still_existing: (GoogleTestCaseHandler | GoogleTestCaseInstanceHandler)[] = [];
         for (let child of this.test_fixture.children) {
             let handler = this.instances.get(child);
             if (handler === undefined) {
                 handler = this.createChildHandler(child);
             } else {
-                await handler.reload();
+                await handler.reload(query_for_cases);
             }
             still_existing.push(handler);
         }

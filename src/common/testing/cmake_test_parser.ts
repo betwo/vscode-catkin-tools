@@ -35,8 +35,9 @@ export async function skimCmakeListsForTests(workspace_package: Package): Promis
     return false;
 }
 
-export async function parsePackageForTests(workspace_package: IPackage): Promise<WorkspaceTestInterface[]> {
-    return queryCMakeFileApiCodeModel(workspace_package);
+export async function parsePackageForTests(workspace_package: IPackage, query_for_cases: boolean)
+    : Promise<WorkspaceTestInterface[]> {
+    return queryCMakeFileApiCodeModel(workspace_package, query_for_cases);
 }
 
 async function* iterateTestTargets(cmake_file: fs.PathLike) {
@@ -57,7 +58,8 @@ async function* iterateTestTargets(cmake_file: fs.PathLike) {
     }
 }
 
-async function queryCMakeFileApiCodeModel(workspace_package: IPackage): Promise<WorkspaceTestInterface[]> {
+async function queryCMakeFileApiCodeModel(workspace_package: IPackage, query_for_cases: boolean)
+    : Promise<WorkspaceTestInterface[]> {
     const package_space = workspace_package.getAbsolutePath();
     const build_space = workspace_package.current_build_space.toString();
     const api_dir = path.join(build_space, ".cmake", "api", "v1");

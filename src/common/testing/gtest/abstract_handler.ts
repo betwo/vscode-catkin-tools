@@ -84,14 +84,14 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
         }
     }
 
-    async reload(): Promise<void> {
+    async reload(query_for_cases: boolean): Promise<void> {
         this.loadTests(await this.workspace.getBuildDir(), await this.workspace.getDevelDir(), true);
-        await this.reloadChildren();
+        await this.reloadChildren(query_for_cases);
     }
 
-    async reloadChildren(): Promise<void> {
+    async reloadChildren(query_for_cases: boolean): Promise<void> {
         for (let child of this.children) {
-            await child.reload();
+            await child.reload(query_for_cases);
         }
     }
 
@@ -146,7 +146,7 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
                 return new WorkspaceTestReport(test_result.succeeded());
             }
             logger.info(`Not all results were handled (${all_handled}), retry after reloading tests.`);
-            await this.reload();
+            await this.reload(true);
             const all_results_handled = await this.analyzeGtestResult(test_run, diagnostics, output_file, test_result.message.message.toString());
             if (all_results_handled === "AllHandled") {
                 logger.info(`Not all results were handled (${all_handled}) after reloading tests.`);

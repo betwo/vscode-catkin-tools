@@ -1,9 +1,9 @@
-import * as path from 'path';
-
 import { IBuildTarget, WorkspaceTestInterface, WorkspaceTestIdentifierTemplate, WorkspaceTestParameters, WorkspaceFixtureParameters } from "vscode-catkin-tools-api";
 import { logger } from '../../logging';
 import { Package } from '../../package';
 import { runShellCommand, ShellOutput } from '../../shell_command';
+
+import * as fs from 'fs';
 
 export async function updateTestsFromExecutable(
   build_target: IBuildTarget,
@@ -27,6 +27,11 @@ export async function updateTestsFromExecutable(
   }
 
   if (query_for_cases) {
+    if (!fs.existsSync(build_target.exec_path)) {
+      logger.error(`Cannot determine ${build_target.exec_path}'s tests: binary does not exist`);
+      return changed_tests;
+    }
+
     // try to extract test names, if the target is compiled
     const cmd = await pkg.workspace.makeCommand(`${build_target.exec_path} --gtest_list_tests`);
     const environment = await pkg.workspace.getRuntimeEnvironment();

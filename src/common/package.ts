@@ -197,6 +197,13 @@ export class Package implements IPackage {
 
     let changed_tests: WorkspaceTestInterface[] = [];
 
+    // generate a list of all tests in this target
+    let source_tests = await this.updateTestExecutableFromSource(query_for_cases, false, false);
+    logger.info(source_tests);
+    if (!query_for_cases) {
+      changed_tests = changed_tests.concat(source_tests);
+    }
+
     // find gtest build targets
     let test_build_targets: IBuildTarget[] = await getCTestTargetExecutables(build_dir, this.name, query_for_cases);
     this.updatePackageImpl(test_build_targets);
@@ -205,12 +212,6 @@ export class Package implements IPackage {
       changed_tests = changed_tests.concat(changed);
     }
 
-    // generate a list of all tests in this target
-    let source_tests = await this.updateTestExecutableFromSource(query_for_cases, false, false);
-    logger.info(source_tests);
-    if (!query_for_cases) {
-      changed_tests = changed_tests.concat(source_tests);
-    }
 
     if (query_for_cases) {
       this.tests_loaded = true;
@@ -225,7 +226,7 @@ export class Package implements IPackage {
         this.test_instance.handler,
         this.test_instance
       );
-      await this.test_instance.handler?.reload();
+      await this.test_instance.handler?.reload(query_for_cases);
     }
     await this.test_instance.handler?.updateTestItem();
     if (changed_tests.length > 0) {
@@ -242,7 +243,7 @@ export class Package implements IPackage {
 
     if (query_for_cases) {
       try {
-        const parsed_test_executables = await parsePackageForTests(this);
+        const parsed_test_executables = await parsePackageForTests(this, query_for_cases);
         for (const parsed_executable of parsed_test_executables) {
           let [test_ifc, exec_was_changed] = await this.updateTestExecutable(parsed_executable, only_update_existing, is_partial_update);
           if (exec_was_changed) {

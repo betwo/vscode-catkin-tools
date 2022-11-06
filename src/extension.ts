@@ -175,7 +175,7 @@ async function scanPackageContaining(workspace: Workspace, uri: vscode.Uri) {
     if (workspace_package.has_tests) {
       if (packageScansPending.get(workspace_package.getName()) === undefined) {
         packageScansPending.set(workspace_package.getName(), workspace_package);
-        await workspace.test_adapter.refreshPackage(workspace_package);
+        await workspace.test_adapter.refreshPackage(workspace_package, true);
         packageScansPending.delete(workspace_package.getName());
       }
     }

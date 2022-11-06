@@ -33,12 +33,12 @@ export class GoogleTestCaseInstanceHandler extends AbstractGoogleTestHandler<Goo
             logger.error("Tried to manage an test without instances");
         }
 
-        this.updateTestCases();
+        this.updateTestCases(false);
     }
 
-    async reload(): Promise<void> {
-        await this.updateTestCases();
-        await super.reload();
+    async reload(query_for_cases: boolean): Promise<void> {
+        await this.updateTestCases(query_for_cases);
+        await super.reload(query_for_cases);
     }
 
 
@@ -48,7 +48,7 @@ export class GoogleTestCaseInstanceHandler extends AbstractGoogleTestHandler<Goo
         this.instances.set(instance_id, handler);
         return handler;
     }
-    async updateTestCases() {
+    async updateTestCases(query_for_cases: boolean) {
         let still_existing: string[] = [];
         for (let instance of this.test_case.instances) {
             if (instance.fixture?.instance !== this.parameters.fixture?.instance ||
@@ -60,7 +60,7 @@ export class GoogleTestCaseInstanceHandler extends AbstractGoogleTestHandler<Goo
             if (handler === undefined) {
                 handler = this.createChildHandler(instance);
             } else {
-                await handler.reload();
+                await handler.reload(query_for_cases);
             }
             still_existing.push(instance_id);
         }

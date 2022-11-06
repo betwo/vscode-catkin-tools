@@ -25,12 +25,12 @@ export class GoogleTestFixtureInstanceHandler extends AbstractGoogleTestHandler<
 
         this.test_fixture = this.test_instance.test;
 
-        this.updateFixture();
+        this.updateFixture(false);
     }
 
-    async reload(): Promise<void> {
-        await this.updateFixture();
-        await super.reload();
+    async reload(query_for_cases: boolean): Promise<void> {
+        await this.updateFixture(query_for_cases);
+        await super.reload(query_for_cases);
     }
 
 
@@ -42,7 +42,7 @@ export class GoogleTestFixtureInstanceHandler extends AbstractGoogleTestHandler<
         return handler;
     }
 
-    async updateFixture() {
+    async updateFixture(query_for_cases: boolean) {
         let still_existing: string[] = [];
         for (let instance of this.test_fixture.instances) {
             const fixture_id = `${instance.fixture.instance}_${instance.fixture.generator}`;
@@ -51,7 +51,7 @@ export class GoogleTestFixtureInstanceHandler extends AbstractGoogleTestHandler<
             if (handler === undefined) {
                 handler = this.createChildHandler(instance);
             } else {
-                await handler.reload();
+                await handler.reload(query_for_cases);
             }
             still_existing.push(instance_id);
         }

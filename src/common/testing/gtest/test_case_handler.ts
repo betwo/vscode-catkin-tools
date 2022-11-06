@@ -30,8 +30,8 @@ export class GoogleTestCaseHandler extends AbstractGoogleTestHandler<undefined> 
         this.test_name = this.getTestCaseFilter();
     }
 
-    async reload(): Promise<void> {
-        await super.reload();
+    async reload(query_for_cases: boolean): Promise<void> {
+        await super.reload(query_for_cases);
     }
 
     async makeCommands(): Promise<WorkspaceTestCommandlineParameters> {
