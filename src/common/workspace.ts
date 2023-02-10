@@ -293,6 +293,9 @@ export class Workspace implements IWorkspace {
 
     this.output_channel.appendLine(`Analyzing ${commands.command}`);
 
+    type CxxStandard = "c89" | "c99" | "c11" | "c++98" | "c++03" | "c++11" | "c++14" | "c++17";
+    let cppStandard: CxxStandard = getExtensionConfiguration('cppStandard');
+
     // Parse the includes and defines from the compile commands
     let new_system_path_found = false;
     for (let i = 1; i < args.length; ++i) {
@@ -336,6 +339,29 @@ export class Workspace implements IWorkspace {
         let define = opt.slice(2).replace(/\\/g, "");
         defines.push(define);
         this.output_channel.appendLine(`   -> add define ${define}`);
+
+      } else if (opt.startsWith('-std=')) {
+        const flag = opt.substr(5);
+
+        // Apply standard mappings from https://gcc.gnu.org/onlinedocs/gcc/C-Dialect-Options.html
+        if (flag === "c++0x") {
+          cppStandard = "c++11";
+        } else if (flag === "c++1y") {
+          cppStandard = "c++14";
+        } else if (flag === "c++1z") {
+          cppStandard = "c++17";
+        } else if (flag === "c++2a") {
+          cppStandard = "c++17";
+          this.output_channel.appendLine(`   C++ 20 is not yet supported, falling back to ${cppStandard}`);
+          continue;
+        } else if (flag === "c++2b") {
+          cppStandard = "c++17";
+          this.output_channel.appendLine(`   C++ 23 is not yet supported, falling back to ${cppStandard}`);
+          continue;
+        } else {
+          cppStandard = flag;
+        }
+        this.output_channel.appendLine(`   -> set standard ${cppStandard}`);
       }
     }
     if (new_system_path_found) {
@@ -348,7 +374,7 @@ export class Workspace implements IWorkspace {
 
     // Construct the combined source file configuration
     const ret: SourceFileConfiguration = {
-      standard: getExtensionConfiguration('cppStandard'),
+      standard: cppStandard,
       intelliSenseMode: getExtensionConfiguration('intelliSenseMode'),
       includePath: includePaths,
       defines: defines,
