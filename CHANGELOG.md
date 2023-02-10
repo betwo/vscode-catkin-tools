@@ -217,3 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.5.0] - 2022-11-07
 ### Fixed
 - Fixed lazy loading of test cases taking a lot of processing time
+
+
+## [4.6.0] - 2023-02-10
+### Fixed
+- Read C++ standard version from compiler cli arguments
