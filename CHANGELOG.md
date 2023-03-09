@@ -222,3 +222,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.6.0] - 2023-02-10
 ### Fixed
 - Read C++ standard version from compiler cli arguments
+
+## [4.7.0] - 2023-03-09
+### Changed
+- Update description for cppStandard
