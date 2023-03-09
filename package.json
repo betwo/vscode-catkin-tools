@@ -75,7 +75,7 @@
           "catkin_tools.cppStandard": {
             "type": "string",
             "default": "c++11",
-            "description": "C++ standard to use  (see C_CPP extension)"
+            "description": "C++ standard to use as fallback if no compile_commands are found (see C_CPP extension)"
           },
           "catkin_tools.useInstallSpace": {
             "type": "boolean",
