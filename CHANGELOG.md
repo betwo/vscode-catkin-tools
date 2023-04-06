@@ -226,3 +226,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.7.0] - 2023-03-09
 ### Changed
 - Update description for cppStandard
+
+
+## [4.7.1] - 2023-04-06
+### Fixed
+- Fixed naming collision between vscode and tslog
