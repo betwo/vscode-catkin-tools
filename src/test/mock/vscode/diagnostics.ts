@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 
 export class MockDiagnosticCollection implements vscode.DiagnosticCollection {
+	[Symbol.iterator](): Iterator<[uri: vscode.Uri, diagnostics: readonly vscode.Diagnostic[]], any, undefined> {
+		throw new Error('Method not implemented.');
+	}
+
 	name: string;
 	diagnostics = new Map<String, [vscode.Uri, vscode.Diagnostic[]]>();
 
@@ -27,7 +31,7 @@ export class MockDiagnosticCollection implements vscode.DiagnosticCollection {
 	}
 	get(uri: vscode.Uri): readonly vscode.Diagnostic[] {
 		const entry = this.diagnostics.get(uri.toString());
-		if(entry === undefined) {
+		if (entry === undefined) {
 			return undefined;
 		}
 		return entry[1];

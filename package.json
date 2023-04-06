@@ -11,7 +11,7 @@
     "url": "https://github.com/betwo/vscode-catkin-tools"
   },
   "engines": {
-    "vscode": "^1.68.0"
+    "vscode": "^1.77.0"
   },
   "categories": [
     "Other",
@@ -292,7 +292,7 @@
     "jsonfile": "^5.0.0",
     "signals": "^1.0.0",
     "tree-kill": "^1.2.2",
-    "tslog": "^3.3.3",
+    "tslog": "^4.8.2",
     "vscode-catkin-tools-api": "file:api",
     "vscode-cpptools": "^2.1.2",
     "vscode-jsonrpc": "^4.0.0"
