@@ -231,3 +231,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.7.1] - 2023-04-06
 ### Fixed
 - Fixed naming collision between vscode and tslog
+
+## [4.8.0] - 2023-06-28
+### Added
+- Added a custom build task and corresponding configuration
+- Added a task to recursively build the current package
