@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { IWorkspace } from 'vscode-catkin-tools-api';
 import { CatkinToolsTerminal } from '../catkin_tools_terminal';
+import { getExtensionConfiguration } from '../../common/configuration';
 
 interface CatkinTaskDefinition extends vscode.TaskDefinition {
   /**
@@ -56,6 +57,31 @@ export async function getCatkinBuildTask(workspace: IWorkspace): Promise<vscode.
       kind, workspace_root, taskName,
       catkin_tools_build_script, new vscode.CustomExecution(async (): Promise<vscode.Pseudoterminal> => {
         return new CatkinToolsTerminal(workspace, ['build', '--this', '-v', '--no-deps'], true);
+      }));
+    task.group = vscode.TaskGroup.Build;
+    result.push(task);
+  }
+  {
+    let taskName = 'build current package with dependencies';
+    let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
+    let task = new vscode.Task(
+      kind, workspace_root, taskName,
+      catkin_tools_build_script, new vscode.CustomExecution(async (): Promise<vscode.Pseudoterminal> => {
+        return new CatkinToolsTerminal(workspace, ['build', '--this'], true);
+      }));
+    task.group = vscode.TaskGroup.Build;
+    result.push(task);
+  }
+  {
+    let taskName = 'build with custom parameters';
+    let kind: CatkinTaskDefinition = { type: 'catkin_build', task: taskName };
+    let getCatkinBuildArgs = () => {
+      return getExtensionConfiguration<string[]>('catkinCustomBuildFlags');
+    };
+    let task = new vscode.Task(
+      kind, workspace_root, taskName,
+      catkin_tools_build_script, new vscode.CustomExecution(async (): Promise<vscode.Pseudoterminal> => {
+        return new CatkinToolsTerminal(workspace, ['build'].concat(getCatkinBuildArgs()), true);
       }));
     task.group = vscode.TaskGroup.Build;
     result.push(task);

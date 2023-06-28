@@ -131,8 +131,9 @@ in your workspace settings.
 ## Tasks
 
 You can register catkin build as a build task in the following way.
-- Press `ctrl+shift+p` > `Tasks: Configure Task` > `catkin_build: build` or `catkin_build: build current package` or `catkin_build: run current package tests`
-- If a `tasks.json` file does not exist, it will be created and a snippet similar to the following will be added. If `tasks.json` already exists, configuration settings are added only to the `"tasks"` section.
+
+* Press `ctrl+shift+p` > `Tasks: Configure Task` > `catkin_build: build` or `catkin_build: build current package` or `catkin_build: run current package tests`
+* If a `tasks.json` file does not exist, it will be created and a snippet similar to the following will be added. If `tasks.json` already exists, configuration settings are added only to the `"tasks"` section.
 
 ```json
 {
@@ -151,9 +152,10 @@ You can register catkin build as a build task in the following way.
 	]
 }
 ```
-- Note: You can add multiple build tasks into a single `tasks.json` file by repeating the above steps.
-- Note: Make sure that `"group": "build"` is present. If not add it. The task will then be available as a build task, i.e it will appear in the drop down menu when you press `ctrl+shift+b`.
-- Note: To set a particular task as the default task, modify the `"group": "build"` to the following. If this is done, you can no longer choose the build tasks and only the default one will be executed when you press `ctrl+shift+b`.
+
+* Note: You can add multiple build tasks into a single `tasks.json` file by repeating the above steps.
+* Note: Make sure that `"group": "build"` is present. If not add it. The task will then be available as a build task, i.e it will appear in the drop down menu when you press `ctrl+shift+b`.
+* Note: To set a particular task as the default task, modify the `"group": "build"` to the following. If this is done, you can no longer choose the build tasks and only the default one will be executed when you press `ctrl+shift+b`.
 ```json
 	"group": {
            	"kind": "build",
@@ -164,6 +166,10 @@ You can register catkin build as a build task in the following way.
 ## Building packages
 
 Press `ctrl+shift+b`. If a default build task is not set, you can can choose between the different build tasks available.
-- `catkin_build: build` will build all the packages in the workspace.
-- `catkin_build: build current package` will only build the package that the currently open file belongs to.
-- `catkin_build: run current package tests` will only build the package that the currently open file belongs to and runs tests.
+
+* `catkin_build: build` will build all the packages in the workspace.
+* `catkin_build: build current package` will only build the package that the currently open file belongs to.
+* `catkin_build: build current package with dependencies` will build the package that the currently open file belongs to including all dependencies.
+* `catkin_build: build with custom parameters` will call build with user provided arguments (`catkinCustomBuildFlags`).
+* `catkin_build: build` will only build the package that the currently open file belongs to.
+* `catkin_build: run current package tests` will only build the package that the currently open file belongs to and runs tests.
