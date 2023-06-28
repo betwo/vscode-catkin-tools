@@ -2,7 +2,6 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import * as glob from 'fast-glob';
-import * as xml from 'fast-xml-parser';
 import * as path from 'path';
 
 import { IPackage, WorkspaceTestInterface, IBuildTarget, WorkspaceTestIdentifierTemplate, WorkspaceTestParameters, isTemplateEqual, WorkspaceTestInstance } from 'vscode-catkin-tools-api';
@@ -14,6 +13,7 @@ import { getCTestTargets as getCTestTargetExecutables } from './testing/ctest_qu
 import { updateTestsFromExecutable } from './testing/gtest/test_binary_parser';
 import { logger } from '../common/logging';
 import { TestHandlerCatkinPackage } from './testing/test_handler_catkin_package';
+import { XMLParser } from 'fast-xml-parser';
 
 export class Package implements IPackage {
   public current_build_dir?: fs.PathLike;
@@ -47,12 +47,11 @@ export class Package implements IPackage {
 
   private async loadPackageXml() {
     const raw_content = await fs.promises.readFile(this.package_xml_path);
-    this.package_xml = xml.parse(raw_content.toString(),
-      {
-        parseAttributeValue: true,
-        ignoreAttributes: false
-      }
-    );
+    const xml_parser = new XMLParser({
+      parseAttributeValue: true,
+      ignoreAttributes: false
+    });
+    this.package_xml = xml_parser.parse(raw_content.toString());
     if (this.package_xml === undefined || this.package_xml === "" ||
       !('package' in this.package_xml)) {
       throw Error(`Invalid package xml file: ${this.package_xml_path}`);
@@ -140,7 +139,8 @@ export class Package implements IPackage {
   public static async getNameFromPackageXML(package_xml_path: fs.PathLike): Promise<string> {
     try {
       const content_raw = await fs.promises.readFile(package_xml_path);
-      let package_xml = xml.parse(content_raw.toString());
+      const parser = new XMLParser();
+      let package_xml = parser.parse(content_raw.toString());
       return package_xml['package']['name'];
     } catch (err) {
       return null;

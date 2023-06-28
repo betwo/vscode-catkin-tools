@@ -16,12 +16,11 @@ import { WorkspaceTestCommandlineParameters } from '../test_parameters';
 import { wrapArray } from '../../utils';
 import * as gtest_problem_matcher from './problem_matcher';
 import * as compiler_problem_matcher from '../../compiler_problem_matcher';
-import * as xml from 'fast-xml-parser';
 import * as treekill from 'tree-kill';
-import { Package } from '../../package';
 import { WorkspaceTestAdapter } from '../workspace_test_adapter';
 import { logger } from '../../logging';
 import { getExtensionConfiguration } from '../../configuration';
+import { XMLParser } from 'fast-xml-parser';
 
 type GtestAnalysisResult =
     "AllHandled" |
@@ -404,11 +403,11 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
         let dom = undefined;
         try {
             let options = {
-                ignoreAttributes: false,
-                attrNodeName: "attr"
+                ignoreAttributes: false
             };
+            const parser = new XMLParser(options);
             const content_raw = await fs.promises.readFile(output_file);
-            dom = xml.parse(content_raw.toString(), options);
+            dom = parser.parse(content_raw.toString());
 
             // send the result for all matching ids
             return this.readTestResults(test_run, diagnostics, dom);
@@ -440,9 +439,9 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
             }
             logger.silly("test_cases:", test_cases);
             for (const node_case of test_cases) {
-                const fixture_name = node_case.attr['@_name'];
-                const failures = parseInt(node_case.attr['@_failures']);
-                const errors = parseInt(node_case.attr['@_errors']);
+                const fixture_name = node_case['@_name'];
+                const failures = parseInt(node_case['@_failures']);
+                const errors = parseInt(node_case['@_errors']);
                 if (!this.handleTestFixtureResult(fixture_name, test_run, failures, errors)) {
                     all_cases_handled = false;
                 }
@@ -450,8 +449,8 @@ export abstract class AbstractGoogleTestHandler<ChildType extends AbstractGoogle
                 const testcases = wrapArray(node_case['testcase']);
                 for (const test_case of testcases) {
                     logger.silly("test_case:", test_case);
-                    const class_name = test_case.attr['@_classname'];
-                    const name = test_case.attr['@_name'];
+                    const class_name = test_case['@_classname'];
+                    const name = test_case['@_name'];
                     let failures: string[] = undefined;
                     if (test_case['failure'] !== undefined) {
                         let f = wrapArray(test_case['failure']);

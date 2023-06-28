@@ -292,7 +292,7 @@
   "dependencies": {
     "child_process": "^1.0.2",
     "fast-glob": "^3.2.6",
-    "fast-xml-parser": "^3.19.0",
+    "fast-xml-parser": "^4.2.5",
     "fs": "0.0.1-security",
     "jsonfile": "^5.0.0",
     "signals": "^1.0.0",

@@ -2,16 +2,16 @@ import * as assert from 'assert';
 import { expect } from 'chai';
 import { analyze } from './problem_matcher';
 import * as vscode from 'vscode';
-import * as xml from 'fast-xml-parser';
 
 import { MockDiagnosticCollection } from '../../../test/mock/vscode/diagnostics';
+import { XMLParser } from 'fast-xml-parser';
 
 function makeDom(text: string) {
 	const options = {
-		ignoreAttributes: false,
-		attrNodeName: "attr"
+		ignoreAttributes: false
 	};
-	return xml.parse(text, options);
+	const parser = new XMLParser(options);
+	return parser.parse(text);
 }
 
 describe('GTest Problem Matcher', () => {
