@@ -236,3 +236,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added a custom build task and corresponding configuration
 - Added a task to recursively build the current package
+
+## [4.8.1] - 2023-06-28
+### Changed
+- Upgraded fast-xml-parser
