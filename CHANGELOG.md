@@ -240,3 +240,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [4.8.1] - 2023-06-28
 ### Changed
 - Upgraded fast-xml-parser
+
+## [4.8.2] - 2023-07-14
+### Fixed
+- Fixed issues with Ubuntu 22.04's way of installing ros / catkin
+- Fixed gtest detection for statically linked test binaries
