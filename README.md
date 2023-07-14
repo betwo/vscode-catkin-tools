@@ -1,7 +1,13 @@
 # catkin-tools support for VS Code
 
 [![Licence](https://img.shields.io/github/license/betwo/vscode-catkin-tools.png)](https://github.com/betwo/vscode-catkin-tools)
-[![VS Code Marketplace](https://vsmarketplacebadges.dev/version-short/betwo.b2-catkin-tools.png) ![Rating](https://vsmarketplacebadges.dev/rating-short/betwo.b2-catkin-tools.png) ![Downloads](https://vsmarketplacebadges.dev/downloads-short/betwo.b2-catkin-tools.png) ![Installs](https://vsmarketplacebadges.dev/installs-short/betwo.b2-catkin-tools.png)](https://marketplace.visualstudio.com/items?itemName=betwo.b2-catkin-tools)
+[![Visual Studio Marketplace Version (including pre-releases)](https://img.shields.io/visual-studio-marketplace/v/betwo.b2-catkin-tools.png)
+![Visual Studio Marketplace Release Date](https://img.shields.io/visual-studio-marketplace/release-date/betwo.b2-catkin-tools.png)
+ ![Visual Studio Marketplace Last Updated](https://img.shields.io/visual-studio-marketplace/last-updated/betwo.b2-catkin-tools.png)
+ ![Rating](https://img.shields.io/visual-studio-marketplace/r/betwo.b2-catkin-tools.png)
+ ![Downloads](https://img.shields.io/visual-studio-marketplace/d/betwo.b2-catkin-tools.png)
+ ![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/betwo.b2-catkin-tools)
+](https://marketplace.visualstudio.com/items?itemName=betwo.b2-catkin-tools)
 
 This extension makes it easier to work with [catkin-tools](https://github.com/catkin/catkin_tools).
 To some extent, it also allows the usage of [colcon](https://github.com/colcon) as the build tool to use.
