@@ -14,6 +14,13 @@ export class TestParserGTest implements ITestParser {
                 }
             }
         }
+        if (json_object.link !== undefined && json_object.type === "EXECUTABLE") {
+            for (const fragment of json_object.link.commandFragments) {
+                if (fragment.fragment.indexOf('libgtest') >= 0) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
