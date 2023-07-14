@@ -34,17 +34,15 @@ jobs:
     needs: build
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-22.04, ubuntu-20.04]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
         with:
           submodules: recursive
-      - run: timeout -k 10s 600s npm run integrationtest-headless
-
-  release-if-new-version:
-    needs:
-      - integration-test
-    if: github.ref == 'refs/heads/master'
-    uses: ./.github/workflows/release.yaml
+      - run: |
+          cd docker/test
+          ln -sf ${{ matrix.os }}.docker headless.docker
+          cd -
+          timeout -k 10s 600s npm run integrationtest-headless

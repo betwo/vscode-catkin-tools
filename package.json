@@ -254,7 +254,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "prebuild-docker-images": "npm run main-set-out",
-    "build-docker-images": "docker build -f docker/test/catkin_tools.docker . -t vscode-catkin-tools",
+    "build-docker-images": "docker build -f docker/test/headless.docker . -t vscode-catkin-tools",
     "pretest": "npm run compile",
     "test": "node ./out/test/run_all_tests.js",
     "pretest-headless": "npm run build-docker-images",
