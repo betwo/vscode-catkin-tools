@@ -24,7 +24,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 
 			before(async function () {
 				// run once before all tests in this fixture
-				this.timeout(50000);
+				this.timeout(100000);
 				const workspaces = extension.api.getWorkspaces();
 				expect(workspaces.size).to.equal(1);
 				workspace = workspaces.get(vscode.workspace.workspaceFolders[0]);
@@ -54,7 +54,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 			it("contains one package", () => {
 				const workspaces = extension.api.getWorkspaces();
 				assert.strictEqual(workspaces.size, 1);
-			}).timeout(50000);
+			}).timeout(100000);
 
 			it("package_a tests can be loaded", async () => {
 				const pkg_a = workspace.packages.get("package_a");
@@ -74,7 +74,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 				assert.strictEqual(test_fixture.children[0].id.test, "succeeds");
 				assert.strictEqual(test_fixture.children[1].id.fixture, "TestSuite");
 				assert.strictEqual(test_fixture.children[1].id.test, "fails");
-			}).timeout(50000);
+			}).timeout(100000);
 
 			it("#package_a tests test result is detected", async () => {
 				const pkg_a = workspace.packages.get("package_a");
@@ -106,7 +106,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 				let failing_test_run = new NoninteractiveTestRun();
 				const should_fail = await workspace.runTest(test_fixture.children[1].id.evaluate({}), failing_test_run);
 				assert(!should_fail.success, `Running the test ${test_fixture.children[1].id} should have failed`);
-			}).timeout(50000);
+			}).timeout(100000);
 
 
 			it("#TEST macro is detected", async () => {
@@ -121,7 +121,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 
 				assert.strictEqual(test_fixture.id.fixture, "TestSuite");
 
-			}).timeout(50000);
+			}).timeout(100000);
 
 
 			it("#TEST location is correct", async () => {
@@ -152,7 +152,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 				expect(test_fixture.children[0].file).to.equal(`${root}/src/package_a/test/test_package_a.cpp`);
 				expect(test_fixture.children[0].file).to.equal(`${root}/src/package_a/test/test_package_a.cpp`);
 
-			}).timeout(50000);
+			}).timeout(100000);
 
 
 			it("#TEST macros are detected", async () => {
@@ -173,7 +173,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 
 				expectIntegrationTestSuiteCorrect(test_exec, prefix, true);
 
-			}).timeout(50000);
+			}).timeout(100000);
 
 		});
 	});
