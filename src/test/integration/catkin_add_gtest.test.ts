@@ -30,7 +30,7 @@ extension.api.workspace_manager.onWorkspacesChanged.event(ws => {
 				workspace = workspaces.get(vscode.workspace.workspaceFolders[0]);
 
 				const default_catkin_workspace = await workspace.workspace_provider.getDefaultRosWorkspace();
-				await workspace.workspace_provider.initialize([default_catkin_workspace]);
+				await workspace.workspace_provider.initialize(default_catkin_workspace === null ? [] : [default_catkin_workspace]);
 				assert(await workspace.workspace_provider.isInitialized(), "workspace is not initialized");
 
 				await extension.api.ensureWorkspaceInitialized();

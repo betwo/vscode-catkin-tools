@@ -94,7 +94,8 @@ export class Workspace implements IWorkspace {
         if (result === ignore) {
           return;
         } else if (result === init) {
-          this.workspace_provider.initialize([await this.workspace_provider.getDefaultRosWorkspace()]);
+          const default_catkin_workspace = await this.workspace_provider.getDefaultRosWorkspace();
+          this.workspace_provider.initialize(default_catkin_workspace === null ? [] : [default_catkin_workspace]);
         }
       } else {
         logger.info("Workspace is initialized");

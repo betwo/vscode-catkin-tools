@@ -105,7 +105,9 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
                 }
             }
         }
-        throw Error("Cannot determine default ros workspace");
+
+        logger.debug(`Did not find a default ros workspace, extending nothing."`);
+        return null;
     }
 
     reload(): Promise<void> {
@@ -178,9 +180,9 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
 
     makeRosSourcecommand(): string {
         const shell = getShellExtension();
-        // determine latest ros2 version
+        // determine latest ros1 version
         let find_ros1_version = `for ROS1_VERSION in $(ls /opt/ros/|sort -r); do CATKIN_LINES=$(cat /opt/ros/$ROS1_VERSION/setup.${shell} | grep CATKIN | wc -l); if [ $CATKIN_LINES != "0" ]; then export INSTALL_PREFIX=/opt/ros/$ROS1_VERSION/; break; fi; done`;
-        let source_script = find_ros1_version + `; source \${INSTALL_PREFIX}/setup.${shell}`;
+        let source_script = `if [ -d "/opt/ros/" ]; then ${find_ros1_version}; source \${INSTALL_PREFIX}/setup.${shell}; fi`;
         return source_script;
     }
 
@@ -217,7 +219,7 @@ export class CatkinWorkspaceProvider implements WorkspaceProvider {
     }
     async isInitialized(): Promise<boolean> {
         const extended_workspace = await this.getConfigEntry("Extending");
-        return extended_workspace !== undefined && extended_workspace !== "None";
+        return extended_workspace !== undefined;
     }
 
     public async checkProfile() {

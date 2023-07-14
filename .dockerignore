@@ -10,5 +10,7 @@ tests/**/devel*
 tests/**/install*
 tests/**/logs*
 tests/**/.vscode
-tests/**/.catkin_tools/*
 !tests/**/.catkin_tools/CATKIN_IGNORE
+tests/**/.catkin_tools/profiles/*
+!tests/**/.catkin_tools/profiles/profiles.yaml
+!tests/**/.catkin_tools/profiles/default/config.yaml

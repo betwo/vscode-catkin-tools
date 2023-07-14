@@ -145,7 +145,7 @@ export class ColconWorkspaceProvider implements WorkspaceProvider {
     makeRosSourcecommand(): string {
         // determine latest ros2 version
         let find_ros2_version = 'for ROS2_VERSION in $(ls /opt/ros/|sort -r); do AMENT_LINES=$(cat /opt/ros/$ROS2_VERSION/setup.sh | grep ament | wc -l); if [ $AMENT_LINES != "0" ]; then export INSTALL_PREFIX=/opt/ros/$ROS2_VERSION/; break; fi; done';
-        let source_script = find_ros2_version + '; source ${INSTALL_PREFIX}/setup.$(echo ${SHELL} | xargs basename)';
+        let source_script = `if [ -d "/opt/ros/" ]; then ${find_ros2_version}; source \${INSTALL_PREFIX}/setup.$(echo \${SHELL} | xargs basename); fi`;
         return source_script;
     }
 
