@@ -245,3 +245,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed issues with Ubuntu 22.04's way of installing ros / catkin
 - Fixed gtest detection for statically linked test binaries
+
+## [4.8.3] - 2023-07-17
+### Changed
+- No changes, properly released 4.8.2 pre-release
